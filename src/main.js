@@ -1,4 +1,7 @@
 import { LessonSession } from "./domain/LessonSession.js";
+import { JourneySession } from "./domain/JourneySession.js";
+import { getCompanion, getWorld } from "./config/legacyAssets.js";
+import { WORLDS } from "./config/scenes.js";
 import { MuseumEngine } from "./render/MuseumEngine.js";
 import { MuseApi } from "./services/api.js";
 import { ProfileStore } from "./services/profile.js";
@@ -8,6 +11,7 @@ import { AppView } from "./ui/AppView.js";
 const api = new MuseApi();
 const profileStore = new ProfileStore();
 const session = new LessonSession();
+const journey = new JourneySession();
 const view = new AppView();
 const state = {
   status: { openai: false, realtime: false, world_forge: false, model: "gpt-5.6" },
@@ -16,7 +20,9 @@ const state = {
   room: null,
   roomTimer: null,
   salon: null,
-  worldId: "gallery",
+  worldId: "bright-gallery",
+  draftCompanions: [...journey.companions],
+  selectedCompanions: [...journey.companions],
   metrics: null,
   busy: false
 };
@@ -25,29 +31,87 @@ const engine = new MuseumEngine(document.getElementById("world"), {
   onGuideState: handleGuideState,
   onMetrics: (metrics) => { state.metrics = metrics; view.setSync(metrics); },
   onFollowChange: (enabled) => document.getElementById("follow-button").setAttribute("aria-pressed", String(enabled)),
-  onWorldLayerStatus: ({ message }) => view.toast(message)
+  onWorldLayerStatus: ({ message }) => view.toast(message),
+  onCompanionStatus: ({ live, companion }) => view.toast(live ? `${companion.fullName} · archived 3D companion live` : `${companion.fullName} · spatial fallback active`)
 });
 const voice = new VoiceSession({ sessionId: api.sessionId, onState: (value) => setVoiceState(value) });
 
 view.bind({
-  onStart: startLesson,
+  onStart: startJourney,
   onAnswer: answerQuestion,
   onContinue: continueLesson,
   onDrawer: openDrawer,
   onAction: handleAction,
-  onDrawerAction: handleDrawerAction
+  onDrawerAction: handleDrawerAction,
+  onCompanionToggle: toggleCompanion,
+  onCurate: curateJourney,
+  onEnterWalk: enterWalk,
+  onRewrite: rewriteWorld,
+  onEnterFinal: enterFinalWorld
 });
 bindMovementControls();
 view.setWorld(await engine.init());
-window.__MUSE_APP__ = { engine, session, state, startLesson, answerQuestion, continueLesson };
+view.setSpeaker(getCompanion(journey.companions[0]));
+window.__MUSE_APP__ = { engine, session, journey, state, startJourney, startLesson, answerQuestion, continueLesson };
 
 api.status().then((status) => {
   state.status = status;
   view.setProvider(status);
 }).catch(() => view.toast("Server status unavailable; the local world remains active."));
 
-async function startLesson(goal) {
+function startJourney(question) {
+  try {
+    journey.setQuestion(question);
+    state.draftCompanions = [...journey.companions];
+    view.showCompany(state.draftCompanions);
+  } catch (error) {
+    view.toast(readable(error.message));
+  }
+}
+
+function toggleCompanion(id) {
+  const selected = new Set(state.draftCompanions);
+  if (selected.has(id)) selected.delete(id);
+  else if (selected.size < 3) selected.add(id);
+  else {
+    view.toast("Invite up to three companions.");
+    return;
+  }
+  state.draftCompanions = [...selected];
+  view.showCompany(state.draftCompanions);
+}
+
+async function curateJourney() {
   if (state.busy) return;
+  try {
+    journey.setCompanions(state.draftCompanions);
+    journey.advance();
+    state.selectedCompanions = [...journey.companions];
+    const companions = selectedCompanionRecords();
+    view.showCuration(journey.question, companions);
+    view.setSpeaker(companions[0]);
+    state.busy = true;
+    const companionLoad = engine.setCompanions(journey.companions);
+    view.setCurationReady();
+    state.busy = false;
+    await companionLoad;
+  } catch (error) {
+    view.toast(readable(error.message));
+  } finally {
+    state.busy = false;
+  }
+}
+
+async function enterWalk() {
+  if (state.busy || journey.stage !== "curation") return;
+  const world = engine.activeWorld.id === "bright-gallery" ? engine.activeWorld : await engine.setWorld("bright-gallery");
+  state.worldId = world.id;
+  view.setWorld(world);
+  if (await startLesson(journey.question)) journey.advance();
+}
+
+async function startLesson(goal) {
+  if (state.busy) return false;
   state.busy = true;
   view.toast("Preparing a route for your question…");
   try {
@@ -58,8 +122,10 @@ async function startLesson(goal) {
     view.renderRoute(session.plan, session.visited, first.stop_id);
     engine.navigateTo(first.stop_id);
     postRoom("stop", first.stop_id);
+    return true;
   } catch (error) {
     view.toast(`Route unavailable: ${readable(error.message)}`);
+    return false;
   } finally {
     state.busy = false;
   }
@@ -79,6 +145,11 @@ function handleGuideState(event) {
 
 function answerQuestion(value) {
   try {
+    const correspondence = engine.director.correspondence();
+    if (engine.director.state !== "asking" || !correspondence.synced) {
+      view.toast("Wait for your companion to reach and face the evidence.");
+      return;
+    }
     const currentId = session.currentStopId;
     const choice = session.answer(value);
     engine.director.listen();
@@ -94,6 +165,10 @@ function answerQuestion(value) {
 }
 
 async function continueLesson() {
+  if (journey.stage === "salon" && session.phase === "complete") {
+    await conveneSalonExperience();
+    return;
+  }
   try {
     const next = session.continue();
     if (next) {
@@ -106,6 +181,7 @@ async function continueLesson() {
     const digest = session.digest();
     const recap = await api.recap(digest).catch(() => ({ data: { title: "Your learning map", summary: "You turned three observations into a route through visible evidence." } }));
     view.showRecap(recap.data, digest);
+    if (journey.stage === "walk") journey.advance();
     state.profile = profileStore.record(session.plan.learning_goal, recap.data);
   } catch (error) {
     view.toast(readable(error.message));
@@ -113,19 +189,23 @@ async function continueLesson() {
 }
 
 function openDrawer(type) {
-  if (!view.drawer.hidden && view.drawer.dataset.type === type) {
+  const previousType = view.drawer.hidden ? null : view.drawer.dataset.type;
+  if (previousType === type) {
     view.closeDrawer();
     if (type === "salon") engine.showSalonCharacters(false);
     return;
   }
-  if (type === "salon") engine.showSalonCharacters(true);
+  if (previousType === "salon") engine.showSalonCharacters(false);
+  if (type === "salon" && canConveneSalon()) engine.showSalonCharacters(true).catch(() => view.toast("Companion staging unavailable."));
   renderDrawer(type);
 }
 
 function renderDrawer(type = view.drawer.dataset.type) {
   view.openDrawer(type, {
     ...state,
+    companions: selectedCompanionRecords(),
     hasLesson: Boolean(session.plan),
+    canConveneSalon: canConveneSalon(),
     provider: state.provider
   });
 }
@@ -143,11 +223,17 @@ async function handleDrawerAction(action, button) {
       const result = await api.forge(valueOf("forge-prompt"), valueOf("forge-token"));
       view.toast(`World operation started: ${result.name || "queued"}`);
     } else if (action === "salon") {
+      if (!canConveneSalon()) throw new Error("complete_route_before_salon");
       button.disabled = true;
       const result = await api.salon(session.digest());
       state.salon = result.data;
-      engine.showSalonCharacters(true);
+      await engine.showSalonCharacters(true);
       renderDrawer("salon");
+    } else if (action === "open-rewrite") {
+      if (!canConveneSalon() || !state.salon) throw new Error("convene_salon_before_rewrite");
+      await engine.showSalonCharacters(false);
+      view.closeDrawer();
+      view.showRewrite(WORLDS.filter((world) => world.id !== "bright-gallery"), state.salon, journey.question);
     } else if (action === "save-profile") {
       state.profile = profileStore.save({ ...state.profile, name: valueOf("profile-name") });
       renderDrawer("profile");
@@ -180,6 +266,47 @@ function handleAction(action) {
   } else if (action === "voice") {
     toggleVoice();
   }
+}
+
+async function conveneSalonExperience() {
+  if (state.busy) return;
+  if (!canConveneSalon()) {
+    view.toast("Complete the three-stop route before convening the Salon.");
+    return;
+  }
+  state.busy = true;
+  view.toast("Your companions are reading the evidence from the walk…");
+  try {
+    if (!state.salon) state.salon = (await api.salon(session.digest())).data;
+    await engine.showSalonCharacters(true);
+    renderDrawer("salon");
+  } catch (error) {
+    view.toast(readable(error.message));
+  } finally {
+    state.busy = false;
+  }
+}
+
+async function rewriteWorld(worldId) {
+  if (state.busy) return;
+  state.busy = true;
+  try {
+    journey.chooseRewrite(worldId);
+    engine.activeStopId = null;
+    await engine.showSalonCharacters(false);
+    const world = await engine.setWorld(worldId);
+    state.worldId = world.id;
+    view.setWorld(world);
+    view.showManifesto(world, state.salon);
+  } catch (error) {
+    view.toast(readable(error.message));
+  } finally {
+    state.busy = false;
+  }
+}
+
+function enterFinalWorld() {
+  view.enterFinalWorld(getWorld(state.worldId));
 }
 
 async function toggleVoice() {
@@ -258,4 +385,12 @@ function valueOf(id) {
 
 function readable(value) {
   return String(value || "service unavailable").replaceAll("_", " ");
+}
+
+function selectedCompanionRecords() {
+  return state.selectedCompanions.map(getCompanion).filter(Boolean);
+}
+
+function canConveneSalon() {
+  return session.phase === "complete" && journey.stage === "salon";
 }

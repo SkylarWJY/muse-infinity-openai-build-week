@@ -5,5 +5,7 @@ node_modules/
 test-results/
 playwright-report/
 artifacts/screenshots/
+artifacts/design-references/
+assets/generated/learner-v1/learner-rigged.glb
 artifacts-*.png
 npm-debug.log*

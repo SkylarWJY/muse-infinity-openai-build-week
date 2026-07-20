@@ -4,13 +4,15 @@
   "private": true,
   "type": "module",
   "description": "An embodied GPT-5.6 learning world built with Codex for OpenAI Build Week.",
+  "engines": { "node": ">=20.12" },
   "scripts": {
     "dev": "node server.mjs",
     "start": "node server.mjs",
     "check": "node --check server.mjs && find src services shared tests e2e -name '*.js' -o -name '*.mjs' | xargs -n1 node --check",
     "test": "node --test tests/*.test.mjs",
     "audit:providers": "node --test tests/provider-audit.test.mjs",
-    "test:e2e": "playwright test --config=e2e/playwright.config.mjs"
+    "test:e2e": "playwright test --config=e2e/playwright.config.mjs",
+    "assets:downsample-spz": "node scripts/downsample-spz.mjs"
   },
   "dependencies": {
     "@sparkjsdev/spark": "^2.1.0",

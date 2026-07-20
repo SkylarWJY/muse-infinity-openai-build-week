@@ -1,4 +1,4 @@
-const DEFAULT_TIMEOUT = 32000;
+export const MUSE_API_TIMEOUT_MS = 32000;
 
 export class MuseApi {
   constructor({ sessionId } = {}) {
@@ -15,7 +15,7 @@ export class MuseApi {
   postRoomEvent(roomId, member_id, event) { return this.request(`/api/rooms/${encodeURIComponent(roomId)}/events`, { method: "POST", body: { member_id, event } }); }
   forge(prompt, token) { return this.request("/api/worlds/generate", { method: "POST", headers: { "X-Admin-Token": token }, body: { prompt } }); }
 
-  async request(url, { method = "GET", body, headers = {}, timeout = DEFAULT_TIMEOUT } = {}) {
+  async request(url, { method = "GET", body, headers = {}, timeout = MUSE_API_TIMEOUT_MS } = {}) {
     const response = await fetch(url, {
       method,
       headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...headers },

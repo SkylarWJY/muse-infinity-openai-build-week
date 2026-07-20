@@ -1,13 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { OpenAIService, OPENAI_ENDPOINTS } from "../services/openai.js";
+import { OpenAIService, OPENAI_ENDPOINTS, OPENAI_REQUEST_BUDGET_MS } from "../services/openai.js";
 import { createFallbackLesson } from "../shared/contracts.js";
+import { MUSE_API_TIMEOUT_MS } from "../src/services/api.js";
 
 test("no-key mode returns a valid honest fallback", async () => {
   const result = await new OpenAIService().createLesson("notice light", "session-a");
   assert.equal(result.live, false);
   assert.equal(result.model, "curated-demo");
   assert.equal(result.data.stops.length, 3);
+});
+
+test("provider fallback budget completes before the browser request deadline", () => {
+  assert.ok(OPENAI_REQUEST_BUDGET_MS <= MUSE_API_TIMEOUT_MS - 5000);
 });
 
 test("live request is fixed to Responses API and gpt-5.6", async () => {
@@ -79,7 +84,7 @@ test("a hung provider is aborted, retried once, and returns the honest fallback"
     return new Promise((_resolve, reject) => options.signal.addEventListener("abort", () => reject(options.signal.reason), { once: true }));
   };
   const started = Date.now();
-  const result = await new OpenAIService({ apiKey: "test-key", fetchImpl, timeoutMs: 8 }).createLesson("notice", "session");
+  const result = await new OpenAIService({ apiKey: "test-key", fetchImpl, timeoutMs: 40 }).createLesson("notice", "session");
   assert.equal(calls, 2);
   assert.equal(result.live, false);
   assert.equal(result.reason, "timeout");

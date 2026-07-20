@@ -1,6 +1,7 @@
 import http from "node:http";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { loadEnvFile } from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { OpenAIService } from "./services/openai.js";
 import { RoomService } from "./services/rooms.js";
@@ -9,13 +10,23 @@ import { createFallbackLesson, createSessionDigest, normalizeText } from "./shar
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const BODY_LIMIT = 160_000;
-const STATIC_PREFIXES = ["/src/", "/shared/", "/assets/"];
-const STATIC_FILES = new Set(["/", "/index.html", "/styles.css"]);
+const STATIC_ROOTS = new Map([
+  ["/src/", path.join(ROOT, "src")],
+  ["/shared/", path.join(ROOT, "shared")],
+  ["/assets/", path.join(ROOT, "assets")]
+]);
+const STATIC_FILES = new Map([
+  ["/", path.join(ROOT, "index.html")],
+  ["/index.html", path.join(ROOT, "index.html")],
+  ["/styles.css", path.join(ROOT, "styles.css")]
+]);
 const VENDOR_FILES = new Map([
   ["/vendor/three.module.js", path.join(ROOT, "node_modules/three/build/three.module.js")],
   ["/vendor/three.core.js", path.join(ROOT, "node_modules/three/build/three.core.js")],
   ["/vendor/spark.module.js", path.join(ROOT, "node_modules/@sparkjsdev/spark/dist/spark.module.min.js")],
-  ["/vendor/Pass.js", path.join(ROOT, "node_modules/three/examples/jsm/postprocessing/Pass.js")]
+  ["/vendor/Pass.js", path.join(ROOT, "node_modules/three/examples/jsm/postprocessing/Pass.js")],
+  ["/vendor/loaders/GLTFLoader.js", path.join(ROOT, "node_modules/three/examples/jsm/loaders/GLTFLoader.js")],
+  ["/vendor/utils/BufferGeometryUtils.js", path.join(ROOT, "node_modules/three/examples/jsm/utils/BufferGeometryUtils.js")]
 ]);
 const MIME = new Map([
   [".html", "text/html; charset=utf-8"], [".css", "text/css; charset=utf-8"], [".js", "text/javascript; charset=utf-8"],
@@ -128,10 +139,8 @@ async function handleApi({ req, res, url, openai, worlds, rooms, modelBudget }) 
 async function serveStatic(req, res, pathname) {
   let decoded;
   try { decoded = decodeURIComponent(pathname); } catch { return sendJson(res, 404, { error: "not_found" }); }
-  if (!STATIC_FILES.has(decoded) && !STATIC_PREFIXES.some((prefix) => decoded.startsWith(prefix)) && !VENDOR_FILES.has(decoded)) return sendJson(res, 404, { error: "not_found" });
-  const relative = decoded === "/" ? "index.html" : decoded.slice(1);
-  const filePath = VENDOR_FILES.get(decoded) || path.resolve(ROOT, relative);
-  if (!filePath.startsWith(`${ROOT}${path.sep}`)) return sendJson(res, 404, { error: "not_found" });
+  const filePath = await resolveStaticPath(decoded);
+  if (!filePath) return sendJson(res, 404, { error: "not_found" });
   try {
     const stat = await fs.stat(filePath);
     if (!stat.isFile()) return sendJson(res, 404, { error: "not_found" });
@@ -143,12 +152,34 @@ async function serveStatic(req, res, pathname) {
   }
 }
 
+async function resolveStaticPath(decoded) {
+  const explicit = STATIC_FILES.get(decoded) || VENDOR_FILES.get(decoded);
+  if (explicit) return explicit;
+  if (decoded.includes("\0") || decoded.includes("\\")) return null;
+
+  const entry = [...STATIC_ROOTS].find(([prefix]) => decoded.startsWith(prefix));
+  if (!entry) return null;
+  const [prefix, staticRoot] = entry;
+  const segments = decoded.slice(prefix.length).split("/");
+  if (!segments.length || segments.some((segment) => !segment || segment === "." || segment === "..")) return null;
+
+  const candidate = path.resolve(staticRoot, ...segments);
+  try {
+    const [canonicalRoot, canonicalFile] = await Promise.all([fs.realpath(staticRoot), fs.realpath(candidate)]);
+    const relative = path.relative(canonicalRoot, canonicalFile);
+    if (!relative || relative.startsWith(`..${path.sep}`) || relative === ".." || path.isAbsolute(relative)) return null;
+    return canonicalFile;
+  } catch {
+    return null;
+  }
+}
+
 function setHeaders(res) {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "same-origin");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   res.setHeader("Permissions-Policy", "camera=(), geolocation=(), payment=()");
-  res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-kW2epsWMwt8US1iQRflgI0fhpbYVixba6O4QRBtcli8='; style-src 'self'; img-src 'self' data:; connect-src 'self' data: https://api.openai.com; worker-src 'self' blob:; media-src 'self' blob:");
+  res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-YI68f5vmEuv+qX6fhlA2VJerFJuPsgR7Ee/kqaJ4Q7g='; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' data: blob: https://api.openai.com; worker-src 'self' blob:; media-src 'self' blob:");
 }
 
 async function readJson(req) {
@@ -216,10 +247,22 @@ function clientKey(req) {
   return req.socket.remoteAddress || "unknown";
 }
 
+export function loadLocalEnv(file = path.join(ROOT, ".env")) {
+  try {
+    loadEnvFile(file);
+    return true;
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+  loadLocalEnv();
   const port = Number(process.env.PORT || 4175);
+  const host = process.env.HOST || "127.0.0.1";
   const server = createMuseServer();
-  server.listen(port, "127.0.0.1", () => console.log(`MUSE running at http://127.0.0.1:${port}`));
+  server.listen(port, host, () => console.log(`MUSE running at http://${host}:${port}`));
 }
 
 export { createFallbackLesson };

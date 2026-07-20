@@ -1,10 +1,11 @@
 import * as THREE from "three";
-import { SCENE_MANIFEST } from "../config/scenes.js";
+import { stopsForWorld } from "../config/legacyAssets.js";
 
 export class WorldLayer {
-  constructor(scene, { renderer, onArtworkReady = () => {}, onStatus = () => {} } = {}) {
+  constructor(scene, { renderer, textureLoader = new THREE.TextureLoader(), onArtworkReady = () => {}, onStatus = () => {} } = {}) {
     this.scene = scene;
     this.renderer = renderer;
+    this.textureLoader = textureLoader;
     this.onArtworkReady = onArtworkReady;
     this.onStatus = onStatus;
     this.group = new THREE.Group();
@@ -23,17 +24,20 @@ export class WorldLayer {
 
   async build(world) {
     const token = ++this.buildToken;
-    this.clear();
+    await this.clear();
+    if (token !== this.buildToken) return;
     this.activeWorld = world;
     this.scene.background = new THREE.Color(world.palette.sky);
-    this.scene.fog = new THREE.Fog(world.palette.sky, 22, 52);
+    this.scene.fog = new THREE.Fog(world.palette.sky, 22, 72);
     this.buildFloor(world);
     this.buildArchitecture(world);
-    await this.buildArtworks(world);
+    await this.buildArtworks(world, token);
+    if (token !== this.buildToken) return;
     if (world.splat) {
+      this.onStatus({ type: "splat", live: false, pending: true, message: `Loading archived scene · ${world.name}` });
       this.loadSplat(world, token)
-        .then((live) => { if (live && token === this.buildToken) this.onStatus({ type: "splat", live: true, message: "World Labs archive rendered" }); })
-        .catch(() => { if (token === this.buildToken) this.onStatus({ type: "splat", live: false, message: "Marble archive unavailable; procedural world retained" }); });
+        .then((live) => { if (live && token === this.buildToken) this.onStatus({ type: "splat", live: true, pending: false, world, message: `${world.name} · archived scene live` }); })
+        .catch(() => { if (token === this.buildToken) this.onStatus({ type: "splat", live: false, pending: false, world, message: "Archived scene unavailable; spatial fallback retained" }); });
     }
   }
 
@@ -71,50 +75,29 @@ export class WorldLayer {
       light.target.position.set(x, 1.5, -9);
       this.scenery.add(light, light.target);
     }
-    if (world.id === "garden") this.addGarden();
-    if (world.id === "salon") this.addSalonStage(world.palette.accent);
   }
 
-  addGarden() {
-    const green = new THREE.MeshStandardMaterial({ color: 0x486a4b, roughness: 0.9 });
-    for (let i = 0; i < 20; i += 1) {
-      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.07, 0.5 + (i % 4) * 0.18, 6), green);
-      stem.position.set(-7 + (i * 2.7) % 14, 0.35, -2 - (i * 3.1) % 8);
-      stem.rotation.z = Math.sin(i) * 0.2;
-      this.scenery.add(stem);
-    }
-  }
-
-  addSalonStage(accent) {
-    const ring = new THREE.Mesh(new THREE.RingGeometry(2.8, 3.0, 64), new THREE.MeshBasicMaterial({ color: accent, side: THREE.DoubleSide, transparent: true, opacity: 0.6 }));
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(0, 0.02, -5.5);
-    this.scenery.add(ring);
-  }
-
-  async buildArtworks(world) {
-    const loader = new THREE.TextureLoader();
-    await Promise.all(SCENE_MANIFEST.stops.map(async (stop) => {
-      const texture = await loader.loadAsync(stop.image).catch(() => null);
+  async buildArtworks(world, token) {
+    await Promise.all(stopsForWorld(world.id).map(async (stop) => {
+      const texture = await this.textureLoader.loadAsync(stop.image).catch(() => null);
+      if (token !== this.buildToken) {
+        texture?.dispose?.();
+        return;
+      }
       if (texture) {
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.anisotropy = 4;
       }
       const frame = new THREE.Group();
       frame.name = `artwork-${stop.id}`;
-      const width = stop.id === "grande-jatte" ? 3.8 : 3.15;
-      const height = stop.id === "grande-jatte" ? 2.15 : 2.45;
-      const border = new THREE.Mesh(new THREE.BoxGeometry(width + 0.28, height + 0.28, 0.15), new THREE.MeshStandardMaterial({ color: 0x171a18, roughness: 0.35 }));
+      const width = stop.id === "grande-jatte" ? 1.7 : 1.45;
+      const height = stop.id === "grande-jatte" ? 0.96 : 1.12;
+      const border = new THREE.Mesh(new THREE.BoxGeometry(width + 0.14, height + 0.14, 0.09), new THREE.MeshStandardMaterial({ color: 0x171a18, roughness: 0.35 }));
       const picture = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({ map: texture, color: texture ? 0xffffff : world.palette.accent, toneMapped: false }));
-      picture.position.z = 0.085;
+      picture.position.z = 0.052;
       frame.add(border, picture);
-      if (stop.id === "bedroom") {
-        frame.position.set(0, 2.55, -11.14);
-      } else {
-        const side = stop.id === "water-lilies" ? -1 : 1;
-        frame.position.set(side * 8.26, 2.55, -5.2);
-        frame.rotation.y = side * -Math.PI / 2;
-      }
+      frame.position.fromArray(stop.artworkPosition);
+      frame.rotation.y = stop.artworkYaw;
       frame.userData.stopId = stop.id;
       this.artworkGroup.add(frame);
       this.artworks.set(stop.id, { frame, picture, border });
@@ -132,28 +115,55 @@ export class WorldLayer {
   }
 
   async loadSplat(world, token) {
-    const timeout = () => new Promise((_, reject) => setTimeout(() => reject(new Error("splat_timeout")), 8000));
+    const timeout = () => new Promise((_, reject) => setTimeout(() => reject(new Error("splat_timeout")), 20000));
     const modulePromise = import("@sparkjsdev/spark");
     const { SparkRenderer, SplatMesh } = await Promise.race([modulePromise, timeout()]);
     if (token !== this.buildToken) return false;
-    const spark = new SparkRenderer({ renderer: this.renderer });
-    const splat = new SplatMesh({ url: world.splat, lodScale: 1.5 });
-    splat.quaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI);
-    splat.scale.setScalar(0.80177665);
-    splat.position.y = 0.5;
+    const mobile = window.matchMedia("(max-width: 700px)").matches;
+    const spark = new SparkRenderer({
+      renderer: this.renderer,
+      enableLod: true,
+      lodSplatCount: mobile ? 80000 : 130000,
+      lodRenderScale: 2,
+      lodRaycast: 0,
+      minSortIntervalMs: 250
+    });
+    const splat = new SplatMesh({
+      url: world.splat,
+      lod: true,
+      lodScale: 1,
+      editable: false,
+      raycastable: false
+    });
+    splat.name = `archived-world-${world.id}`;
+    splat.userData.archivedWorld = world.id;
+    splat.quaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), world.transform.rotationX);
+    splat.scale.setScalar(world.transform.scale);
+    splat.position.y = world.transform.y;
+    const archived = { spark, splat, retirePromise: null };
     this.scene.add(spark, splat);
-    this.splat = { spark, splat };
-    await Promise.race([splat.initialized, timeout()]);
+    this.splat = archived;
+    try {
+      await Promise.race([splat.initialized, timeout()]);
+    } catch (error) {
+      if (this.splat === archived) this.splat = null;
+      await retireSparkArchive(this.scene, archived);
+      throw error;
+    }
     if (token !== this.buildToken) {
-      this.scene.remove(spark, splat);
-      splat.dispose?.();
+      if (this.splat === archived) {
+        this.splat = null;
+        await retireSparkArchive(this.scene, archived);
+      }
       return false;
     }
     this.scenery.visible = false;
+    this.scene.background = new THREE.Color(0x080a09);
+    this.scene.fog = null;
     return true;
   }
 
-  clear() {
+  async clear() {
     this.scenery.visible = true;
     for (const container of [this.scenery, this.artworkGroup]) {
       for (const child of [...container.children]) {
@@ -162,21 +172,73 @@ export class WorldLayer {
       }
     }
     this.artworks.clear();
-    if (this.splat) {
-      this.scene.remove(this.splat.spark, this.splat.splat);
-      this.splat.splat?.dispose?.();
-    }
+    const archived = this.splat;
     this.splat = null;
+    if (!archived) return;
+
+    await retireSparkArchive(this.scene, archived);
   }
 }
 
+function retireSparkArchive(scene, archived) {
+  if (archived.retirePromise) return archived.retirePromise;
+  suspendSparkUpdates(archived.spark);
+  scene.remove(archived.spark, archived.splat);
+  archived.retirePromise = waitForSparkIdle(archived.spark).then((idle) => {
+    const dispose = () => {
+      archived.splat?.dispose?.();
+      archived.spark?.dispose?.();
+      archived.spark?.geometry?.dispose?.();
+      const materials = Array.isArray(archived.spark?.material) ? archived.spark.material : [archived.spark?.material];
+      for (const material of materials) material?.dispose?.();
+    };
+    if (idle) dispose();
+    else waitForSparkIdle(archived.spark, 60000, 250).then((settled) => { if (settled) dispose(); });
+  });
+  return archived.retirePromise;
+}
+
+function suspendSparkUpdates(spark) {
+  spark.autoUpdate = false;
+  spark.enableDriveLod = false;
+  spark.sortDirty = false;
+  spark.lodDirty = false;
+  for (const key of ["updateTimeoutId", "sortTimeoutId"]) {
+    if (spark[key] !== -1) clearTimeout(spark[key]);
+    spark[key] = -1;
+  }
+}
+
+async function waitForSparkIdle(spark, timeoutMs = 10000, intervalMs = 25) {
+  const deadline = performance.now() + timeoutMs;
+  let stableChecks = 0;
+  while (performance.now() < deadline) {
+    stableChecks = hasPendingSparkWork(spark) ? 0 : stableChecks + 1;
+    if (stableChecks >= 2) return true;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  return false;
+}
+
+function hasPendingSparkWork(spark) {
+  const workers = [spark.sortWorker, spark.lodWorker];
+  return spark.sorting
+    || spark.updateTimeoutId !== -1
+    || spark.sortTimeoutId !== -1
+    || (spark.lodWorker && spark.lodWorker.queue !== null)
+    || workers.some((worker) => Object.keys(worker?.messages || {}).length > 0);
+}
+
 function disposeTree(child) {
+  const textures = new Set();
   child.traverse?.((object) => {
     object.geometry?.dispose?.();
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     for (const material of materials) {
-      material?.map?.dispose?.();
-      material?.dispose?.();
+      if (!material) continue;
+      for (const value of Object.values(material)) if (value?.isTexture) textures.add(value);
+      material.dispose?.();
     }
   });
+  for (const texture of textures) texture.dispose();
 }

@@ -16,6 +16,11 @@ export class GuideDirector {
     this.paused = false;
   }
 
+  setAvatar(avatar) {
+    this.avatar = avatar;
+    this.object = avatar.group;
+  }
+
   goTo(stop) {
     this.stopId = stop.id;
     this.target.fromArray(stop.guideAnchor);

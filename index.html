@@ -11,6 +11,7 @@
       {
         "imports": {
           "three": "/vendor/three.module.js",
+          "three/addons/loaders/GLTFLoader.js": "/vendor/loaders/GLTFLoader.js",
           "three/addons/postprocessing/Pass.js": "/vendor/Pass.js",
           "@sparkjsdev/spark": "/vendor/spark.module.js"
         }
@@ -28,7 +29,7 @@
         </button>
         <div class="world-state" aria-live="polite">
           <span class="pulse" aria-hidden="true"></span>
-          <strong id="world-name">DAYLIGHT GALLERY</strong>
+          <strong id="world-name">BRIGHT GALLERY HALL</strong>
           <span id="sync-state">SCENE SYNC</span>
         </div>
         <nav class="tools" aria-label="World tools">
@@ -62,13 +63,13 @@
         <form id="goal-form">
           <label class="sr-only" for="goal-input">Learning goal</label>
           <input id="goal-input" name="goal" maxlength="120" autocomplete="off" placeholder="Or name your own question" />
-          <button type="submit">Begin with Mira <span aria-hidden="true">→</span></button>
+          <button type="submit">Choose your company <span aria-hidden="true">→</span></button>
         </form>
-        <div class="entry-meta"><span id="model-badge">CURATED DEMO</span><span>3 works · one changing route</span></div>
+        <div class="entry-meta"><span id="model-badge">CURATED DEMO</span><span>3 archived worlds · 5 companions</span></div>
       </section>
 
       <section class="dialogue" id="dialogue" hidden aria-live="polite">
-        <div class="speaker"><span class="speaker-dot"></span><b>MIRA</b><span id="guide-state">WALKING</span></div>
+        <div class="speaker"><img id="speaker-portrait" hidden alt=""/><span class="speaker-dot"></span><b id="speaker-name">MIRA</b><span id="guide-state">WALKING</span></div>
         <h2 id="stop-title">Follow the guide</h2>
         <p id="guide-line"></p>
         <div class="answers" id="answers"></div>

@@ -15,9 +15,10 @@ import {
 
 const RESPONSES_URL = "https://api.openai.com/v1/responses";
 const REALTIME_URL = "https://api.openai.com/v1/realtime/calls";
+export const OPENAI_REQUEST_BUDGET_MS = 24000;
 
 export class OpenAIService {
-  constructor({ apiKey, model = OPENAI_MODEL, realtimeModel = REALTIME_MODEL, fetchImpl = fetch, timeoutMs = 30000, safetySalt = "muse-build-week" } = {}) {
+  constructor({ apiKey, model = OPENAI_MODEL, realtimeModel = REALTIME_MODEL, fetchImpl = fetch, timeoutMs = OPENAI_REQUEST_BUDGET_MS, safetySalt = "muse-build-week" } = {}) {
     this.apiKey = apiKey || "";
     this.model = model === OPENAI_MODEL ? model : OPENAI_MODEL;
     this.realtimeModel = realtimeModel || REALTIME_MODEL;
@@ -123,13 +124,17 @@ export class OpenAIService {
 
   async requestJson(url, body) {
     let lastError;
+    const deadline = Date.now() + this.timeoutMs;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) throw new Error("openai_timeout");
+        const attemptTimeout = Math.max(1, Math.floor(remaining / (2 - attempt)));
         const response = await this.fetch(url, {
           method: "POST",
           headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(this.timeoutMs)
+          signal: AbortSignal.timeout(attemptTimeout)
         });
         if (!response.ok) {
           const error = Object.assign(new Error(`openai_http_${response.status}`), { statusCode: response.status });
@@ -164,7 +169,7 @@ function extractOutputText(payload) {
 function classifyError(error) {
   const message = String(error?.message || "request_failed");
   if (message.includes("invalid_model_contract") || message.includes("missing_output_text")) return "invalid_response";
-  if (message.includes("Timeout") || message.includes("abort")) return "timeout";
+  if (message.toLowerCase().includes("timeout") || message.toLowerCase().includes("abort")) return "timeout";
   return "provider_unavailable";
 }
 

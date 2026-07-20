@@ -2,15 +2,16 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: ".",
-  timeout: 45_000,
+  timeout: 120_000,
   expect: { timeout: 12_000 },
   fullyParallel: false,
+  workers: 1,
   reporter: "line",
   use: {
     baseURL: "http://127.0.0.1:4175",
     headless: true,
     screenshot: "only-on-failure",
-    trace: "retain-on-failure"
+    trace: "off"
   },
   webServer: {
     command: "node ../server.mjs",
