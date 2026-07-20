@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#151817" />
+    <meta name="description" content="MUSE is an embodied GPT-5.6 learning world where observation changes the path through art." />
+    <title>MUSE | Embodied learning world</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/vendor/three.module.js",
+          "three/addons/postprocessing/Pass.js": "/vendor/Pass.js",
+          "@sparkjsdev/spark": "/vendor/spark.module.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main id="app">
+      <div id="world" aria-label="Interactive museum world"></div>
+      <div class="world-wash" aria-hidden="true"></div>
+
+      <header class="topbar">
+        <button class="brand" type="button" data-action="home" aria-label="Restart MUSE">
+          <span class="brand-mark">M</span><span>MUSE</span>
+        </button>
+        <div class="world-state" aria-live="polite">
+          <span class="pulse" aria-hidden="true"></span>
+          <strong id="world-name">DAYLIGHT GALLERY</strong>
+          <span id="sync-state">SCENE SYNC</span>
+        </div>
+        <nav class="tools" aria-label="World tools">
+          <button type="button" data-drawer="atlas" title="World Atlas"><span aria-hidden="true">◇</span><span class="tool-label">Atlas</span></button>
+          <button type="button" data-drawer="forge" title="World Forge"><span aria-hidden="true">✦</span><span class="tool-label">Forge</span></button>
+          <button type="button" data-drawer="salon" title="Perspective Salon"><span aria-hidden="true">◌</span><span class="tool-label">Salon</span></button>
+          <button type="button" data-action="voice" id="voice-tool" title="Voice"><span aria-hidden="true">◍</span><span class="tool-label">Voice</span></button>
+          <button type="button" data-drawer="room" title="Shared room"><span aria-hidden="true">◎</span><span class="tool-label">Room</span></button>
+          <button type="button" data-drawer="profile" title="Learner profile"><span aria-hidden="true">○</span><span class="tool-label">Profile</span></button>
+          <button type="button" data-drawer="evidence" title="Evidence"><span aria-hidden="true">i</span><span class="tool-label">Evidence</span></button>
+        </nav>
+      </header>
+
+      <aside class="mission-rail" aria-label="Learning route">
+        <div class="mission-kicker">LEARNING PATH</div>
+        <ol id="route-list">
+          <li data-route="0"><b>01</b><span>Threshold</span></li>
+          <li data-route="1"><b>02</b><span>Unrevealed</span></li>
+          <li data-route="2"><b>03</b><span>Unrevealed</span></li>
+        </ol>
+      </aside>
+
+      <section class="entry-panel" id="entry-panel" aria-labelledby="entry-title">
+        <p class="eyebrow">EMBODIED GUIDED INQUIRY</p>
+        <h1 id="entry-title">What do you want to learn to notice?</h1>
+        <div class="goal-presets" id="goal-presets">
+          <button type="button" data-goal="How composition moves my attention">How composition moves my attention</button>
+          <button type="button" data-goal="How color creates emotion">How color creates emotion</button>
+          <button type="button" data-goal="How a space tells a story">How a space tells a story</button>
+        </div>
+        <form id="goal-form">
+          <label class="sr-only" for="goal-input">Learning goal</label>
+          <input id="goal-input" name="goal" maxlength="120" autocomplete="off" placeholder="Or name your own question" />
+          <button type="submit">Begin with Mira <span aria-hidden="true">→</span></button>
+        </form>
+        <div class="entry-meta"><span id="model-badge">CURATED DEMO</span><span>3 works · one changing route</span></div>
+      </section>
+
+      <section class="dialogue" id="dialogue" hidden aria-live="polite">
+        <div class="speaker"><span class="speaker-dot"></span><b>MIRA</b><span id="guide-state">WALKING</span></div>
+        <h2 id="stop-title">Follow the guide</h2>
+        <p id="guide-line"></p>
+        <div class="answers" id="answers"></div>
+        <button type="button" class="continue-button" id="continue-button" hidden>Continue <span aria-hidden="true">→</span></button>
+      </section>
+
+      <aside class="drawer" id="drawer" hidden aria-live="polite">
+        <header><div><p id="drawer-kicker">WORLD LAYER</p><h2 id="drawer-title">Atlas</h2></div><button type="button" data-action="close-drawer" aria-label="Close">×</button></header>
+        <div id="drawer-body"></div>
+      </aside>
+
+      <div class="movement-controls" id="movement-controls" aria-label="Movement controls">
+        <div class="joystick" id="joystick" aria-label="Move"><span></span></div>
+        <button type="button" id="follow-button" aria-pressed="true"><span aria-hidden="true">⌖</span><span>FOLLOW</span></button>
+      </div>
+
+      <footer class="statusbar">
+        <span id="chapter-label">THRESHOLD / 00</span>
+        <span id="provider-label">GPT-5.6 READY · CURATED FALLBACK ACTIVE</span>
+      </footer>
+      <div class="toast" id="toast" role="status" hidden></div>
+    </main>
+    <noscript>MUSE requires JavaScript.</noscript>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

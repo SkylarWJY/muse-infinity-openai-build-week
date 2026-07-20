@@ -1,0 +1,22 @@
+{
+  "name": "muse-embodied-learning-world",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "An embodied GPT-5.6 learning world built with Codex for OpenAI Build Week.",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "check": "node --check server.mjs && find src services shared tests e2e -name '*.js' -o -name '*.mjs' | xargs -n1 node --check",
+    "test": "node --test tests/*.test.mjs",
+    "audit:providers": "node --test tests/provider-audit.test.mjs",
+    "test:e2e": "playwright test --config=e2e/playwright.config.mjs"
+  },
+  "dependencies": {
+    "@sparkjsdev/spark": "^2.1.0",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
+  }
+}

@@ -1,0 +1,9 @@
+node_modules/
+.env
+.DS_Store
+.omx/
+test-results/
+playwright-report/
+artifacts/screenshots/
+artifacts-*.png
+npm-debug.log*
