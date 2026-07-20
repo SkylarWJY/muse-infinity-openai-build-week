@@ -2,178 +2,272 @@
 
 ## Product intent
 
-MUSE is a learning world, not a museum dashboard and not a chatbot placed over 3D
-wallpaper. The archived world is the primary surface. Interface, model output and character
-behavior exist to direct attention inside that world.
+MUSE is a learning world, not a museum dashboard and not a chatbot over 3D wallpaper. The
+archived environment is the primary surface. Interface, GPT output and character behavior
+exist to direct attention inside a sequence of worlds.
 
-The product keeps the successful `muse-infinity` narrative arc while replacing menu-like
-scene loading and static companion translation with a continuous embodied lesson: a chosen
-companion walks, turns, points, waits for observation, reacts and carries the learner into a
-second real scene.
+The product keeps the full `muse-infinity` concept: one life question moves through ten
+narrative beats, eight process worlds and one gated answer world. This rebuild adds the
+missing embodied correspondence. The learner and guide move through each archived space;
+dialogue waits for physical arrival and facing; colliders keep bodies on the visible ground;
+the other selected companions physically follow the learner/guide formation; and the
+Roundtable is grounded in the observations made across the whole walk.
+
+### Inheritance boundary
+
+The narrative vocabulary, eight process worlds, gated ninth world, colliders, spatial
+profiles, historical-character files, portraits and scene imagery are inherited from
+`muse-infinity`. Build Week work is the new OpenAI-only executable system around them: strict
+8+1 gates, quality-RAD derivation and Range delivery, collider-grounded party movement,
+free-form observations, provisional synthesis, decision-triggered concept transformation and
+verification. Inherited assets are never presented as newly generated during this event.
 
 ## Product invariants
 
-- The shipped World Labs SPZ is visible from the threshold and is the primary scene after it
-  initializes.
-- At least one archived Tripo companion is chosen before curation; no more than three can be
-  selected.
-- The first selected companion is the active guide. Selected companions reappear together in
-  the Salon.
-- Observation precedes interpretation.
-- Dialogue cannot claim spatial correspondence before the guide reaches the declared anchor
-  and faces the declared evidence point.
-- OpenAI GPT is the only language and reasoning runtime. Spatial assets do not become model
-  providers.
-- No-key mode must complete the same product arc with explicit curated provenance.
+- The canonical spatial structure is eight ordered process scenes plus one independently
+  gated answer scene. Bright Gallery is not part of this structure.
+- The first eight scene IDs and their order are deterministic and cannot be changed by model
+  output, Atlas navigation or an observation choice.
+- The answer world is excluded from Atlas and cannot load before all eight observations,
+  Summoning, Roundtable, Decision, Transformation and Manifesto are complete.
+- At least one and no more than three of the eight archived historical companions are chosen
+  before curation.
+- Every selected companion remains embodied during world exploration: the first selected
+  companion is the active guide and up to two others follow in formation. The same selected
+  roster appears at the Roundtable without duplicate persistent/staged actors.
+- Observation precedes interpretation. Dialogue cannot claim spatial correspondence until
+  the guide reaches and faces the declared evidence point. A visitor may then choose a
+  bounded response or record their own short observation.
+- GPT-5.6 is the only language/reasoning model. World Labs and Tripo identify asset
+  provenance, not reasoning providers.
+- GPT personalizes the final concept. The final geometry is an inherited, pre-generated
+  Shimmering Spheres world and must never be labeled live-generated geometry.
+- No-key mode completes the same gates and scene order with explicit curated provenance.
 
-## Preserved journey
+## Ten-beat journey
 
-The previous ten-stage vocabulary is compressed into six durable journey states. The UI may
-retain the original chapter numbers so the new build remains recognizable as MUSE.
+The state machine preserves the original vocabulary without compressing several concepts
+into generic `walk`, `salon` or `rewrite` stages.
 
-| `muse-infinity` stage(s) | Current state | Current behavior |
+| Order | State | Required behavior and exit gate |
+| ---: | --- | --- |
+| 1 | `threshold` | Establish the museum premise; crossing advances to the life question. |
+| 2 | `life_question` | Capture a non-empty question before company can be selected. |
+| 3 | `companion_selection` | Select one to three known companion IDs; begin curation explicitly. |
+| 4 | `ai_curation` | Validate a strict eight-stop GPT/fallback contract; accept it before walking. |
+| 5 | `world_exploration` | Visit and answer all eight process scenes in canonical order. |
+| 6 | `summoning` | Surface the complete eight-observation ledger and selected company. |
+| 7 | `roundtable` | Produce one perspective per selected companion and a provisional grounded concept. |
+| 8 | `decision` | Choose the unresolved axis: `perception`, `emotion` or `invention`. |
+| 9 | `world_transformation` | Send the provisional concept and chosen axis through a second strict GPT/fallback transformation; accept the validated replacement. |
+| 10 | `manifesto` | Publish the final principle; only then enable answer-world entry. |
+
+`enterFinalWorld()` is a gate after the tenth beat, not an alternate ending selector. It
+always resolves to `personal-dream-world` / Fantasy Realm of Shimmering Spheres.
+
+## Canonical spatial spine
+
+| # | Scene ID | Exhibition title | World ID | Historical lens | Archive |
+| ---: | --- | --- | --- | --- | --- |
+| 1 | `threshold-conservatory` | The Threshold Conservatory | `grand-conservatory-with-lush-gardens` | Cross-temporal salon | Quality RAD from 4.32M SPZ |
+| 2 | `court-of-light` | The Court of Light | `elegant-floral-palace-interior` | Sigmund Freud | Quality RAD from 4.32M SPZ |
+| 3 | `water-and-light` | The Garden of Water and Light | `enchanted-water-garden-sanctuary` | Claude Monet | Quality RAD from 4.32M SPZ |
+| 4 | `sunset-frames` | The Sunset Frame Gallery | `dreamlike-coastal-villa-gardens` | Pablo Picasso | Quality RAD from 2.40M SPZ |
+| 5 | `burning-sky` | The Studio of the Burning Sky | `van-gogh-inspired-gallery-interior` | Vincent van Gogh | Quality RAD from 3.84M SPZ |
+| 6 | `petal-transition` | The Petal Transition Hall | `sunlit-palace-gardens` | Qi Baishi | Quality RAD from 4.32M SPZ |
+| 7 | `living-memory` | The Courtyard of Living Memory | `mexican-courtyard-bedroom-fantasy` | Frida Kahlo | Quality RAD from 4.32M SPZ |
+| 8 | `infinite-repetition` | The Infinite Repetition Chamber | `yellow-polka-dot-infinity-room` | Yayoi Kusama | 8K GLB; 1.92M SPZ fallback |
+| 9 | `personal-dream-world` | Your Dream World | `fantasy-realm-of-shimmering-spheres` | Visitor + selected company | 8K GLB |
+
+The first eight entries live in `EXHIBITION_SPINE`. The ninth lives in `FINAL_SCENE` so
+lesson generation and Atlas cannot accidentally expose it as a process stop.
+
+## World loading and image-quality policy
+
+### Source-detail archives
+
+- Scenes 1-7 use Spark 2.1.0 quality RAD hierarchies built from the original archived
+  2.40M-4.32M SPZs. The canonical route does not use the older uniform 500K derivatives.
+- RAD is prebuilt with `build-lod --quality --rad` and loaded with `paged: true`; this moves
+  the expensive Bhatt hierarchy build out of the browser and enables view-dependent Range
+  requests without substituting a fixed low-resolution archive.
+- Scene 8 prefers the archived 598,495-triangle unlit GLB and keeps its 1.92M-splat SPZ as a
+  load fallback.
+- Scene 9 uses the archived 593,231-triangle unlit GLB.
+- Scene 8 and 9 retain 8192 x 8192 textures. Their embedded PNGs were re-encoded to JPEG
+  quality 88; mesh geometry and texture dimensions were not reduced.
+- One decoded archive is resident at a time. Build tokens and explicit disposal prevent a
+  late world load from replacing a newer selection.
+
+### Runtime quality tiers
+
+`high` is the default. URL parameters may select `balanced` or `performance` without
+changing the source assets.
+
+| Mode | Desktop DPR / Spark target / render scale / LOD scale | Mobile DPR / Spark target / render scale / LOD scale |
 | --- | --- | --- |
-| `threshold`, `life_question` | `threshold` | Bright Gallery loads while the learner asks one question |
-| `companion_selection` | `company` | Select one to three archived portraits/GLBs |
-| `ai_curation` | `curation` | GPT-5.6 or the curated contract reveals the three-stop route |
-| `world_exploration` | `walk` | The guide performs the route and the learner answers from evidence |
-| `summoning`, `roundtable`, `decision` | `salon` | Selected companions test the accumulated evidence |
-| `world_transformation`, `manifesto` | `rewrite` | The answer selects and opens a second archived world |
+| `high` | 2 / 2,500,000 / 1 / 2 | 1.5 / 750,000 / 1 / 2 |
+| `balanced` | 1.5 / 1,000,000 / 1.15 / 1.75 | 1.25 / 400,000 / 1.25 / 1.5 |
+| `performance` | 1.25 / 650,000 / 1.35 / 1.25 | 1 / 300,000 / 1.5 / 1 |
 
-This mapping is a product constraint: future revisions can deepen a stage, but should not
-replace the question-to-world arc with an unrelated dashboard flow.
+All tiers retain adaptive quality LOD. The desktop high target restores the expected Spark
+detail budget instead of imposing the previous 130K hard cap. Splats and archived unlit mesh
+materials use `NoToneMapping`; 8K mesh textures use available anisotropic filtering.
 
-## World system
+### Delivery and grounding
 
-### Primary digital scenes
+The static server advertises `Accept-Ranges: bytes`, returns valid `206` / `Content-Range`
+responses, and gives `/assets/` immutable cache headers. This supports resumable, cacheable
+delivery of large archives and paged RAD rendering; it is not a claim that GLB decoding
+itself is progressive.
 
-1. **Bright Gallery Hall** is the threshold, default route and recovery destination.
-2. **Van Gogh Gallery** is an alternate Atlas world and rewrite destination.
-3. **Infinity Dot Room** is an alternate Atlas world and rewrite destination.
+Every canonical world has its inherited collider. Collider meshes remain invisible and are
+raycast downward for learner/guide ground height. Declared native-scale transforms, spawn,
+bounds, yaw and camera range stay in the archived manifest. Movement is still bounds-based:
+colliders provide surface height, not navmesh route planning or obstacle avoidance.
 
-All are World Labs outputs retained from the prior MUSE asset set and deployed as local
-500,000-splat SPZ files. The Atlas changes the actual world, not a preview image. Each world
-owns a manifest transform, spawn, walk bounds, camera range and route geometry.
+Procedural architecture and an articulated fallback avatar appear during loading or failure.
+They are hidden only after the requested archive reports successful initialization.
+For process worlds, that initialization is an evidence gate: procedural scenery may preserve
+orientation, but it cannot unlock a question or create a visit. The retry surface retains the
+current walking stop. For world 9, the manifesto is preserved and `finalWorldEntered` remains
+false until the archived answer mesh is live.
 
-Spark adaptive LOD targets 130,000 splats on desktop and 80,000 on mobile. The full local SPZ
-stays available to the renderer. Procedural floor, walls and lighting are constructed first,
-then hidden only after the SPZ reports successful initialization; they remain the explicit
-loading/error fallback.
-
-### Evidence layer
-
-The three open-access artworks remain deterministic Three.js objects positioned inside the
-active archived scene. The world is generated visual context; the artwork frames are stable,
-clickable evidence anchors. World-specific route stops are calculated from the spatial
-profile, so guide movement, artwork placement and camera framing share one coordinate source.
-
-## Character and movement language
+## Interaction and movement language
 
 ### Learner
 
-The learner uses a local Tripo P1 GLB designed from an identity-consistent GPT Image 2
-turnaround. A 52-joint biped skin and baked idle/walk clips drive hands, elbows, legs and feet
-through `THREE.AnimationMixer`; the articulated procedural avatar remains the load fallback.
+The learner is a local high-detail Tripo v3.1 GLB reconstructed from a GPT Image 2 source and
+an identity-consistent four-view turnaround. A semantic 41-joint biped skin and baked
+`preset:biped:wait` / `preset:biped:walk` clips run through `THREE.AnimationMixer`; an
+articulated procedural learner remains the load fallback. Skin validation and the bounded
+24-vertex cross-region correction happen offline, so runtime animation never rewrites weights.
+Learner and guide navigation use a 1.33 m/s walking pace calibrated to the baked foot-contact
+travel; the rejected run clip is not used because it failed the bind-ground gate.
 
 ### Archived companions
 
-Monet, Van Gogh, Socrates, Frida Kahlo and Picasso use optimized Tripo GLBs from
-`muse-infinity`. Each file contains one mesh and no bones, skins or animation clips. The
-runtime therefore applies bounded vertex-region transforms in the material shader for arms,
-elbows, legs and knees, plus root bob, lean and spatial translation.
+The selectable company consists of Monet, Van Gogh, Socrates, Frida Kahlo, Picasso, Freud,
+Qi Baishi and Yayoi Kusama. Their browser GLBs are optimized copies of static Tripo meshes
+from `muse-infinity`; they contain no inherited skeleton or animation clips. The runtime
+therefore uses bounded shader-region deformation plus spatial root motion.
 
-This supports a deliberately small, readable motion vocabulary:
+Selection is also a spatial commitment. With one to three selected companions, the first is
+the correspondence guide and the remaining one or two occupy left/right follow slots behind
+the learner. Each follower updates its root position, heading, walk/idle deformation and
+collider-derived ground height as the learner moves. At the Roundtable the persistent party
+is temporarily hidden while the same roster is staged, so selection does not create visible
+duplicates.
+
+The supported readable vocabulary is:
 
 ```text
-walking -> arriving -> facing -> pointing -> asking -> listening -> reflecting
+walking -> arriving -> facing -> pointing/opening/reflecting
+        -> asking -> listening -> reflecting
 ```
 
-It must be described as shader-deformed motion, not skeletal animation, IK, mocap or a rigged
-Tripo character. If a GLB cannot load, a procedural avatar takes the same guide interface so
-the route remains usable.
+It must be described as shader-deformed motion, not skeletal character animation, IK,
+mocap, lip sync or a newly rigged historical figure.
 
 ### Correspondence gate
 
-`GuideDirector` owns the action sequence. Model output never supplies arbitrary coordinates.
-The guide receives only validated stop IDs and gestures, resolves them through the scene
-manifest, moves to the anchor and turns toward the target. Dialogue opens only after
-`GuideDirector.correspondence()` verifies distance <= 0.6 m and facing error <= 20 degrees.
+`GuideDirector` receives only validated stop IDs and gesture verbs. It resolves positions
+from the active world manifest, moves to the anchor and turns toward the evidence point.
+The prompt opens only after correspondence reports distance <= 0.6 m and facing error <= 20
+degrees. Model output never supplies arbitrary world coordinates.
 
-Navigation is anchor-and-bounds based. There is no navmesh, collider-ground pathfinding,
-obstacle avoidance, full-body IK or lip sync in the current build.
+After that gate, the visitor may select a bounded observation or write up to 80 characters in
+their own words. Both paths create one grounded visit record and continue to the same
+canonical next world; a free observation cannot bypass correspondence or rewrite route order.
+Atlas is inspect-only and never writes a visit record.
+
+## Final concept semantics
+
+The Roundtable input is a capped digest containing the selected companion IDs and exactly
+eight ordered visit records. Its GPT-5.6 strict result is provisional and contains:
+
+```text
+world_title
+synthesis
+principle
+philosophy_axis
+visual_prompt
+evidence_scene_ids (all eight, in order)
+perspectives (exactly one per selected companion)
+```
+
+Choosing `perception`, `emotion` or `invention` does not merely append a label to this result.
+On the configured live path, it triggers a second GPT-5.6 Responses API concept request with
+the provisional concept, complete digest and chosen contradiction. The transformed schema
+restricts `philosophy_axis` to that single axis; the transformation prompt requires
+`world_title`, `synthesis`, `principle` and `visual_prompt` to embody the decision, and the
+validator requires every one of those fields to differ from the provisional concept.
+Evidence order and the exact selected companion perspectives are revalidated before the
+replacement concept can complete Transformation. No-key mode produces an axis-specific
+replacement through the same validator and journey gate.
+
+The validated replacement is the personalized **concept** published at Manifesto. The final
+load gives it a prepared embodied form in the archived Shimmering Spheres geometry. Product
+copy must use language such as "archived realization" or "prepared spatial form", not "your
+world was generated live".
 
 ## Model and provider boundaries
 
-- GPT-5.6 Responses API: strict lesson and Salon Structured Outputs.
-- OpenAI Realtime: optional voice transport and model, never required for text.
-- World Labs: provenance for the three local scenes. A separately gated Forge adapter may
-  explicitly generate a new spatial asset, but performs no language reasoning and cannot run
-  without both provider and admin credentials.
-- Tripo: provenance for five inherited companion GLBs and the newly generated rigged learner.
-  There is no Tripo runtime API in this repository.
+- GPT-5.6 Responses API: strict lesson, provisional-concept and transformed-concept Structured
+  Outputs. The decision transformation is a second concept request, not a client-side label
+  change.
+- OpenAI Realtime: optional voice transport/model; never required for the text path.
+- World Labs: provenance for the nine local worlds. A separately gated Forge adapter may
+  send an explicit spatial-generation request only with both provider and admin credentials;
+  it is outside the canonical path and performs no language reasoning.
+- Tripo: provenance for eight inherited companion GLBs and the newer rigged learner. There is
+  no Tripo runtime API in the judging path.
 - Claude, Gemini, MiniMax and configurable OpenAI-compatible LLM endpoints: prohibited.
 
-Deterministic code owns coordinates, navigation, rendering, validation and fallback labels.
-GPT owns only bounded semantic planning and evidence-grounded perspective text.
+All Responses API calls use `store: false`, a hashed `safety_identifier`, a strict schema,
+bounded timeout and at most one transient retry. Deterministic code owns scene order,
+coordinates, movement, rendering, validation and fallback labels.
 
-## Visual system
+## Visual and layout system
 
-- Full-bleed real-time SPZ world; no decorative preview frame.
-- Archived scene color remains dominant. Neutral charcoal UI preserves scene inspection.
-- Signal yellow-green communicates synchronization and active commands.
-- Coral identifies the learner; cyan identifies completed evidence.
-- Georgia is reserved for reflective display text. System sans serif is used for commands and
-  telemetry.
-- Corners remain 4 px or less. Cards are used for individual choices and perspectives, never
-  nested page sections.
+- Full-bleed real-time world; no decorative world preview frame.
+- Archived color is dominant. Neutral charcoal UI preserves scene inspection.
+- Signal yellow-green communicates synchronization and active commands; coral identifies the
+  learner; cyan identifies recorded evidence.
+- Georgia is reserved for reflective display text; system sans serif is used for commands and
+  telemetry. Corners remain 4 px or less.
 - Companion portraits are identity controls, not decorative stock imagery.
+- The desktop mission rail displays all eight process chapters in a stable scroll region.
+- The final answer is shown only in the gated Manifesto/entry surface, never as an Atlas card.
+- On mobile, route and dialogue become bounded sheets above the joystick/follow control zone;
+  there is no horizontal document overflow at 390 x 844.
 
-## Layout
-
-Desktop:
-
-- 64 px top bar: identity, active archived world, sync state and optional tools.
-- Left mission rail: the three-stop route and completion state.
-- Right-bottom dialogue: active companion, evidence prompt, choices and learning map.
-- Right drawer: one optional capability at a time while preserving the world view.
-- 30 px status bar: route and provider truth.
-
-Mobile:
-
-- 56 px compact tool bar.
-- Dialogue occupies at most 46% of viewport height and ends above the control zone.
-- The 88 px joystick and follow control use a stable bottom safe-area band.
-- Drawers become bottom sheets.
-- Company and rewrite choices wrap vertically without horizontal document overflow.
-
-## Responsive and accessibility constraints
-
-- No viewport-width font scaling.
-- No horizontal document overflow at 390 x 844.
-- Touch controls cannot overlap observation answers.
-- Every tool control has an accessible name and title.
-- Focus remains visible with the signal color.
-- Reduced-motion preference removes authored CSS animation; state transitions and text remain
-  usable.
-- Text is authoritative when voice is unavailable.
-- Portrait alt text identifies speakers; decorative world thumbnails use surrounding labels.
+Accessibility constraints: visible focus, accessible names/titles on controls, text as the
+authoritative voice fallback, useful portrait alt text, reduced-motion CSS support, and no
+viewport-width font scaling.
 
 ## Failure states
 
-- GPT unavailable or invalid: `CURATED DEMO`; the same six-stage journey continues.
-- Realtime unavailable: concise status message; text and movement are unchanged.
-- World Labs credentials absent: Forge remains locked and sends no request; local SPZ files are
-  unaffected.
-- SPZ decode/WebGL failure: procedural architecture remains rendered and the lesson continues.
-- Tripo GLB failure: the matching procedural avatar adapter continues movement and the guide
-  state machine.
-- Room expiry: return to solo without changing the local lesson.
+- GPT unavailable/invalid: label `CURATED DEMO`; preserve the ten beats, eight visits,
+  chosen-axis transformation and final gate with the same validated contracts.
+- Realtime unavailable: report it concisely; text and movement remain unchanged.
+- World Labs credentials absent: Forge remains locked; all local archives remain available.
+- Process RAD/SPZ/GLB decode or WebGL failure: retain procedural spatial fallback for
+  orientation, block evidence, and expose an archive retry without advancing the stop.
+- Final GLB failure: preserve the published manifesto and keep final-world entry uncommitted
+  until the archived 8K realization loads successfully.
+- Retired Spark worlds: stop pager driving, track initialization/fetch/worker work through one
+  bounded retirement, then dispose terminally; late GLTF/texture resolutions are also disposed.
+- Collider failure: use the declared ground height rather than blocking the scene.
+- Historical GLB failure: use the matching procedural avatar interface.
+- Room expiry: return to solo without mutating the local journey.
 
 ## Non-goals for this Build Week version
 
-- Runtime character generation or rigging; all learner generation is an offline asset step.
-- Runtime skeletal retargeting, mocap authoring, navmesh pathfinding or lip sync.
+- Runtime generation of the ninth scene's geometry.
+- Runtime historical-character generation, rigging or skeletal retargeting.
+- Navmesh pathfinding, obstacle avoidance, full-body IK, mocap or lip sync.
 - Production multiplayer persistence.
-- Claiming that the three worlds were generated during this Build Week.
-- Claiming upstream redistribution rights beyond the records available in
+- Claiming that inherited worlds or characters were generated during Build Week.
+- Claiming upstream redistribution rights beyond the incomplete records in
   `docs/PROVENANCE.md`.

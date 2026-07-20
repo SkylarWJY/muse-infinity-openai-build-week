@@ -8,7 +8,7 @@ bytes, hashes and unresolved provenance records are maintained in `docs/PROVENAN
 
 - Three.js `0.180.0`, MIT License: <https://github.com/mrdoob/three.js>
 - Spark `@sparkjsdev/spark` `2.1.0`, MIT License:
-  <https://github.com/sparkjs-dev/spark>
+  <https://github.com/sparkjsdev/spark>
 - Playwright Test `1.61.1`, Apache-2.0 License, development/test only:
   <https://github.com/microsoft/playwright>
 
@@ -23,24 +23,20 @@ no model service is bundled as software in this repository.
 
 ## World Labs scene assets
 
-The following local files are pre-generated World Labs Marble outputs retained from the
-earlier MUSE asset set:
+The nine canonical spaces, their colliders, thumbnails and interpretive scene images are
+pre-generated outputs retained from the earlier MUSE asset set. Scenes 1-7 deploy official
+Spark quality RAD derivatives built from archived World Labs SPZ sources; scene 8 deploys an
+8K texture mesh with its archived SPZ as a fallback; scene 9 deploys an 8K texture mesh.
+Exact filenames, derivations, bytes and hashes are recorded in `docs/PROVENANCE.md`.
 
-- `assets/worlds/bright-gallery.spz`
-- `assets/worlds/van-gogh-gallery.spz`
-- `assets/worlds/infinity-room.spz`
-- `assets/thumbs/bright-gallery.jpg`
-- `assets/thumbs/van-gogh-gallery.jpg`
-- `assets/thumbs/infinity-room.jpg`
+The older `bright-gallery.spz`, `van-gogh-gallery.spz` and `infinity-room.spz` derivatives
+remain only as noncanonical compatibility records. They are not used by the 8+1 route.
 
-They are primary visual assets in the experience, but World Labs is not a language/reasoning
-runtime. A separately gated Forge adapter can optionally contact World Labs for explicit
-spatial generation when both provider and admin credentials are supplied; no-key operation
-uses the local files and sends no provider request.
-
-Only the Bright Gallery world ID prefix `705b7748...` remains in the prior records. Complete
-IDs and explicit output redistribution records for all three scenes were not recovered. Their
-inclusion here must not be read as a new MIT license grant for those files.
+World Labs is not a language/reasoning runtime. A separately gated Forge adapter can
+optionally contact World Labs for explicit spatial generation when both provider and admin
+credentials are supplied; no-key operation uses local files and sends no provider request.
+Complete source World IDs and explicit output redistribution records were not recovered.
+Inclusion must not be read as a new MIT license grant for any generated asset.
 
 ## Tripo character assets
 
@@ -51,6 +47,9 @@ These browser-optimized GLBs were derived from Tripo character outputs in `muse-
 - `assets/characters/socrates.glb`
 - `assets/characters/frida.glb`
 - `assets/characters/picasso.glb`
+- `assets/characters/freud.glb`
+- `assets/characters/qi-baishi.glb`
+- `assets/characters/yayoi-kusama.glb`
 
 The new fictional learner is a separate generated asset:
 
@@ -58,7 +57,7 @@ The new fictional learner is a separate generated asset:
   reconstructed, PBR-textured, rigged and animated by Tripo.
 
 Tripo is asset provenance only; this repository has no Tripo runtime API. Generation task IDs
-and settings were not recovered for the five inherited historical figures, while the new
+and settings were not recovered for the eight inherited historical figures, while the new
 learner's complete generation manifest is checked in. The historical figures are interpretive
 representations and do not claim endorsement, quotation or authentic reconstruction.
 
@@ -84,6 +83,10 @@ copies public domain:
 
 The shipped files are under `assets/portraits/`. Downstream users should verify each current
 Commons file page and jurisdiction-specific status before redistribution.
+
+The archived Freud, Qi Baishi and Yayoi Kusama portrait copies lack recovered upstream URLs
+or rights records. They should not be redistributed outside this hackathon repository until
+those records are recovered.
 
 ## Artwork images
 

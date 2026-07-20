@@ -9,6 +9,12 @@ export class MuseApi {
   lesson(goal) { return this.request("/api/lesson/plan", { method: "POST", body: { goal, session_id: this.sessionId } }); }
   recap(digest) { return this.request("/api/lesson/recap", { method: "POST", body: digest }); }
   salon(digest) { return this.request("/api/salon", { method: "POST", body: digest }); }
+  transform(digest, contradiction, priorConcept) {
+    return this.request("/api/salon/transform", {
+      method: "POST",
+      body: { ...digest, contradiction, prior_concept: priorConcept }
+    });
+  }
   createRoom(display_name) { return this.request("/api/rooms", { method: "POST", body: { display_name } }); }
   joinRoom(roomId, display_name) { return this.request(`/api/rooms/${encodeURIComponent(roomId)}/join`, { method: "POST", body: { display_name } }); }
   roomEvents(roomId, cursor = 0) { return this.request(`/api/rooms/${encodeURIComponent(roomId)}/events?cursor=${cursor}`, { timeout: 5000 }); }

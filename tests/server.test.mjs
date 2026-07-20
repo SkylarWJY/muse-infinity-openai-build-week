@@ -1,12 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { createMuseServer, loadLocalEnv } from "../server.mjs";
+import { createFallbackLesson, createMuseServer, loadLocalEnv } from "../server.mjs";
+import { createFallbackSalon, createSessionDigest } from "../shared/contracts.js";
 
-async function withServer(run) {
-  const server = createMuseServer({ env: {} });
+async function withServer(run, options = {}) {
+  const server = createMuseServer({ env: {}, ...options });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();
   try { await run(`http://127.0.0.1:${port}`); } finally { await new Promise((resolve) => server.close(resolve)); }
@@ -45,7 +48,58 @@ test("no-key lesson endpoint returns curated contract", () => withServer(async (
   const body = await response.json();
   assert.equal(response.status, 200);
   assert.equal(body.live, false);
-  assert.equal(body.data.stops.length, 3);
+  assert.equal(body.data.stops.length, 8);
+}));
+
+test("no-key transformation binds the selected contradiction into the final concept", () => withServer(async (base) => {
+  const lesson = createFallbackLesson("notice emotion");
+  const digest = {
+    learning_goal: lesson.learning_goal,
+    companion_ids: ["frida", "socrates"],
+    visits: lesson.stops.map((stop) => ({
+      stop_id: stop.stop_id,
+      detail_id: stop.detail_id,
+      answer: stop.choices[0].label,
+      effect: stop.choices[0].effect
+    }))
+  };
+  const response = await fetch(`${base}/api/salon/transform`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...digest,
+      contradiction: "emotion",
+      prior_concept: createFallbackSalon(createSessionDigest(digest))
+    })
+  });
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.live, false);
+  assert.equal(body.data.philosophy_axis, "emotion");
+  assert.match(body.data.synthesis, /emotion/i);
+}));
+
+test("transformation endpoint rejects a missing provisional concept even without credentials", () => withServer(async (base) => {
+  const lesson = createFallbackLesson("notice perception");
+  const response = await fetch(`${base}/api/salon/transform`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      learning_goal: lesson.learning_goal,
+      companion_ids: ["monet"],
+      contradiction: "perception",
+      visits: lesson.stops.map((stop) => ({
+        stop_id: stop.stop_id,
+        detail_id: stop.detail_id,
+        answer: stop.choices[0].label,
+        effect: stop.choices[0].effect
+      }))
+    })
+  });
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.live, false);
+  assert.equal(body.reason, "invalid_prior_concept");
 }));
 
 test("static allowlist blocks private project paths", () => withServer(async (base) => {
@@ -68,18 +122,97 @@ test("static allowlist blocks private project paths", () => withServer(async (ba
 }));
 
 test("archived worlds and companions are served with deployable media types", () => withServer(async (base) => {
-  const world = await fetch(`${base}/assets/worlds/bright-gallery.spz`, { method: "HEAD" });
+  const world = await fetch(`${base}/assets/worlds/grand-conservatory.rad`, { method: "HEAD" });
   const companion = await fetch(`${base}/assets/characters/monet.glb`, { method: "HEAD" });
   const learner = await fetch(`${base}/assets/characters/learner.glb`, { method: "HEAD" });
   assert.equal(world.status, 200);
   assert.equal(world.headers.get("content-type"), "application/octet-stream");
-  assert.ok(Number(world.headers.get("content-length")) > 1_000_000);
+  assert.equal(Number(world.headers.get("content-length")), 87_503_680);
   assert.equal(companion.status, 200);
   assert.equal(companion.headers.get("content-type"), "model/gltf-binary");
   assert.ok(Number(companion.headers.get("content-length")) > 1_000_000);
   assert.equal(learner.status, 200);
   assert.equal(learner.headers.get("content-type"), "model/gltf-binary");
   assert.ok(Number(learner.headers.get("content-length")) > 1_000_000);
+}));
+
+test("quality RAD worlds stream immutable byte ranges", () => withServer(async (base) => {
+  const response = await fetch(`${base}/assets/worlds/grand-conservatory.rad`, {
+    headers: { Range: "bytes=0-31" }
+  });
+  assert.equal(response.status, 206);
+  assert.equal(response.headers.get("accept-ranges"), "bytes");
+  assert.equal(response.headers.get("content-length"), "32");
+  assert.equal(response.headers.get("content-range"), "bytes 0-31/87503680");
+  assert.match(response.headers.get("cache-control") || "", /immutable/);
+  const body = Buffer.from(await response.arrayBuffer());
+  assert.equal(body.length, 32);
+  assert.equal(body.toString("ascii", 0, 4), "RAD0");
+}));
+
+test("aborting a raw byte-range client closes and detaches the file stream", async () => {
+  let streamedFile;
+  let resolveSourceClosed;
+  const sourceClosed = new Promise((resolve) => { resolveSourceClosed = resolve; });
+
+  await withServer(async (base) => {
+    const url = new URL(base);
+    await new Promise((resolve, reject) => {
+      const socket = net.createConnection({ host: url.hostname, port: Number(url.port) });
+      socket.setTimeout(5_000, () => socket.destroy(new Error("raw_client_timeout")));
+      socket.once("connect", () => {
+        socket.write([
+          "GET /assets/worlds/grand-conservatory.rad HTTP/1.1",
+          `Host: ${url.host}`,
+          "Range: bytes=0-",
+          "Connection: keep-alive",
+          "",
+          ""
+        ].join("\r\n"));
+      });
+      socket.once("data", (chunk) => {
+        assert.match(chunk.toString("latin1"), /^HTTP\/1\.1 206 Partial Content/);
+        socket.destroy();
+        resolve();
+      });
+      socket.once("error", reject);
+    });
+
+    let closeTimer;
+    try {
+      await Promise.race([
+        sourceClosed,
+        new Promise((_, reject) => {
+          closeTimer = setTimeout(() => reject(new Error("source_close_timeout")), 2_000);
+        })
+      ]);
+    } finally {
+      clearTimeout(closeTimer);
+    }
+    assert.ok(streamedFile);
+    assert.equal(streamedFile.destroyed, true);
+    assert.equal(streamedFile.closed, true);
+    assert.equal(streamedFile.listenerCount("data"), 0);
+    assert.equal(streamedFile.listenerCount("error"), 0);
+    assert.equal(streamedFile.listenerCount("close"), 0);
+  }, {
+    staticReadStreamFactory(filePath, options) {
+      streamedFile = createReadStream(filePath, { ...options, highWaterMark: 1_024 });
+      streamedFile.once("close", resolveSourceClosed);
+      return streamedFile;
+    }
+  });
+});
+
+test("final texture mesh supports byte-range delivery", () => withServer(async (base) => {
+  const response = await fetch(`${base}/assets/worlds/fantasy-shimmering-spheres-texture-mesh.glb`, {
+    headers: { Range: "bytes=0-31" }
+  });
+  assert.equal(response.status, 206);
+  assert.equal(response.headers.get("content-range"), "bytes 0-31/93404352");
+  const body = Buffer.from(await response.arrayBuffer());
+  assert.equal(body.length, 32);
+  assert.equal(body.toString("ascii", 0, 4), "glTF");
 }));
 
 test("oversized JSON receives a bounded 413 response", () => withServer(async (base) => {

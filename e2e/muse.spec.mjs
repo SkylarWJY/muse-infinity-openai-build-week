@@ -2,465 +2,804 @@ import { test, expect } from "@playwright/test";
 
 const desktop = { width: 1440, height: 900 };
 const mobile = { width: 390, height: 844 };
+const appUrl = process.env.MUSE_E2E_BASE_URL || "/?quality=performance";
+
+const PROCESS = Object.freeze([
+  { sceneId: "threshold-conservatory", worldId: "grand-conservatory-with-lush-gardens", title: "The Threshold Conservatory" },
+  { sceneId: "court-of-light", worldId: "elegant-floral-palace-interior", title: "The Court of Light" },
+  { sceneId: "water-and-light", worldId: "enchanted-water-garden-sanctuary", title: "The Garden of Water and Light" },
+  { sceneId: "sunset-frames", worldId: "dreamlike-coastal-villa-gardens", title: "The Sunset Frame Gallery" },
+  { sceneId: "burning-sky", worldId: "van-gogh-inspired-gallery-interior", title: "The Studio of the Burning Sky" },
+  { sceneId: "petal-transition", worldId: "sunlit-palace-gardens", title: "The Petal Transition Hall" },
+  { sceneId: "living-memory", worldId: "mexican-courtyard-bedroom-fantasy", title: "The Courtyard of Living Memory" },
+  { sceneId: "infinite-repetition", worldId: "yellow-polka-dot-infinity-room", title: "The Infinite Repetition Chamber" }
+]);
+
+const FINAL = Object.freeze({
+  sceneId: "personal-dream-world",
+  worldId: "fantasy-realm-of-shimmering-spheres",
+  name: "Fantasy Realm of Shimmering Spheres"
+});
+
+const FREE_OBSERVATION = "The reflected doorway brightens when I step beside the water.";
+
+const DOMAIN_STAGES = Object.freeze([
+  "threshold",
+  "life_question",
+  "companion_selection",
+  "ai_curation",
+  "world_exploration",
+  "summoning",
+  "roundtable",
+  "decision",
+  "world_transformation",
+  "manifesto"
+]);
+
+const COMPANION_NAMES = Object.freeze([
+  "Claude Monet",
+  "Vincent van Gogh",
+  "Socrates",
+  "Frida Kahlo",
+  "Pablo Picasso",
+  "Sigmund Freud",
+  "Qi Baishi",
+  "Yayoi Kusama"
+]);
 
 test.describe.configure({ mode: "serial" });
 
-test("archived threshold boots the real museum and moving Monet model", async ({ page }) => {
-  test.setTimeout(120_000);
+test("the canonical ten-stage journey carries eight worlds into one gated answer world", async ({ page }) => {
+  test.setTimeout(480_000);
   await page.setViewportSize(desktop);
   const errors = captureErrors(page);
-  await page.goto("/");
-  await waitForArchivedWorld(page, "bright-gallery");
-  await page.waitForFunction(() => window.__MUSE_APP__?.engine?.guide?.ready === true);
-  await page.waitForFunction(() => window.__MUSE_APP__?.engine?.player?.loaded === true);
-  await page.waitForFunction(() => window.__MUSE_APP__?.engine?.player?.ready === true);
+  await page.goto(appUrl, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => Boolean(window.__MUSE_APP__));
+  await installStageTrace(page);
 
-  const state = await page.evaluate(() => {
-    const { engine } = window.__MUSE_APP__;
-    const { splat, spark } = engine.worldLayer.splat;
-    let shaderInstalled = false;
-    engine.guide.model.traverse((object) => {
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      shaderInstalled ||= materials.some((material) => material?.customProgramCacheKey?.().startsWith("muse-archived-avatar-motion-"));
-    });
-    let learnerSkins = 0;
-    engine.player.model.traverse((object) => { learnerSkins += object.isSkinnedMesh ? 1 : 0; });
-    return {
-      world: engine.activeWorld.id,
-      worldAsset: splat.userData.archivedWorld,
-      activeSplats: splat.numSplats,
-      lodSplats: splat.packedSplats?.lodSplats?.numSplats || 0,
-      lodTarget: spark.lodSplatCount,
-      sceneryVisible: engine.worldLayer.scenery.visible,
-      companion: engine.guide.companion.id,
-      companionAsset: engine.guide.group.userData.asset,
-      playerAsset: engine.player.group.userData.asset,
-      playerReady: engine.player.ready,
-      playerRig: engine.player.model?.userData.motionRig,
-      playerClips: engine.player.model?.userData.animationClips,
-      actors: engine.scene.children.filter((item) => item.userData?.actor).length,
-      rig: engine.guide.model.userData.motionRig,
-      shaderInstalled,
-      learnerAsset: engine.player.group.userData.asset,
-      learnerModel: engine.player.group.userData.model,
-      learnerFallback: engine.player.group.userData.fallback,
-      learnerRig: engine.player.model.userData.motionRig,
-      learnerClips: engine.player.model.userData.animationClips,
-      correctedSkinWeights: engine.player.model.userData.correctedSkinWeights,
-      learnerSkins
-    };
-  });
-
-  expect(state).toMatchObject({
-    world: "bright-gallery",
-    worldAsset: "bright-gallery",
-    sceneryVisible: false,
-    companion: "monet",
-    companionAsset: "/assets/characters/monet.glb",
-    playerAsset: "/assets/characters/learner.glb",
-    playerReady: true,
-    playerRig: "skeletal-animation",
-    playerClips: ["preset:idle", "preset:walk"],
-    actors: 2,
-    rig: "procedural-limbs",
-    shaderInstalled: true,
-    learnerAsset: "/assets/characters/learner.glb",
-    learnerModel: "gpt-image-2-tripo-rig-v1",
-    learnerFallback: false,
-    learnerRig: "skeletal-animation",
-    learnerClips: ["preset:idle", "preset:walk"],
-    correctedSkinWeights: 126,
-    learnerSkins: 1
-  });
-  expect(state.activeSplats).toBeGreaterThan(50_000);
-  expect(state.activeSplats).toBeLessThanOrEqual(state.lodTarget + 2_000);
-  expect(state.lodSplats).toBeGreaterThan(500_000);
-
-  const playerBefore = await page.evaluate(() => window.__MUSE_APP__.engine.player.group.position.toArray());
-  await page.keyboard.down("KeyW");
-  await page.waitForFunction(() => window.__MUSE_APP__.engine.player.group.userData.motion === "walk");
-  await page.waitForTimeout(350);
-  await page.keyboard.up("KeyW");
-  const playerAfter = await page.evaluate(() => window.__MUSE_APP__.engine.player.group.position.toArray());
-  expect(Math.hypot(playerAfter[0] - playerBefore[0], playerAfter[2] - playerBefore[2])).toBeGreaterThan(0.2);
-
-  await page.keyboard.down("w");
-  await page.waitForFunction(() => {
-    const player = window.__MUSE_APP__.engine.player;
-    return player.group.userData.motion === "walk" && player.actions.walk.getEffectiveWeight() > 0.5;
-  });
-  await page.keyboard.up("w");
-  await page.waitForFunction(() => {
-    const player = window.__MUSE_APP__.engine.player;
-    return player.group.userData.motion === "idle" && player.actions.idle.getEffectiveWeight() > 0.5;
-  });
-
-  const pixels = await canvasPixels(page);
-  expect(pixels.variance).toBeGreaterThan(220);
-  expect(pixels.nonDominantRatio).toBeGreaterThan(0.16);
-  await page.screenshot({ path: "artifacts/screenshots/desktop-archived-threshold.png" });
-  expect(errors).toEqual([]);
-});
-
-test("company selection loads the first invited muse-infinity companion", async ({ page }) => {
-  test.setTimeout(120_000);
-  await page.setViewportSize(desktop);
-  const errors = captureErrors(page);
-  await page.goto("/");
-  await page.waitForFunction(() => window.__MUSE_APP__?.engine?.guide?.ready === true);
-
-  const preset = page.getByRole("button", { name: "How composition moves my attention" });
-  const box = await preset.boundingBox();
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "company");
-  await expect(page.locator("[data-companion]")).toHaveCount(5);
-  expect(await loadedImages(page, ".companion-choice img")).toBe(5);
-  await expect(page.locator("[data-companion][aria-pressed='true']")).toHaveCount(3);
-  await page.screenshot({ path: "artifacts/screenshots/desktop-company.png" });
-
-  await dispatchClick(page, "[data-companion='monet']");
-  await expect(page.locator("[data-companion='monet']")).toHaveAttribute("aria-pressed", "false");
-  await dispatchClick(page, "[data-companion='frida']");
-  await expect(page.locator("[data-companion='frida']")).toHaveAttribute("aria-pressed", "true");
-  let releaseCompanion;
-  const companionGate = new Promise((resolve) => { releaseCompanion = resolve; });
-  await page.route("**/van-gogh.glb", async (route) => {
-    await companionGate;
-    await route.continue();
-  });
-  try {
-    await dispatchClick(page, "[data-entry-action='curate']");
-    await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "curation");
-    await expect(page.locator("[data-entry-action='enter-walk']")).toBeEnabled({ timeout: 2_000 });
-    expect(await page.evaluate(() => ({
-      guide: window.__MUSE_APP__.engine.guide.companion.id,
-      ready: window.__MUSE_APP__.engine.guide.ready,
-      fallback: Boolean(window.__MUSE_APP__.engine.guide.fallback)
-    }))).toEqual({ guide: "van-gogh", ready: false, fallback: true });
-  } finally {
-    releaseCompanion();
-  }
-  await page.waitForFunction(() => window.__MUSE_APP__.engine.guide.ready === true);
-
-  const selection = await page.evaluate(() => ({
-    draft: window.__MUSE_APP__.state.draftCompanions,
-    selected: window.__MUSE_APP__.state.selectedCompanions,
-    guide: window.__MUSE_APP__.engine.guide.companion.id,
-    asset: window.__MUSE_APP__.engine.guide.group.userData.asset
-  }));
-  expect(selection).toEqual({
-    draft: ["van-gogh", "socrates", "frida"],
-    selected: ["van-gogh", "socrates", "frida"],
-    guide: "van-gogh",
-    asset: "/assets/characters/van-gogh.glb"
-  });
-  expect(errors).toEqual([]);
-});
-
-test("complete embodied journey reaches Salon and a rewritten archived world", async ({ page }) => {
-  test.setTimeout(240_000);
-  await page.setViewportSize(desktop);
-  const errors = captureErrors(page);
-  await page.goto("/");
-  await waitForArchivedWorld(page, "bright-gallery");
-  await startDefaultWalk(page);
-
-  await dispatchClick(page, "[data-drawer='salon']");
-  await expect(page.getByRole("button", { name: "Convene perspectives" })).toBeDisabled();
-  await expect(page.locator("#drawer-body")).toContainText("Complete the three-stop route");
-  expect(await page.evaluate(() => window.__MUSE_APP__.engine.salonActors.length)).toBe(0);
-  await dispatchClick(page, "[data-drawer='salon']");
-
-  for (let index = 0; index < 3; index += 1) {
-    await arriveAtCurrentStop(page);
-    await expect(page.locator("[data-answer]").first()).toBeVisible();
-    if (index === 0) {
-      await dispatchClick(page, "[data-drawer='atlas']");
-      await dispatchClick(page, "[data-drawer-action='world'][data-value='infinity-room']");
-      await waitForArchivedWorld(page, "infinity-room");
-      await dispatchClick(page, "[data-answer]");
-      expect(await page.evaluate(() => window.__MUSE_APP__.session.phase)).toBe("asking");
-      await expect(page.locator("#toast")).toContainText("reach and face the evidence");
-      await page.waitForFunction(() => {
-        const { director } = window.__MUSE_APP__.engine;
-        return director.state === "asking" && director.correspondence().synced;
-      });
-      await dispatchClick(page, "[data-action='close-drawer']");
-    }
-    await dispatchClick(page, "[data-answer]");
-    await page.waitForFunction(() => window.__MUSE_APP__.session.phase === "reflecting");
-    await dispatchClick(page, "#continue-button");
-    if (index < 2) await page.waitForFunction(() => window.__MUSE_APP__.session.phase === "walking");
-  }
-
-  await page.waitForFunction(() => window.__MUSE_APP__.session.phase === "complete");
-  await expect(page.locator("#guide-state")).toHaveText("LEARNING MAP");
-  await expect(page.locator("#answers .perspective")).toHaveCount(3);
-  expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("salon");
-
-  await dispatchClick(page, "#continue-button");
-  await page.waitForFunction(() => {
-    const app = window.__MUSE_APP__;
-    return !document.querySelector("#drawer").hidden
-      && document.querySelectorAll("#drawer .perspective").length === 3
-      && app.engine.salonActors.length === 3
-      && app.engine.salonActors.every((actor) => actor.ready);
-  });
-  await expect(page.locator("#dialogue")).toHaveCSS("visibility", "hidden");
-  const salon = await page.evaluate(() => ({
-    actors: window.__MUSE_APP__.engine.salonActors.map((actor) => actor.companion.id),
-    paths: window.__MUSE_APP__.engine.salonActors.map((actor) => actor.group.userData.asset)
-  }));
-  expect(salon.actors).toEqual(["monet", "van-gogh", "socrates"]);
-  expect(salon.paths.every((value) => value.startsWith("/assets/characters/"))).toBe(true);
-  await page.screenshot({ path: "artifacts/screenshots/desktop-salon.png" });
-
-  await dispatchClick(page, "[data-drawer='atlas']");
-  await page.waitForFunction(() => window.__MUSE_APP__.engine.salonActors.length === 0);
-  await dispatchClick(page, "[data-drawer='salon']");
-  await page.waitForFunction(() => window.__MUSE_APP__.engine.salonActors.length === 3
-    && window.__MUSE_APP__.engine.salonActors.every((actor) => actor.ready));
-
-  await dispatchClick(page, "[data-drawer-action='open-rewrite']");
-  await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "rewrite");
-  await expect(page.locator("[data-entry-action='rewrite']")).toHaveCount(2);
-  expect(await loadedImages(page, ".rewrite-choice img")).toBe(2);
-  expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("salon");
-
-  await dispatchClick(page, "[data-entry-action='rewrite'][data-world='van-gogh-gallery']");
-  await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "manifesto");
-  await waitForArchivedWorld(page, "van-gogh-gallery");
-  expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("rewrite");
-  expect(await page.evaluate(() => window.__MUSE_APP__.engine.salonActors.length)).toBe(0);
-
-  await dispatchClick(page, "[data-entry-action='enter-final']");
-  await expect(page.locator("#guide-state")).toHaveText("WORLD LIVE");
-  await expect(page.locator("#stop-title")).toHaveText("Van Gogh Gallery");
-  const finalPixels = await canvasPixels(page);
-  expect(finalPixels.variance).toBeGreaterThan(220);
-  await page.screenshot({ path: "artifacts/screenshots/desktop-final-van-gogh.png" });
-  expect(errors).toEqual([]);
-});
-
-test("Atlas switches between both additional archived scenes", async ({ page }) => {
-  test.setTimeout(240_000);
-  await page.setViewportSize({ width: 1280, height: 800 });
-  const errors = captureErrors(page);
-  await page.goto("/");
-  await waitForArchivedWorld(page, "bright-gallery");
-
-  const raceState = await page.evaluate(() => new Promise((resolve, reject) => {
-    const { engine } = window.__MUSE_APP__;
-    const spark = engine.worldLayer.splat.spark;
-    window.__MUSE_RETIRED_SPARK__ = spark;
-    spark.readPause = 250;
-    spark.lastSortTime = 0;
-    spark.sortDirty = true;
-    spark.driveSort();
-    const deadline = performance.now() + 10_000;
-    const tick = () => {
-      const sortMessages = Object.keys(spark.sortWorker?.messages || {}).length;
-      const lodMessages = Object.keys(spark.lodWorker?.messages || {}).length;
-      if (spark.sorting === true && sortMessages === 0 && lodMessages === 0) {
-        window.__MUSE_RACE_SWITCH__ = engine.setWorld("van-gogh-gallery");
-        resolve({ sorting: spark.sorting, sortMessages, lodMessages });
-        return;
-      }
-      if (performance.now() > deadline) {
-        reject(new Error("spark_sort_window_timeout"));
-        return;
-      }
-      requestAnimationFrame(tick);
-    };
-    tick();
-  }));
-  expect(raceState).toEqual({ sorting: true, sortMessages: 0, lodMessages: 0 });
-  await page.evaluate(() => window.__MUSE_RACE_SWITCH__);
-  await waitForArchivedWorld(page, "van-gogh-gallery");
-  await page.waitForTimeout(500);
-  expect(await page.evaluate(() => ({
-    autoUpdate: window.__MUSE_RETIRED_SPARK__.autoUpdate,
-    sortWorker: window.__MUSE_RETIRED_SPARK__.sortWorker,
-    lodWorker: window.__MUSE_RETIRED_SPARK__.lodWorker
-  }))).toEqual({ autoUpdate: false, sortWorker: null, lodWorker: null });
-  expect(errors).toEqual([]);
-
-  await dispatchClick(page, "[data-drawer='atlas']");
-
-  for (const world of [
-    { id: "van-gogh-gallery", name: "VAN GOGH GALLERY" },
-    { id: "infinity-room", name: "INFINITY DOT ROOM" }
-  ]) {
-    await dispatchClick(page, `[data-drawer-action='world'][data-value='${world.id}']`);
-    await waitForArchivedWorld(page, world.id);
-    await expect(page.locator("#world-name")).toHaveText(world.name);
-    const state = await page.evaluate(() => {
+  await test.step("the threshold renders the real high-fidelity RAD archive", async () => {
+    await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "threshold");
+    await expect(page.locator("#route-list > li")).toHaveCount(8);
+    await waitForRealRadWorld(page, PROCESS[0].worldId);
+    await page.waitForFunction(() => {
       const { engine } = window.__MUSE_APP__;
+      return engine.player?.ready === true
+        && engine.guide?.ready === true
+        && engine.partyActors?.length === 2
+        && engine.partyActors.every((actor) => actor.ready === true && actor.group.visible === true);
+    }, null, { timeout: 90_000 });
+
+    const archive = await page.evaluate(() => {
+      const { engine } = window.__MUSE_APP__;
+      const { spark, splat } = engine.worldLayer.archive;
       return {
         world: engine.activeWorld.id,
-        activeSplats: engine.worldLayer.splat.splat.numSplats,
-        scale: engine.worldLayer.splat.splat.scale.x,
+        source: engine.activeWorld.rad,
+        sourceSplats: engine.activeWorld.sourceSplats,
+        live: engine.worldLayer.isLive(engine.activeWorld.id),
+        type: engine.worldLayer.archive.type,
+        format: splat.userData.archiveFormat,
+        paged: Boolean(splat.paged),
+        pagedLodSplats: splat.paged?.numSplats || 0,
+        activeSplats: spark.activeSplats || 0,
+        sceneryVisible: engine.worldLayer.scenery.visible,
+        companion: engine.guide.companion.id,
+        companionAsset: engine.guide.group.userData.asset,
+        party: engine.partyActors.map((actor) => actor.companion.id),
+        partyAssets: engine.partyActors.map((actor) => actor.group.userData.asset),
+        learnerReady: engine.player.ready,
+        learnerModel: engine.player.group.userData.model,
+        learnerFallback: engine.player.group.userData.fallback,
+        learnerRig: engine.player.model?.userData.motionRig,
+        learnerClips: engine.player.model?.userData.animationClips,
+        sourceGradeSkinWeights: engine.player.model?.userData.sourceGradeSkinWeights,
         actors: engine.scene.children.filter((item) => item.userData?.actor).length
       };
     });
-    expect(state.world).toBe(world.id);
-    expect(state.activeSplats).toBeGreaterThan(50_000);
-    expect(state.activeSplats).toBeLessThan(135_000);
-    expect(state.actors).toBe(2);
-    expect((await canvasPixels(page)).variance).toBeGreaterThan(180);
-    await page.screenshot({ path: `artifacts/screenshots/desktop-atlas-${world.id}.png` });
-  }
+    expect(archive).toMatchObject({
+      world: PROCESS[0].worldId,
+      sourceSplats: 4_320_000,
+      live: true,
+      type: "splat",
+      format: "rad",
+      paged: true,
+      sceneryVisible: false,
+      companion: "monet",
+      companionAsset: "/assets/characters/monet.glb",
+      learnerReady: true,
+      learnerModel: "gpt-image-2-tripo-v31-biped-v2",
+      learnerFallback: false,
+      learnerRig: "skeletal-animation",
+      learnerClips: ["preset:biped:wait", "preset:biped:walk"],
+      sourceGradeSkinWeights: true,
+      party: ["van-gogh", "socrates"],
+      partyAssets: ["/assets/characters/van-gogh.glb", "/assets/characters/socrates.glb"],
+      actors: 4
+    });
+    expect(archive.source).toMatch(/\.rad$/);
+    expect(archive.pagedLodSplats).toBeGreaterThan(0);
+    expect(archive.activeSplats).toBeGreaterThan(0);
+    await constrainRadForScreenshot(page);
 
-  const rapidSwitches = await page.evaluate(async () => {
+    const before = await playerPosition(page);
+    const partyBefore = await partyPositions(page);
+    await page.keyboard.down("w");
+    await page.waitForFunction(() => window.__MUSE_APP__.engine.player.group.userData.motion === "walk");
+    await page.waitForTimeout(250);
+    const firstLegPose = await playerLegPose(page);
+    await page.waitForTimeout(220);
+    const secondLegPose = await playerLegPose(page);
+    await page.keyboard.up("w");
+    await page.waitForFunction(() => window.__MUSE_APP__.engine.player.group.userData.motion === "idle");
+    await page.waitForTimeout(350);
+    const after = await playerPosition(page);
+    const partyAfter = await partyPositions(page);
+    expect(planarDistance(before, after)).toBeGreaterThan(0.15);
+    for (const [index, position] of partyAfter.entries()) {
+      expect(planarDistance(partyBefore[index], position)).toBeGreaterThan(0.08);
+    }
+    expect(poseDistance(firstLegPose, secondLegPose)).toBeGreaterThan(0.02);
+
+    const pixels = await canvasPixels(page, "artifacts/screenshots/desktop-rad-threshold.png");
+    expect(pixels.variance).toBeGreaterThan(180);
+    expect(pixels.nonDominantRatio).toBeGreaterThan(0.12);
+  });
+
+  await installLightweightWorldSwitches(page);
+
+  await test.step("Atlas exposes only process worlds and cannot create evidence", async () => {
+    await page.locator("[data-drawer='atlas']").click();
+    const atlas = page.locator("[data-drawer-action='world']");
+    await expect(atlas).toHaveCount(8);
+    expect(await atlas.evaluateAll((items) => items.map((item) => item.dataset.value))).toEqual(PROCESS.map((item) => item.worldId));
+    await expect(page.locator(`[data-drawer-action='world'][data-value='${FINAL.worldId}']`)).toHaveCount(0);
+    await expect(page.locator("#drawer-body")).toContainText("09 / ANSWER remains outside the Atlas");
+    await expect(page.locator("[data-drawer-action='world']:not([disabled])")).toHaveCount(1);
+
+    await atlas.first().click();
+    expect(await journeySnapshot(page)).toMatchObject({ stage: "threshold", visited: [], finalWorldEntered: false });
+    expect(await page.evaluate(() => window.__MUSE_APP__.session.phase)).toBe("idle");
+    await page.locator("[data-action='close-drawer']").click();
+
+    await expect(page.locator("[data-entry-action='enter-final']")).toHaveCount(0);
+    await page.evaluate(() => window.__MUSE_APP__.enterFinalWorld());
+    await expect(page.locator("#toast")).toContainText("final world requires manifesto");
+    expect(await journeySnapshot(page)).toMatchObject({ stage: "threshold", manifesto: "", finalWorldEntered: false });
+  });
+
+  await test.step("Threshold, life question, eight-companion chooser and GPT curation stay explicit", async () => {
+    await page.locator("[data-entry-action='cross-threshold']").click();
+    await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "life-question");
+    expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("life_question");
+
+    await page.getByRole("button", { name: "How composition moves my attention" }).click();
+    await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "company");
+    expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("companion_selection");
+    await expect(page.locator("[data-companion]")).toHaveCount(8);
+    expect(await page.locator(".companion-copy b").allTextContents()).toEqual(COMPANION_NAMES);
+    await expect(page.locator("[data-companion][aria-pressed='true']")).toHaveCount(3);
+    await expect.poll(() => loadedImages(page, ".companion-choice img")).toBe(8);
+
+    await page.setViewportSize(mobile);
+    const companyLayout = await mobileLayout(page, "#entry-panel");
+    expect(companyLayout.documentOverflow).toBeLessThanOrEqual(0);
+    expect(companyLayout.panelOverflow).toBeLessThanOrEqual(0);
+    expect(companyLayout.panelTouchesMovement).toBe(false);
+    expect(companyLayout.panelTouchesMission).toBe(false);
+    expect(companyLayout.columns).toBe(2);
+    expect(companyLayout.panelScrollable).toBe(true);
+    await page.screenshot({ path: "artifacts/screenshots/mobile-eight-companion-chooser.png" });
+    await page.setViewportSize(desktop);
+
+    await page.evaluate(() => {
+      const fetchImpl = window.fetch.bind(window);
+      window.fetch = (input, init) => {
+        if (new URL(String(input), window.location.href).pathname === "/api/lesson/plan") {
+          window.fetch = fetchImpl;
+          return Promise.reject(new TypeError("simulated_client_disconnect"));
+        }
+        return fetchImpl(input, init);
+      };
+    });
+    await page.locator("[data-entry-action='curate']").click();
+    await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "curation");
+    expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("ai_curation");
+    await expect(page.locator(".curation-route > li")).toHaveCount(8);
+    expect(await page.locator(".curation-route > li span").allTextContents()).toEqual(PROCESS.map((item) => item.title));
+    await page.waitForFunction(() => {
+      const button = document.querySelector("[data-entry-action='enter-walk']");
+      return button && !button.disabled && window.__MUSE_APP__.state.busy === false;
+    });
+    expect(await page.evaluate(() => ({
+      provider: window.__MUSE_APP__.state.provider,
+      stops: window.__MUSE_APP__.session.plan?.stops?.length,
+      goal: window.__MUSE_APP__.session.plan?.learning_goal
+    }))).toEqual({
+      provider: { live: false, model: "curated-demo", reason: "server_unavailable" },
+      stops: 8,
+      goal: "How composition moves my attention"
+    });
+  });
+
+  await test.step("all eight process worlds are visited in canonical order", async () => {
+    await page.locator("[data-entry-action='enter-walk']").click();
+    await waitForProcessStop(page, 0, "walking");
+
+    const guideBefore = await page.evaluate(() => window.__MUSE_APP__.engine.guide.group.position.toArray());
+    await page.waitForTimeout(500);
+    const guideAfter = await page.evaluate(() => window.__MUSE_APP__.engine.guide.group.position.toArray());
+    expect(planarDistance(guideBefore, guideAfter)).toBeGreaterThan(0.05);
+
+    for (let index = 0; index < PROCESS.length; index += 1) {
+      const expected = PROCESS[index];
+      await waitForProcessStop(page, index, "walking");
+      if (index === PROCESS.length - 1) {
+        await waitForRealMeshWorld(page, expected.worldId);
+        const sceneEightArchive = await meshArchiveMetrics(page);
+        expect(sceneEightArchive).toMatchObject({
+          world: expected.worldId,
+          archiveWorld: expected.worldId,
+          archiveType: "mesh",
+          live: true,
+          sceneryVisible: false,
+          maxTextureWidth: 8192,
+          maxTextureHeight: 8192,
+          toneMappedMaterials: 0,
+          finalWorldEntered: false,
+          salonVisible: false,
+          guideVisible: true,
+          party: [
+            { id: "van-gogh", ready: true, visible: true },
+            { id: "socrates", ready: true, visible: true }
+          ]
+        });
+        expect(sceneEightArchive.meshCount).toBeGreaterThan(0);
+        expect(sceneEightArchive.triangles).toBeGreaterThan(595_000);
+        expect((await canvasPixels(page, "artifacts/screenshots/desktop-scene-08-kusama-8k.png")).variance).toBeGreaterThan(120);
+        await installLightweightWorldSwitches(page);
+      }
+      await arriveAtCurrentStop(page);
+      await expect(page.locator("#stop-title")).toContainText(expected.title);
+      await expect(page.locator("[data-answer]")).toHaveCount(2);
+
+      if (index === 1) await verifyCurrentArchiveFailureBlocksEvidence(page, expected, index);
+
+      if (index === 0) {
+        await page.setViewportSize(mobile);
+        const questionLayout = await mobileLayout(page, "#dialogue");
+        expect(questionLayout.documentOverflow).toBeLessThanOrEqual(0);
+        expect(questionLayout.panelOverflow).toBeLessThanOrEqual(0);
+        expect(questionLayout.panelTouchesMovement).toBe(false);
+        expect(questionLayout.panelTouchesMission).toBe(false);
+        await page.screenshot({ path: "artifacts/screenshots/mobile-first-world-question.png" });
+        await page.setViewportSize(desktop);
+      }
+
+      if (index === 2) {
+        await page.locator("#observation-input").fill(FREE_OBSERVATION);
+        await page.locator(".observation-form").evaluate((form) => form.requestSubmit());
+      } else {
+        await page.locator("[data-answer]").first().click();
+      }
+      await page.waitForFunction((count) => {
+        const app = window.__MUSE_APP__;
+        return app.session.phase === "reflecting"
+          && app.session.visited.length === count
+          && app.journey.visitedSceneIds.length === count;
+      }, index + 1);
+      expect((await journeySnapshot(page)).visited).toEqual(PROCESS.slice(0, index + 1).map((item) => item.sceneId));
+      await expect(page.locator("#route-list > li.done")).toHaveCount(index + 1);
+
+      if (index === 2) {
+        const recordedObservation = await page.evaluate((visitIndex) => {
+          const { session, journey } = window.__MUSE_APP__;
+          return session.digest({ companion_ids: journey.companions }).visits[visitIndex];
+        }, index);
+        expect(recordedObservation).toMatchObject({
+          stop_id: expected.sceneId,
+          answer: FREE_OBSERVATION,
+          effect: "focus"
+        });
+      }
+
+      if (index === 0) {
+        await page.locator("[data-drawer='atlas']").click();
+        await expect(page.locator("[data-drawer-action='world']")).toHaveCount(8);
+        await expect(page.locator("[data-drawer-action='world']:not([disabled])")).toHaveCount(2);
+        await page.locator(`[data-drawer-action='world'][data-value='${PROCESS[1].worldId}']`).click();
+        await page.waitForFunction((worldId) => window.__MUSE_APP__.engine.activeWorld.id === worldId, PROCESS[1].worldId);
+        expect(await page.evaluate(() => ({
+          sessionPhase: window.__MUSE_APP__.session.phase,
+          sessionStop: window.__MUSE_APP__.session.currentStopId,
+          sessionVisited: [...window.__MUSE_APP__.session.visited],
+          journeyVisited: [...window.__MUSE_APP__.journey.visitedSceneIds]
+        }))).toEqual({
+          sessionPhase: "reflecting",
+          sessionStop: PROCESS[0].sceneId,
+          sessionVisited: [PROCESS[0].sceneId],
+          journeyVisited: [PROCESS[0].sceneId]
+        });
+        await expect(page.locator(`[data-drawer-action='world'][data-value='${FINAL.worldId}']`)).toHaveCount(0);
+        await page.locator("[data-action='close-drawer']").click();
+      }
+
+      if (index === PROCESS.length - 2) await restoreRealWorldSwitches(page);
+      if (index === 1) await verifyAtlasCannotInterruptTransition(page);
+      else if (index === 2) await verifyArchiveFailureRequiresRetry(page, PROCESS[index + 1]);
+      else await page.locator("#continue-button").click();
+      if (index < PROCESS.length - 1) {
+        await waitForProcessStop(page, index + 1, "walking");
+      } else {
+        await page.waitForFunction(() => window.__MUSE_APP__.session.phase === "complete"
+          && document.querySelector("#entry-panel")?.dataset.stage === "exploration-complete");
+      }
+    }
+
+    expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("world_exploration");
+    await expect(page.locator(".evidence-count b")).toHaveText("08");
+    await expect(page.locator("[data-entry-action='enter-final']")).toHaveCount(0);
+
+    await page.locator("[data-drawer='atlas']").click();
+    await expect(page.locator("[data-drawer-action='world']")).toHaveCount(8);
+    await expect(page.locator("[data-drawer-action='world']:not([disabled])")).toHaveCount(8);
+    await expect(page.locator(`[data-drawer-action='world'][data-value='${FINAL.worldId}']`)).toHaveCount(0);
+    expect(await page.evaluate(() => ({
+      phase: window.__MUSE_APP__.session.phase,
+      sessionVisits: window.__MUSE_APP__.session.visited.length,
+      journeyVisits: window.__MUSE_APP__.journey.visitedSceneIds.length,
+      finalWorldEntered: window.__MUSE_APP__.journey.finalWorldEntered
+    }))).toEqual({ phase: "complete", sessionVisits: 8, journeyVisits: 8, finalWorldEntered: false });
+    await page.locator("[data-action='close-drawer']").click();
+  });
+
+  await test.step("Summoning, Roundtable, Decision and Transformation retain all evidence", async () => {
+    await page.locator("[data-entry-action='begin-summoning']").click();
+    await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "summoning");
+    expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("summoning");
+    await expect(page.locator(".summoning-ledger > li.recorded")).toHaveCount(8);
+    await expect(page.locator(".summoning-ledger > li").nth(2)).toContainText(FREE_OBSERVATION);
+    await expect(page.locator("[data-entry-action='enter-final']")).toHaveCount(0);
+
+    await page.locator("[data-entry-action='convene-roundtable']").click();
+    await page.waitForFunction(() => window.__MUSE_APP__.state.busy === false
+      && window.__MUSE_APP__.journey.stage === "roundtable"
+      && document.querySelector("#entry-panel")?.dataset.stage === "roundtable"
+      && !document.querySelector("[data-entry-action='open-decision']")?.disabled);
+    await page.waitForFunction(() => {
+      const { engine } = window.__MUSE_APP__;
+      return engine.salonVisible === true
+        && engine.salonActors.length === 3
+        && engine.salonActors.every((actor) => actor.ready === true && actor.group.visible === true)
+        && engine.guide.group.visible === false
+        && engine.partyActors.every((actor) => actor.group.visible === false);
+    });
+    await expect(page.locator(".roundtable-thread")).toHaveCount(3);
+    await expect(page.locator("[data-entry-action='enter-final']")).toHaveCount(0);
+
+    await page.locator("[data-entry-action='open-decision']").click();
+    await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "decision");
+    await expect(page.locator("[data-decision]")).toHaveCount(3);
+    expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("roundtable");
+
+    await page.locator("[data-decision='emotion']").click();
+    await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "transformation");
+    expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("world_transformation");
+    const provisionalConcept = await page.evaluate(() => window.__MUSE_APP__.journey.finalConcept);
+    expect(provisionalConcept.evidence_scene_ids).toEqual(PROCESS.map((item) => item.sceneId));
+    expect(provisionalConcept.perspectives.map((item) => item.character_id)).toEqual(["monet", "van-gogh", "socrates"]);
+
+    await page.locator("[data-entry-action='complete-transformation']").click();
+    await page.waitForFunction(() => {
+      const app = window.__MUSE_APP__;
+      return app.state.busy === false
+        && app.journey.stage === "manifesto"
+        && app.state.salon?.philosophy_axis === "emotion"
+        && app.journey.finalConcept?.philosophy_axis === "emotion"
+        && document.querySelector("#entry-panel")?.dataset.stage === "manifesto";
+    });
+    const transformedConcept = await page.evaluate(() => ({
+      contradiction: window.__MUSE_APP__.journey.contradiction,
+      stateSalon: window.__MUSE_APP__.state.salon,
+      finalConcept: window.__MUSE_APP__.journey.finalConcept,
+      manifestoDraft: document.querySelector("#manifesto-input")?.value
+    }));
+    expect(transformedConcept.contradiction).toBe("emotion");
+    expect(transformedConcept.stateSalon.philosophy_axis).toBe("emotion");
+    expect(transformedConcept.finalConcept).toMatchObject({
+      philosophy_axis: "emotion",
+      evidence_scene_ids: PROCESS.map((item) => item.sceneId)
+    });
+    expect(transformedConcept.finalConcept.world_title).not.toBe(provisionalConcept.world_title);
+    expect(transformedConcept.finalConcept.synthesis).not.toBe(provisionalConcept.synthesis);
+    expect(transformedConcept.manifestoDraft).toBe(transformedConcept.finalConcept.principle);
+    await expect(page.locator(".manifesto-axis")).toContainText("Emotion");
+    expect(await journeySnapshot(page)).toMatchObject({ stage: "manifesto", manifesto: "", finalWorldEntered: false });
+  });
+
+  await test.step("the ninth world remains gated until manifesto publication", async () => {
+    const enter = page.locator("[data-entry-action='enter-final']");
+    await expect(enter).toBeHidden();
+    expect(await page.evaluate(() => window.__MUSE_APP__.engine.activeWorld.id)).toBe(PROCESS[7].worldId);
+
+    await page.evaluate(() => window.__MUSE_APP__.enterFinalWorld());
+    await expect(page.locator("#toast")).toContainText("final world requires manifesto");
+    expect(await journeySnapshot(page)).toMatchObject({ stage: "manifesto", manifesto: "", finalWorldEntered: false });
+    expect(await page.evaluate(() => window.__MUSE_APP__.engine.activeWorld.id)).toBe(PROCESS[7].worldId);
+
+    const manifesto = "Art should make careful attention reciprocal: the observer changes the world, and the world answers back.";
+    await page.locator("#manifesto-input").fill(manifesto);
+    await page.locator("[data-entry-action='publish-manifesto']").click();
+    await expect(page.locator("#manifesto-input")).toHaveAttribute("readonly", "");
+    await expect(enter).toBeVisible();
+    expect(await journeySnapshot(page)).toMatchObject({ stage: "manifesto", manifesto, finalWorldEntered: false });
+    expect(await page.evaluate(() => window.__MUSE_APP__.engine.activeWorld.id)).toBe(PROCESS[7].worldId);
+  });
+
+  await test.step("the published concept opens the real archived 8K answer world", async () => {
+    await restoreRealWorldSwitches(page);
+    await installOneShotWorldLoadFailure(page, FINAL.worldId);
+    await page.locator("[data-entry-action='enter-final']").click();
+    await page.waitForFunction(() => window.__MUSE_APP__.state.busy === false);
+    await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "manifesto");
+    await expect(page.locator("[data-entry-action='enter-final']")).toBeVisible();
+    expect(await journeySnapshot(page)).toMatchObject({ stage: "manifesto", finalWorldEntered: false });
+
+    await page.locator("[data-entry-action='enter-final']").click();
+    await page.waitForFunction((worldId) => {
+      const app = window.__MUSE_APP__;
+      return app.state.busy === false
+        && app.journey.finalWorldEntered === true
+        && app.engine.activeWorld.id === worldId
+        && app.engine.worldLayer.isLive(worldId)
+        && app.engine.worldLayer.archive?.type === "mesh"
+        && document.querySelector("#entry-panel")?.dataset.stage === "final-answer";
+    }, FINAL.worldId, { timeout: 120_000 });
+
+    const finalArchive = await meshArchiveMetrics(page);
+    expect(finalArchive).toMatchObject({
+      world: FINAL.worldId,
+      archiveWorld: FINAL.worldId,
+      archiveType: "mesh",
+      live: true,
+      sceneryVisible: false,
+      maxTextureWidth: 8192,
+      maxTextureHeight: 8192,
+      toneMappedMaterials: 0,
+      finalWorldEntered: true,
+      salonVisible: false,
+      guideVisible: true,
+      party: [
+        { id: "van-gogh", ready: true, visible: true },
+        { id: "socrates", ready: true, visible: true }
+      ]
+    });
+    expect(finalArchive.meshCount).toBeGreaterThan(0);
+    expect(finalArchive.triangles).toBeGreaterThan(590_000);
+
+    await expect(page.locator("#entry-panel")).toContainText(FINAL.name);
+    const pixels = await canvasPixels(page, "artifacts/screenshots/desktop-final-shimmering-spheres-8k.png");
+    expect(pixels.variance).toBeGreaterThan(140);
+    expect(pixels.nonDominantRatio).toBeGreaterThan(0.1);
+
+    const uniqueStages = await page.evaluate(() => window.__MUSE_STAGE_TRACE__.filter((stage, index, all) => index === 0 || stage !== all[index - 1]));
+    expect(uniqueStages).toEqual(DOMAIN_STAGES);
+
+    await page.setViewportSize(mobile);
+    const finalLayout = await mobileLayout(page, "#entry-panel");
+    expect(finalLayout.documentOverflow).toBeLessThanOrEqual(0);
+    expect(finalLayout.panelOverflow).toBeLessThanOrEqual(0);
+    expect(finalLayout.panelTouchesMovement).toBe(false);
+    await page.screenshot({ path: "artifacts/screenshots/mobile-final-shimmering-spheres.png" });
+
+    await page.locator("[data-drawer='atlas']").click();
+    await expect(page.locator("[data-drawer-action='world']")).toHaveCount(8);
+    await expect(page.locator(`[data-drawer-action='world'][data-value='${FINAL.worldId}']`)).toHaveCount(0);
+    await expect(page.locator("[data-drawer-action='world']:not([disabled])")).toHaveCount(0);
+    await expect(page.locator("#drawer-body")).toContainText("locked evidence record");
+    await page.locator("[data-drawer-action='world']").first().evaluate((button) => {
+      button.disabled = false;
+      button.click();
+    });
+    await expect(page.locator("#toast")).toContainText("answer world is final");
+    expect(await page.evaluate(() => window.__MUSE_APP__.engine.activeWorld.id)).toBe(FINAL.worldId);
+  });
+
+  expect(errors).toEqual([]);
+});
+
+async function installStageTrace(page) {
+  await page.evaluate(() => {
+    const journey = window.__MUSE_APP__.journey;
+    const methods = [
+      "crossThreshold",
+      "setQuestion",
+      "setCompanions",
+      "beginCuration",
+      "acceptCuration",
+      "recordSceneVisit",
+      "beginSummoning",
+      "openRoundtable",
+      "completeRoundtable",
+      "chooseContradiction",
+      "completeTransformation",
+      "publishManifesto",
+      "enterFinalWorld"
+    ];
+    window.__MUSE_STAGE_TRACE__ = [journey.stage];
+    for (const name of methods) {
+      const original = journey[name];
+      journey[name] = function tracedJourneyTransition(...args) {
+        const result = original.apply(this, args);
+        window.__MUSE_STAGE_TRACE__.push(this.stage);
+        return result;
+      };
+    }
+  });
+}
+
+async function installLightweightWorldSwitches(page) {
+  await page.evaluate(async () => {
+    const { WORLDS } = await import("/src/config/scenes.js");
+    const { engine, state } = window.__MUSE_APP__;
+    const archive = engine.worldLayer.archive;
+    if (archive?.type === "splat") {
+      archive.spark.autoUpdate = false;
+      archive.spark.enableDriveLod = false;
+      archive.spark.visible = false;
+      archive.splat.visible = false;
+    } else if (archive?.type === "mesh") {
+      archive.object.visible = false;
+    }
+    engine.worldLayer.scenery.visible = true;
+    window.__MUSE_REAL_SET_WORLD__ = engine.setWorld.bind(engine);
+    window.__MUSE_REAL_GROUND_HEIGHT__ = engine.worldLayer.groundHeightAt.bind(engine.worldLayer);
+    engine.worldLayer.groundHeightAt = () => engine.worldLayer.activeWorld?.profile?.groundY || 0;
+    engine.setWorld = async (worldId) => {
+      const token = ++engine.worldToken;
+      const world = WORLDS.find((item) => item.id === worldId) || WORLDS[0];
+      engine.director.paused = true;
+      await engine.showSalonCharacters(false);
+      if (token !== engine.worldToken) return engine.activeWorld;
+      engine.applyWorldProfile(world, false);
+      engine.worldLayer.activeWorld = world;
+      engine.activeWorld = world;
+      engine.activeWorldLive = true;
+      engine.director.paused = false;
+      return world;
+    };
+    window.__MUSE_REAL_IS_LIVE__ = engine.worldLayer.isLive.bind(engine.worldLayer);
+    engine.worldLayer.isLive = (worldId) => engine.activeWorld.id === worldId;
+    state.bootSettled = true;
+    state.bootPromise = Promise.resolve(engine.activeWorld);
+  });
+}
+
+async function restoreRealWorldSwitches(page) {
+  await page.evaluate(() => {
     const { engine } = window.__MUSE_APP__;
-    const first = engine.setWorld("van-gogh-gallery");
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    const second = engine.setWorld("infinity-room");
-    await Promise.all([first, second]);
-    const { spawn, guideSpawn, yaw } = engine.activeWorld.profile;
+    engine.setWorld = window.__MUSE_REAL_SET_WORLD__;
+    engine.worldLayer.groundHeightAt = window.__MUSE_REAL_GROUND_HEIGHT__;
+    engine.worldLayer.isLive = window.__MUSE_REAL_IS_LIVE__;
+  });
+}
+
+async function verifyAtlasCannotInterruptTransition(page) {
+  await page.evaluate(() => {
+    const { engine } = window.__MUSE_APP__;
+    const setWorld = engine.setWorld.bind(engine);
+    let release;
+    window.__MUSE_RELEASE_WORLD_SWITCH__ = () => release?.();
+    engine.setWorld = async (...args) => {
+      await new Promise((resolve) => { release = resolve; });
+      engine.setWorld = setWorld;
+      return setWorld(...args);
+    };
+  });
+  await page.locator("#continue-button").click();
+  await page.waitForFunction(() => window.__MUSE_APP__.state.busy === true);
+  await page.locator("[data-drawer='atlas']").click();
+  await expect(page.locator("[data-drawer-action='world']:not([disabled])")).toHaveCount(0);
+  await page.locator("[data-drawer-action='world']").first().evaluate((button) => {
+    button.disabled = false;
+    button.click();
+  });
+  await expect(page.locator("#toast")).toContainText("world transition in progress");
+  await page.evaluate(() => window.__MUSE_RELEASE_WORLD_SWITCH__());
+  await page.waitForFunction(() => window.__MUSE_APP__.state.busy === false);
+  await page.locator("[data-action='close-drawer']").click();
+}
+
+async function verifyArchiveFailureRequiresRetry(page, expected) {
+  await installOneShotWorldLoadFailure(page, expected.worldId);
+  await page.locator("#continue-button").click();
+  await page.waitForFunction(() => window.__MUSE_APP__.state.busy === false
+    && document.querySelector("#entry-panel")?.dataset.stage === "archive-required");
+  expect(await page.evaluate(() => ({
+    phase: window.__MUSE_APP__.session.phase,
+    stop: window.__MUSE_APP__.session.currentStopId,
+    finalWorldEntered: window.__MUSE_APP__.journey.finalWorldEntered
+  }))).toEqual({ phase: "walking", stop: expected.sceneId, finalWorldEntered: false });
+  await page.locator("[data-entry-action='retry-scene']").click();
+  await page.waitForFunction(() => window.__MUSE_APP__.state.busy === false
+    && document.querySelector("#dialogue")?.hidden === false);
+}
+
+async function verifyCurrentArchiveFailureBlocksEvidence(page, expected, visitedCount) {
+  await installOneShotWorldLoadFailure(page, expected.worldId);
+  await page.locator("[data-drawer='atlas']").click();
+  await page.locator(`[data-drawer-action='world'][data-value='${expected.worldId}']`).click();
+  await page.waitForFunction(() => window.__MUSE_APP__.state.busy === false);
+  await page.locator("[data-action='close-drawer']").click();
+
+  await page.locator("[data-answer]").first().click();
+  await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "archive-required");
+  expect(await page.evaluate(() => ({
+    phase: window.__MUSE_APP__.session.phase,
+    sessionVisits: window.__MUSE_APP__.session.visited.length,
+    journeyVisits: window.__MUSE_APP__.journey.visitedSceneIds.length
+  }))).toEqual({ phase: "asking", sessionVisits: visitedCount, journeyVisits: visitedCount });
+
+  await page.locator("[data-entry-action='retry-scene']").click();
+  await page.waitForFunction(() => window.__MUSE_APP__.state.busy === false
+    && window.__MUSE_APP__.session.phase === "walking");
+  await arriveAtCurrentStop(page);
+  await expect(page.locator("[data-answer]")).toHaveCount(2);
+}
+
+async function installOneShotWorldLoadFailure(page, worldId) {
+  await page.evaluate(async (targetWorldId) => {
+    const { WORLDS } = await import("/src/config/scenes.js");
+    const { engine } = window.__MUSE_APP__;
+    const setWorld = engine.setWorld.bind(engine);
+    engine.setWorld = async (requestedId) => {
+      engine.setWorld = setWorld;
+      engine.activeWorldLive = false;
+      return WORLDS.find((world) => world.id === requestedId) || WORLDS.find((world) => world.id === targetWorldId);
+    };
+  }, worldId);
+}
+
+async function waitForRealRadWorld(page, worldId) {
+  await page.waitForFunction((id) => {
+    const engine = window.__MUSE_APP__?.engine;
+    const archive = engine?.worldLayer?.archive;
+    return engine?.activeWorld?.id === id
+      && engine.worldLayer.isLive(id)
+      && archive?.type === "splat"
+      && archive.splat?.isInitialized === true
+      && archive.splat.userData.archiveFormat === "rad"
+      && (archive.splat.paged?.numSplats || 0) > 0
+      && (archive.spark.activeSplats || 0) > 0
+      && engine.worldLayer.scenery.visible === false;
+  }, worldId, { timeout: 180_000 });
+}
+
+async function constrainRadForScreenshot(page) {
+  await page.evaluate(() => {
+    const spark = window.__MUSE_APP__.engine.worldLayer.archive.spark;
+    spark.lodSplatCount = 120_000;
+    spark.lodDirty = true;
+    spark.lastLod = undefined;
+  });
+  await page.waitForFunction(() => (window.__MUSE_APP__.engine.worldLayer.archive.spark.activeSplats || 0) > 0);
+}
+
+async function waitForProcessStop(page, index, phase) {
+  await page.waitForFunction(({ expectedScene, expectedWorld, expectedPhase }) => {
+    const app = window.__MUSE_APP__;
+    return app.journey.stage === "world_exploration"
+      && app.session.phase === expectedPhase
+      && app.session.currentStopId === expectedScene
+      && app.engine.activeWorld.id === expectedWorld;
+  }, {
+    expectedScene: PROCESS[index].sceneId,
+    expectedWorld: PROCESS[index].worldId,
+    expectedPhase: phase
+  });
+}
+
+async function waitForRealMeshWorld(page, worldId) {
+  await page.waitForFunction((id) => {
+    const app = window.__MUSE_APP__;
+    return app.state.busy === false
+      && app.engine.activeWorld.id === id
+      && app.engine.worldLayer.isLive(id)
+      && app.engine.worldLayer.archive?.type === "mesh";
+  }, worldId, { timeout: 150_000 });
+}
+
+async function meshArchiveMetrics(page) {
+  return page.evaluate(() => {
+    const { engine, journey } = window.__MUSE_APP__;
+    const object = engine.worldLayer.archive.object;
+    let triangles = 0;
+    let meshCount = 0;
+    let maxTextureWidth = 0;
+    let maxTextureHeight = 0;
+    let toneMappedMaterials = 0;
+    object.traverse((child) => {
+      if (!child.isMesh) return;
+      meshCount += 1;
+      const geometry = child.geometry;
+      triangles += (geometry.index?.count || geometry.attributes.position?.count || 0) / 3;
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      for (const material of materials) {
+        if (!material) continue;
+        if (material.toneMapped) toneMappedMaterials += 1;
+        const image = material.map?.source?.data || material.map?.image;
+        maxTextureWidth = Math.max(maxTextureWidth, image?.naturalWidth || image?.videoWidth || image?.width || 0);
+        maxTextureHeight = Math.max(maxTextureHeight, image?.naturalHeight || image?.videoHeight || image?.height || 0);
+      }
+    });
     return {
       world: engine.activeWorld.id,
-      layer: engine.worldLayer.activeWorld.id,
-      player: engine.player.group.position.toArray(),
-      guide: engine.guide.group.position.toArray(),
-      expectedPlayer: [spawn.x + Math.cos(yaw) * 0.5, 0, spawn.z + Math.sin(yaw) * 0.5],
-      expectedGuide: [guideSpawn.x, 0, guideSpawn.z]
+      archiveWorld: object.userData.archivedWorld,
+      archiveType: object.userData.archiveType,
+      live: engine.worldLayer.isLive(engine.activeWorld.id),
+      sceneryVisible: engine.worldLayer.scenery.visible,
+      meshCount,
+      triangles,
+      maxTextureWidth,
+      maxTextureHeight,
+      toneMappedMaterials,
+      finalWorldEntered: journey.finalWorldEntered,
+      salonVisible: engine.salonVisible,
+      guideVisible: engine.guide.group.visible,
+      party: engine.partyActors.map((actor) => ({
+        id: actor.companion.id,
+        ready: actor.ready,
+        visible: actor.group.visible
+      }))
     };
   });
-  await waitForArchivedWorld(page, "infinity-room");
-  expect(rapidSwitches.world).toBe("infinity-room");
-  expect(rapidSwitches.layer).toBe("infinity-room");
-  for (let index = 0; index < 3; index += 1) {
-    expect(rapidSwitches.player[index]).toBeCloseTo(rapidSwitches.expectedPlayer[index], 5);
-    expect(rapidSwitches.guide[index]).toBeCloseTo(rapidSwitches.expectedGuide[index], 5);
-  }
-  expect(errors).toEqual([]);
-});
-
-test("mobile company, curation and question controls do not collide", async ({ page }) => {
-  test.setTimeout(120_000);
-  await page.setViewportSize(mobile);
-  const errors = captureErrors(page);
-  await page.goto("/");
-  await waitForArchivedWorld(page, "bright-gallery");
-  await dispatchClick(page, "[data-goal]");
-  await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "company");
-
-  const company = await page.evaluate(() => {
-    const cards = [...document.querySelectorAll("[data-companion]")].map((item) => item.getBoundingClientRect());
-    return {
-      overflow: document.documentElement.scrollWidth - innerWidth,
-      columns: new Set(cards.map((card) => Math.round(card.left))).size,
-      cardWidths: cards.map((card) => Math.round(card.width)),
-      panelScrollable: document.querySelector("#entry-panel").scrollHeight > document.querySelector("#entry-panel").clientHeight
-    };
-  });
-  expect(company.overflow).toBe(0);
-  expect(company.columns).toBe(2);
-  expect(new Set(company.cardWidths).size).toBe(1);
-  expect(company.panelScrollable).toBe(true);
-
-  await page.locator("#entry-panel").evaluate((panel) => panel.scrollTo(0, panel.scrollHeight));
-  await dispatchClick(page, "[data-entry-action='curate']");
-  await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "curation");
-  await expect(page.locator("[data-entry-action='enter-walk']")).toBeEnabled();
-  await dispatchClick(page, "[data-entry-action='enter-walk']");
-  await page.waitForFunction(() => window.__MUSE_APP__.session.phase === "walking");
-  await arriveAtCurrentStop(page);
-
-  const boxes = await page.evaluate(() => {
-    const rect = (selector) => {
-      const value = document.querySelector(selector).getBoundingClientRect();
-      return { top: value.top, bottom: value.bottom, left: value.left, right: value.right };
-    };
-    return {
-      overflow: document.documentElement.scrollWidth - innerWidth,
-      dialogue: rect("#dialogue"),
-      joystick: rect("#joystick"),
-      follow: rect("#follow-button")
-    };
-  });
-  expect(boxes.overflow).toBe(0);
-  expect(boxes.dialogue.bottom).toBeLessThanOrEqual(boxes.joystick.top);
-  expect(boxes.dialogue.bottom).toBeLessThanOrEqual(boxes.follow.top);
-
-  const stick = page.locator("#joystick");
-  const stickBox = await stick.boundingBox();
-  await page.mouse.move(stickBox.x + stickBox.width / 2, stickBox.y + stickBox.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(stickBox.x + stickBox.width - 5, stickBox.y + stickBox.height / 2);
-  expect(await page.evaluate(() => window.__MUSE_APP__.engine.touchVector.x)).toBeGreaterThan(0.5);
-  await page.mouse.up();
-  await page.screenshot({ path: "artifacts/screenshots/mobile-question.png" });
-  expect(errors).toEqual([]);
-});
-
-test("auxiliary tools remain bounded without credentials", async ({ page }) => {
-  test.setTimeout(90_000);
-  await page.setViewportSize(desktop);
-  const errors = captureErrors(page);
-  await page.goto("/");
-  await page.waitForFunction(() => window.__MUSE_APP__);
-
-  await dispatchClick(page, "[data-drawer='forge']");
-  await expect(page.getByRole("button", { name: "Generate world" })).toBeDisabled();
-  await expect(page.locator("#drawer-body")).toContainText("archived worlds");
-
-  await dispatchClick(page, "[data-drawer='profile']");
-  await page.locator("#profile-name").fill("Avery");
-  await dispatchClick(page, "[data-drawer-action='save-profile']");
-  await page.reload();
-  await dispatchClick(page, "[data-drawer='profile']");
-  await expect(page.locator("#profile-name")).toHaveValue("Avery");
-
-  await dispatchClick(page, "[data-drawer='room']");
-  await page.locator("#room-name").fill("Avery");
-  await dispatchClick(page, "[data-drawer-action='create-room']");
-  await expect(page.locator("#drawer-body h3")).toContainText(/^Room [A-F0-9]{6}$/);
-  expect(errors).toEqual([]);
-});
-
-async function startDefaultWalk(page) {
-  await dispatchClick(page, "[data-goal]");
-  await page.waitForFunction(() => document.querySelector("#entry-panel")?.dataset.stage === "company");
-  await dispatchClick(page, "[data-entry-action='curate']");
-  await page.waitForFunction(() => {
-    const button = document.querySelector("[data-entry-action='enter-walk']");
-    return document.querySelector("#entry-panel")?.dataset.stage === "curation" && button && !button.disabled;
-  });
-  await dispatchClick(page, "[data-entry-action='enter-walk']");
-  await page.waitForFunction(() => window.__MUSE_APP__.journey.stage === "walk" && window.__MUSE_APP__.session.phase === "walking");
 }
 
 async function arriveAtCurrentStop(page) {
   await page.evaluate(() => {
-    const director = window.__MUSE_APP__.engine.director;
+    const { director } = window.__MUSE_APP__.engine;
+    if (window.__MUSE_APP__.session.phase !== "walking") return;
     director.object.position.copy(director.target);
     const delta = director.lookAt.clone().sub(director.object.position);
     director.object.rotation.y = Math.atan2(delta.x, delta.z);
     director.transition("asking");
   });
-  await page.waitForFunction(() => window.__MUSE_APP__.session.phase === "asking" && document.querySelector("[data-answer]"));
+  await page.waitForFunction(() => window.__MUSE_APP__.session.phase === "asking"
+    && Boolean(document.querySelector("[data-answer]")));
 }
 
-async function waitForArchivedWorld(page, worldId) {
-  await page.waitForFunction((id) => {
-    const engine = window.__MUSE_APP__?.engine;
-    const splat = engine?.worldLayer?.splat?.splat;
-    return engine?.activeWorld?.id === id
-      && splat?.isInitialized === true
-      && splat.userData.archivedWorld === id
-      && splat.numSplats > 0
-      && engine.worldLayer.scenery.visible === false;
-  }, worldId, { timeout: 120_000 });
+async function journeySnapshot(page) {
+  return page.evaluate(() => {
+    const journey = window.__MUSE_APP__.journey;
+    return {
+      stage: journey.stage,
+      visited: [...journey.visitedSceneIds],
+      manifesto: journey.manifesto,
+      finalWorldEntered: journey.finalWorldEntered
+    };
+  });
 }
 
-async function dispatchClick(page, selector) {
-  await page.evaluate((value) => {
-    const item = document.querySelector(value);
-    if (!item) throw new Error(`missing_click_target:${value}`);
-    item.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-  }, selector);
+async function playerPosition(page) {
+  return page.evaluate(() => window.__MUSE_APP__.engine.player.group.position.toArray());
+}
+
+async function partyPositions(page) {
+  return page.evaluate(() => window.__MUSE_APP__.engine.partyActors.map((actor) => actor.group.position.toArray()));
+}
+
+async function playerLegPose(page) {
+  return page.evaluate(() => {
+    const model = window.__MUSE_APP__.engine.player.model;
+    return ["L_Thigh", "L_Calf", "R_Thigh", "R_Calf"].flatMap((name) => model.getObjectByName(name).quaternion.toArray());
+  });
+}
+
+function planarDistance(left, right) {
+  return Math.hypot(right[0] - left[0], right[2] - left[2]);
+}
+
+function poseDistance(left, right) {
+  return left.reduce((sum, value, index) => sum + Math.abs(value - right[index]), 0);
 }
 
 async function loadedImages(page, selector) {
@@ -474,14 +813,36 @@ function captureErrors(page) {
   return errors;
 }
 
-async function canvasPixels(page) {
-  const box = await page.locator("canvas").boundingBox();
-  const screenshot = await page.screenshot({ clip: {
-    x: box.x + box.width * 0.18,
-    y: box.y + box.height * 0.1,
-    width: box.width * 0.64,
-    height: box.height * 0.5
-  }});
+async function mobileLayout(page, panelSelector) {
+  return page.evaluate((selector) => {
+    const panel = document.querySelector(selector);
+    const movement = document.querySelector("#movement-controls");
+    const mission = document.querySelector(".mission-rail");
+    const rect = (element) => {
+      if (!element || getComputedStyle(element).display === "none" || getComputedStyle(element).visibility === "hidden") return null;
+      const value = element.getBoundingClientRect();
+      return { top: value.top, right: value.right, bottom: value.bottom, left: value.left, width: value.width, height: value.height };
+    };
+    const overlaps = (left, right) => Boolean(left && right
+      && left.left < right.right - 1
+      && left.right > right.left + 1
+      && left.top < right.bottom - 1
+      && left.bottom > right.top + 1);
+    const cards = [...document.querySelectorAll("[data-companion]")];
+    const panelRect = rect(panel);
+    return {
+      documentOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      panelOverflow: panel.scrollWidth - panel.clientWidth,
+      panelScrollable: panel.scrollHeight > panel.clientHeight,
+      panelTouchesMovement: overlaps(panelRect, rect(movement)),
+      panelTouchesMission: overlaps(panelRect, rect(mission)),
+      columns: new Set(cards.map((card) => Math.round(card.getBoundingClientRect().left))).size
+    };
+  }, panelSelector);
+}
+
+async function canvasPixels(page, path) {
+  const screenshot = await page.screenshot({ path, timeout: 45_000 });
   return page.evaluate(async (encoded) => {
     const image = new Image();
     image.src = `data:image/png;base64,${encoded}`;
@@ -490,7 +851,17 @@ async function canvasPixels(page) {
     sample.width = 72;
     sample.height = 45;
     const context = sample.getContext("2d", { willReadFrequently: true });
-    context.drawImage(image, 0, 0, sample.width, sample.height);
+    context.drawImage(
+      image,
+      image.width * 0.2,
+      image.height * 0.12,
+      image.width * 0.62,
+      image.height * 0.46,
+      0,
+      0,
+      sample.width,
+      sample.height
+    );
     const data = context.getImageData(0, 0, sample.width, sample.height).data;
     const luminance = [];
     const buckets = new Map();

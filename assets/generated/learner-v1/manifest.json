@@ -1,5 +1,7 @@
 {
   "version": 1,
+  "status": "superseded",
+  "superseded_by": "../learner-v2/manifest.json",
   "generated_at": "2026-07-20",
   "subject": "Original fictional adult museum learner",
   "source_image": {
@@ -47,8 +49,8 @@
     "export_with_geometry": true,
     "animate_in_place": true
   },
-  "output": {
-    "path": "../../characters/learner.glb",
+  "superseded_output": {
+    "former_path": "../../characters/learner.glb",
     "bytes": 6636988,
     "triangles": 18269,
     "joints": 52,

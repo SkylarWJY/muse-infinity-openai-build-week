@@ -4,8 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#151817" />
-    <meta name="description" content="MUSE is an embodied GPT-5.6 learning world where observation changes the path through art." />
-    <title>MUSE | Embodied learning world</title>
+    <meta name="description" content="MUSE is a nine-world embodied GPT inquiry rebuilt from the original MUSE Infinity spatial archive." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23d8ff42'/%3E%3Cpath d='M14 49V15h9l9 17 9-17h9v34h-8V29L35 43h-6l-7-14v20z' fill='%23151817'/%3E%3C/svg%3E" />
+    <title>MUSE | Nine worlds of embodied inquiry</title>
     <link rel="stylesheet" href="/styles.css" />
     <script type="importmap">
       {
@@ -29,7 +30,7 @@
         </button>
         <div class="world-state" aria-live="polite">
           <span class="pulse" aria-hidden="true"></span>
-          <strong id="world-name">BRIGHT GALLERY HALL</strong>
+          <strong id="world-name">GRAND CONSERVATORY</strong>
           <span id="sync-state">SCENE SYNC</span>
         </div>
         <nav class="tools" aria-label="World tools">
@@ -46,26 +47,23 @@
       <aside class="mission-rail" aria-label="Learning route">
         <div class="mission-kicker">LEARNING PATH</div>
         <ol id="route-list">
-          <li data-route="0"><b>01</b><span>Threshold</span></li>
-          <li data-route="1"><b>02</b><span>Unrevealed</span></li>
-          <li data-route="2"><b>03</b><span>Unrevealed</span></li>
+          <li data-route="0" class="available"><b>01</b><span>The Threshold Conservatory</span><small>NEXT</small></li>
+          <li data-route="1" class="locked"><b>02</b><span>The Court of Light</span><small>LOCKED</small></li>
+          <li data-route="2" class="locked"><b>03</b><span>The Garden of Water and Light</span><small>LOCKED</small></li>
+          <li data-route="3" class="locked"><b>04</b><span>The Sunset Frame Gallery</span><small>LOCKED</small></li>
+          <li data-route="4" class="locked"><b>05</b><span>The Studio of the Burning Sky</span><small>LOCKED</small></li>
+          <li data-route="5" class="locked"><b>06</b><span>The Petal Transition Hall</span><small>LOCKED</small></li>
+          <li data-route="6" class="locked"><b>07</b><span>The Courtyard of Living Memory</span><small>LOCKED</small></li>
+          <li data-route="7" class="locked"><b>08</b><span>The Infinite Repetition Chamber</span><small>LOCKED</small></li>
         </ol>
       </aside>
 
-      <section class="entry-panel" id="entry-panel" aria-labelledby="entry-title">
-        <p class="eyebrow">EMBODIED GUIDED INQUIRY</p>
-        <h1 id="entry-title">What do you want to learn to notice?</h1>
-        <div class="goal-presets" id="goal-presets">
-          <button type="button" data-goal="How composition moves my attention">How composition moves my attention</button>
-          <button type="button" data-goal="How color creates emotion">How color creates emotion</button>
-          <button type="button" data-goal="How a space tells a story">How a space tells a story</button>
-        </div>
-        <form id="goal-form">
-          <label class="sr-only" for="goal-input">Learning goal</label>
-          <input id="goal-input" name="goal" maxlength="120" autocomplete="off" placeholder="Or name your own question" />
-          <button type="submit">Choose your company <span aria-hidden="true">→</span></button>
-        </form>
-        <div class="entry-meta"><span id="model-badge">CURATED DEMO</span><span>3 archived worlds · 5 companions</span></div>
+      <section class="entry-panel" id="entry-panel" data-stage="threshold" aria-labelledby="entry-title">
+        <p class="eyebrow">00 / THRESHOLD</p>
+        <h1 id="entry-title">A question can become a place.</h1>
+        <p class="entry-copy threshold-copy">Cross into nine connected worlds. The first eight gather evidence; the ninth exists only after you form an answer.</p>
+        <button type="button" class="entry-primary" data-entry-action="cross-threshold">Cross the threshold <span aria-hidden="true">→</span></button>
+        <div class="entry-meta"><span id="model-badge">CURATED FALLBACK</span><span>8 process worlds · 8 companions · 1 answer world</span></div>
       </section>
 
       <section class="dialogue" id="dialogue" hidden aria-live="polite">
@@ -88,7 +86,7 @@
 
       <footer class="statusbar">
         <span id="chapter-label">THRESHOLD / 00</span>
-        <span id="provider-label">GPT-5.6 READY · CURATED FALLBACK ACTIVE</span>
+        <span id="provider-label">GPT READY · CURATED FALLBACK ACTIVE</span>
       </footer>
       <div class="toast" id="toast" role="status" hidden></div>
     </main>

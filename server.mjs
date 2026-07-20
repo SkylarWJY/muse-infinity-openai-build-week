@@ -1,4 +1,5 @@
 import http from "node:http";
+import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { loadEnvFile } from "node:process";
@@ -6,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { OpenAIService } from "./services/openai.js";
 import { RoomService } from "./services/rooms.js";
 import { WorldLabsService } from "./services/worldLabs.js";
-import { createFallbackLesson, createSessionDigest, normalizeText } from "./shared/contracts.js";
+import { PHILOSOPHY_AXES, createFallbackLesson, createSessionDigest, normalizeText } from "./shared/contracts.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const BODY_LIMIT = 160_000;
@@ -30,10 +31,11 @@ const VENDOR_FILES = new Map([
 ]);
 const MIME = new Map([
   [".html", "text/html; charset=utf-8"], [".css", "text/css; charset=utf-8"], [".js", "text/javascript; charset=utf-8"],
-  [".jpg", "image/jpeg"], [".jpeg", "image/jpeg"], [".png", "image/png"], [".webp", "image/webp"], [".spz", "application/octet-stream"], [".glb", "model/gltf-binary"]
+  [".jpg", "image/jpeg"], [".jpeg", "image/jpeg"], [".png", "image/png"], [".webp", "image/webp"],
+  [".spz", "application/octet-stream"], [".rad", "application/octet-stream"], [".glb", "model/gltf-binary"]
 ]);
 
-export function createMuseServer({ env = process.env, fetchImpl = fetch, roomService } = {}) {
+export function createMuseServer({ env = process.env, fetchImpl = fetch, roomService, staticReadStreamFactory = createReadStream } = {}) {
   const openai = new OpenAIService({
     apiKey: env.OPENAI_API_KEY,
     model: env.OPENAI_MODEL,
@@ -52,7 +54,7 @@ export function createMuseServer({ env = process.env, fetchImpl = fetch, roomSer
       const url = new URL(req.url || "/", "http://localhost");
       if (url.pathname.startsWith("/api/")) return await handleApi({ req, res, url, openai, worlds, rooms, modelBudget });
       if (req.method !== "GET" && req.method !== "HEAD") return sendJson(res, 405, { error: "method_not_allowed" });
-      return await serveStatic(req, res, url.pathname);
+      return await serveStatic(req, res, url.pathname, staticReadStreamFactory);
     } catch (error) {
       const status = Number(error?.statusCode) || 500;
       if (status >= 500) console.error(JSON.stringify({ event: "request_error", route: req.url, error: error?.message || "unknown" }));
@@ -100,6 +102,16 @@ async function handleApi({ req, res, url, openai, worlds, rooms, modelBudget }) 
     const result = await openai.createSalon(await readJson(req));
     return sendJson(res, 200, result);
   }
+  if (req.method === "POST" && url.pathname === "/api/salon/transform") {
+    if (!modelBudget.take(clientKey(req))) return sendJson(res, 429, { error: "rate_limited" });
+    const body = await readJson(req);
+    if (!PHILOSOPHY_AXES.includes(body.contradiction)) return sendJson(res, 400, { error: "invalid_contradiction" });
+    const result = await openai.createSalon(body, {
+      contradiction: body.contradiction,
+      priorConcept: body.prior_concept
+    });
+    return sendJson(res, 200, result);
+  }
   if (req.method === "POST" && url.pathname === "/api/realtime/call") {
     if (!modelBudget.take(clientKey(req), 6)) return sendJson(res, 429, { error: "rate_limited" });
     const sdp = await readText(req, 120_000);
@@ -136,7 +148,7 @@ async function handleApi({ req, res, url, openai, worlds, rooms, modelBudget }) 
   return sendJson(res, 404, { error: "not_found" });
 }
 
-async function serveStatic(req, res, pathname) {
+async function serveStatic(req, res, pathname, staticReadStreamFactory) {
   let decoded;
   try { decoded = decodeURIComponent(pathname); } catch { return sendJson(res, 404, { error: "not_found" }); }
   const filePath = await resolveStaticPath(decoded);
@@ -144,12 +156,129 @@ async function serveStatic(req, res, pathname) {
   try {
     const stat = await fs.stat(filePath);
     if (!stat.isFile()) return sendJson(res, 404, { error: "not_found" });
-    const data = req.method === "HEAD" ? null : await fs.readFile(filePath);
-    res.writeHead(200, { "Content-Type": MIME.get(path.extname(filePath).toLowerCase()) || "application/octet-stream", "Content-Length": stat.size });
-    return res.end(data);
+    const contentType = MIME.get(path.extname(filePath).toLowerCase()) || "application/octet-stream";
+    const etag = `W/\"${stat.size.toString(16)}-${Math.trunc(stat.mtimeMs).toString(16)}\"`;
+    const commonHeaders = {
+      "Accept-Ranges": "bytes",
+      "Cache-Control": decoded.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-cache",
+      "Content-Type": contentType,
+      ETag: etag
+    };
+    if (req.headers["if-none-match"] === etag) {
+      res.writeHead(304, commonHeaders);
+      return res.end();
+    }
+
+    const range = parseByteRange(req.headers.range, stat.size);
+    if (range === false) {
+      res.writeHead(416, { ...commonHeaders, "Content-Range": `bytes */${stat.size}` });
+      return res.end();
+    }
+    const start = range?.start ?? 0;
+    const end = range?.end ?? stat.size - 1;
+    const status = range ? 206 : 200;
+    const headers = {
+      ...commonHeaders,
+      "Content-Length": end - start + 1,
+      ...(range ? { "Content-Range": `bytes ${start}-${end}/${stat.size}` } : {})
+    };
+    res.writeHead(status, headers);
+    if (req.method === "HEAD") return res.end();
+    return await pipeStaticFile(staticReadStreamFactory(filePath, { start, end }), res);
   } catch {
+    if (res.headersSent) return res.destroy();
     return sendJson(res, 404, { error: "not_found" });
   }
+}
+
+function pipeStaticFile(stream, res) {
+  return new Promise((resolve, reject) => {
+    let responseDone = false;
+    let sourceClosed = false;
+    let failure;
+    let settled = false;
+
+    const cleanup = () => {
+      stream.removeListener("error", onSourceError);
+      stream.removeListener("close", onSourceClose);
+      res.removeListener("error", onResponseError);
+      res.removeListener("close", onResponseClose);
+      res.removeListener("finish", onResponseFinish);
+    };
+    const settle = (error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error);
+      else resolve();
+    };
+    const stopSource = () => {
+      stream.unpipe(res);
+      if (!stream.destroyed) stream.destroy();
+    };
+    const settleWhenClosed = () => {
+      if (!sourceClosed) return;
+      if (failure) settle(failure);
+      else if (responseDone) settle();
+    };
+    const onSourceError = (error) => {
+      failure ||= error;
+      stopSource();
+      settleWhenClosed();
+    };
+    const onSourceClose = () => {
+      sourceClosed = true;
+      settleWhenClosed();
+    };
+    const onResponseError = (error) => {
+      failure ||= error;
+      responseDone = true;
+      stopSource();
+      settleWhenClosed();
+    };
+    const onResponseClose = () => {
+      responseDone = true;
+      if (!res.writableFinished) stopSource();
+      settleWhenClosed();
+    };
+    const onResponseFinish = () => {
+      responseDone = true;
+      settleWhenClosed();
+    };
+
+    stream.once("error", onSourceError);
+    stream.once("close", onSourceClose);
+    res.once("error", onResponseError);
+    res.once("close", onResponseClose);
+    res.once("finish", onResponseFinish);
+    try {
+      stream.pipe(res);
+    } catch (error) {
+      failure = error;
+      responseDone = true;
+      stopSource();
+      settleWhenClosed();
+    }
+  });
+}
+
+function parseByteRange(value, size) {
+  if (!value) return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(String(value).trim());
+  if (!match || (!match[1] && !match[2])) return false;
+  let start;
+  let end;
+  if (!match[1]) {
+    const suffixLength = Number(match[2]);
+    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) return false;
+    start = Math.max(0, size - suffixLength);
+    end = size - 1;
+  } else {
+    start = Number(match[1]);
+    end = match[2] ? Number(match[2]) : size - 1;
+  }
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || start >= size || end < start) return false;
+  return { start, end: Math.min(end, size - 1) };
 }
 
 async function resolveStaticPath(decoded) {

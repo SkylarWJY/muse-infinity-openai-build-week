@@ -1,17 +1,20 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { ProceduralAvatar } from "./ProceduralAvatar.js";
+import { withTimeout } from "./withTimeout.js";
 
 const MOTION_KEYS = ["leftArmX", "rightArmX", "leftArmZ", "rightArmZ", "leftElbowX", "rightElbowX", "leftLegX", "rightLegX", "leftKneeX", "rightKneeX"];
 const ROTATION_UNIFORMS = ["leftArmMatrix", "rightArmMatrix", "leftElbowMatrix", "rightElbowMatrix", "leftLegMatrix", "rightLegMatrix", "leftKneeMatrix", "rightKneeMatrix"];
+const LOAD_TIMEOUT_MS = 15_000;
 
 export class ArchivedAvatar {
-  constructor({ companion, height = 1.75, onStatus = () => {}, loader = new GLTFLoader() } = {}) {
+  constructor({ companion, height = 1.75, onStatus = () => {}, loader = new GLTFLoader(), loadTimeoutMs = LOAD_TIMEOUT_MS } = {}) {
     if (!companion) throw new Error("companion_required");
     this.companion = companion;
     this.height = height;
     this.onStatus = onStatus;
     this.loader = loader;
+    this.loadTimeoutMs = loadTimeoutMs;
     this.group = new THREE.Group();
     this.group.name = `archived-avatar-${companion.id}`;
     this.group.userData.actor = companion.fullName;
@@ -36,9 +39,13 @@ export class ArchivedAvatar {
 
   async load() {
     const token = ++this.loadToken;
+    let candidateModel = null;
     try {
-      const gltf = await this.loader.loadAsync(this.companion.model);
+      const gltf = await withTimeout(this.loader.loadAsync(this.companion.model), this.loadTimeoutMs, "companion_timeout", {
+        onLateResolve: (lateGltf) => disposeAvatarTree(lateGltf?.scene)
+      });
       const model = gltf.scene;
+      candidateModel = model;
       if (this.disposed || token !== this.loadToken) {
         disposeAvatarTree(model);
         return this;
@@ -69,10 +76,12 @@ export class ArchivedAvatar {
       this.fallback.dispose();
       this.fallback = null;
       this.model = model;
+      candidateModel = null;
       this.visual.add(model);
       this.ready = true;
       this.onStatus({ live: true, companion: this.companion });
     } catch (error) {
+      disposeAvatarTree(candidateModel);
       if (!this.disposed && token === this.loadToken) this.onStatus({ live: false, companion: this.companion, error });
     }
     return this;

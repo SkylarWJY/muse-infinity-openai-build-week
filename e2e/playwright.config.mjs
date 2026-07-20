@@ -1,4 +1,7 @@
 import { defineConfig } from "@playwright/test";
+import { fileURLToPath } from "node:url";
+
+const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 
 export default defineConfig({
   testDir: ".",
@@ -14,8 +17,8 @@ export default defineConfig({
     trace: "off"
   },
   webServer: {
-    command: "node ../server.mjs",
-    cwd: "./e2e",
+    command: "node server.mjs",
+    cwd: projectRoot,
     url: "http://127.0.0.1:4175/api/status",
     reuseExistingServer: true,
     timeout: 15_000,

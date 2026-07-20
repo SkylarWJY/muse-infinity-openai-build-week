@@ -1,4 +1,4 @@
-import { createSessionDigest, getStop, resolveChoice, validateLessonPlan } from "../../shared/contracts.js";
+import { createSessionDigest, getStop, normalizeText, resolveChoice, validateLessonPlan } from "../../shared/contracts.js";
 
 export class LessonSession {
   constructor() {
@@ -34,10 +34,36 @@ export class LessonSession {
     return this.currentStop;
   }
 
+  retryArrival() {
+    if (this.phase !== "asking") throw new Error(`cannot_retry_arrival_from_${this.phase}`);
+    this.phase = "walking";
+    return this.currentStop;
+  }
+
   answer(value) {
     if (this.phase !== "asking") throw new Error(`cannot_answer_from_${this.phase}`);
     const resolved = resolveChoice(this.plan, this.currentStopId, value, this.visited);
     if (!resolved) throw new Error("unknown_answer");
+    return this.#recordAnswer(resolved);
+  }
+
+  answerObservation(value) {
+    if (this.phase !== "asking") throw new Error(`cannot_answer_from_${this.phase}`);
+    const observation = normalizeText(value, 80);
+    if (!observation) throw new Error("observation_required");
+    const template = this.currentStop?.choices?.[0];
+    const route = template ? resolveChoice(this.plan, this.currentStopId, template.value, this.visited) : null;
+    if (!route) throw new Error("observation_route_unavailable");
+    return this.#recordAnswer({
+      ...route,
+      value: "free-observation",
+      label: observation,
+      feedback: "Your own words are now part of the evidence this company must carry into the final concept.",
+      effect: "focus"
+    });
+  }
+
+  #recordAnswer(resolved) {
     this.pendingChoice = resolved;
     this.phase = "reflecting";
     this.visited.push(this.currentStopId);
@@ -52,9 +78,10 @@ export class LessonSession {
 
   continue() {
     if (this.phase !== "reflecting") throw new Error(`cannot_continue_from_${this.phase}`);
-    if (this.visited.length >= 3 || !this.pendingChoice?.next_stop_id) {
+    if (this.visited.length >= this.plan.stops.length || !this.pendingChoice?.next_stop_id) {
       this.phase = "complete";
       this.currentStopId = null;
+      this.pendingChoice = null;
       return null;
     }
     this.currentStopId = this.pendingChoice.next_stop_id;
@@ -63,7 +90,11 @@ export class LessonSession {
     return this.currentStop;
   }
 
-  digest() {
-    return createSessionDigest({ learning_goal: this.plan?.learning_goal, visits: this.visits });
+  digest(context = {}) {
+    return createSessionDigest({
+      learning_goal: this.plan?.learning_goal,
+      visits: this.visits,
+      companion_ids: context.companion_ids || context.companions
+    });
   }
 }

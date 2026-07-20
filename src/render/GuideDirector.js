@@ -3,7 +3,7 @@ import * as THREE from "three";
 export const GUIDE_STATES = Object.freeze(["idle", "walking", "arriving", "facing", "pointing", "asking", "listening", "reflecting"]);
 
 export class GuideDirector {
-  constructor({ avatar, speed = 2.25, onState = () => {} } = {}) {
+  constructor({ avatar, speed = 1.33, onState = () => {} } = {}) {
     this.avatar = avatar;
     this.object = avatar.group;
     this.speed = speed;

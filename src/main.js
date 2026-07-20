@@ -1,7 +1,8 @@
+import { createFallbackLesson, createFallbackSalon, createFallbackTransformation } from "../shared/contracts.js";
+import { EXHIBITION_SPINE, FINAL_SCENE, getExhibitionScene } from "./config/exhibitionSpine.js";
+import { getCompanion, getWorld } from "./config/legacyAssets.js";
 import { LessonSession } from "./domain/LessonSession.js";
 import { JourneySession } from "./domain/JourneySession.js";
-import { getCompanion, getWorld } from "./config/legacyAssets.js";
-import { WORLDS } from "./config/scenes.js";
 import { MuseumEngine } from "./render/MuseumEngine.js";
 import { MuseApi } from "./services/api.js";
 import { ProfileStore } from "./services/profile.js";
@@ -13,32 +14,47 @@ const profileStore = new ProfileStore();
 const session = new LessonSession();
 const journey = new JourneySession();
 const view = new AppView();
+const firstScene = EXHIBITION_SPINE[0];
 const state = {
   status: { openai: false, realtime: false, world_forge: false, model: "gpt-5.6" },
   provider: { live: false, model: "curated-demo" },
+  salonProvider: { live: false, model: "curated-demo" },
   profile: profileStore.load(),
   room: null,
   roomTimer: null,
   salon: null,
-  worldId: "bright-gallery",
+  salonPromise: null,
+  recap: null,
+  worldId: firstScene.worldId,
+  currentSceneId: firstScene.id,
   draftCompanions: [...journey.companions],
   selectedCompanions: [...journey.companions],
+  contradiction: null,
   metrics: null,
-  busy: false
+  busy: false,
+  bootPromise: null,
+  bootSettled: false
 };
 
 const engine = new MuseumEngine(document.getElementById("world"), {
   onGuideState: handleGuideState,
-  onMetrics: (metrics) => { state.metrics = metrics; view.setSync(metrics); },
+  onMetrics: (metrics) => {
+    state.metrics = metrics;
+    view.setSync(metrics);
+  },
   onFollowChange: (enabled) => document.getElementById("follow-button").setAttribute("aria-pressed", String(enabled)),
   onWorldLayerStatus: ({ message }) => view.toast(message),
-  onCompanionStatus: ({ live, companion }) => view.toast(live ? `${companion.fullName} · archived 3D companion live` : `${companion.fullName} · spatial fallback active`)
+  onCompanionStatus: ({ live, companion }) => view.toast(live
+    ? `${companion.fullName} · archived 3D companion live`
+    : `${companion.fullName} · spatial fallback active`)
 });
 const voice = new VoiceSession({ sessionId: api.sessionId, onState: (value) => setVoiceState(value) });
 
 view.bind({
+  onCrossThreshold: crossThreshold,
   onStart: startJourney,
   onAnswer: answerQuestion,
+  onObservation: answerObservation,
   onContinue: continueLesson,
   onDrawer: openDrawer,
   onAction: handleAction,
@@ -46,18 +62,59 @@ view.bind({
   onCompanionToggle: toggleCompanion,
   onCurate: curateJourney,
   onEnterWalk: enterWalk,
-  onRewrite: rewriteWorld,
+  onRetryScene: retryProcessScene,
+  onBeginSummoning: beginSummoning,
+  onConveneRoundtable: conveneRoundtable,
+  onDecision: chooseContradiction,
+  onCompleteTransformation: completeTransformation,
+  onPublishManifesto: publishManifesto,
   onEnterFinal: enterFinalWorld
 });
 bindMovementControls();
-view.setWorld(await engine.init());
+view.showThreshold();
+view.setWorld(getWorld(firstScene.worldId));
 view.setSpeaker(getCompanion(journey.companions[0]));
-window.__MUSE_APP__ = { engine, session, journey, state, startJourney, startLesson, answerQuestion, continueLesson };
+
+state.bootPromise = engine.init()
+  .then((world) => {
+    state.bootSettled = true;
+    if (state.worldId === world.id) view.setWorld(world);
+    return world;
+  })
+  .catch((error) => {
+    state.bootSettled = true;
+    view.toast(`Initial archive unavailable: ${readable(error.message)}`);
+    return engine.activeWorld;
+  });
+
+window.__MUSE_APP__ = {
+  engine,
+  session,
+  journey,
+  state,
+  crossThreshold,
+  startJourney,
+  startLesson,
+  answerQuestion,
+  continueLesson,
+  beginSummoning,
+  conveneRoundtable,
+  enterFinalWorld
+};
 
 api.status().then((status) => {
   state.status = status;
   view.setProvider(status);
-}).catch(() => view.toast("Server status unavailable; the local world remains active."));
+}).catch(() => view.toast("Server status unavailable; the local nine-world journey remains active."));
+
+function crossThreshold() {
+  try {
+    journey.crossThreshold();
+    view.showLifeQuestion();
+  } catch (error) {
+    view.toast(readable(error.message));
+  }
+}
 
 function startJourney(question) {
   try {
@@ -83,18 +140,45 @@ function toggleCompanion(id) {
 
 async function curateJourney() {
   if (state.busy) return;
+  state.busy = true;
   try {
     journey.setCompanions(state.draftCompanions);
-    journey.advance();
+    journey.beginCuration();
     state.selectedCompanions = [...journey.companions];
     const companions = selectedCompanionRecords();
     view.showCuration(journey.question, companions);
     view.setSpeaker(companions[0]);
-    state.busy = true;
-    const companionLoad = engine.setCompanions(journey.companions);
+
+    engine.setCompanions(journey.companions).catch(() => view.toast("Archived companions unavailable; spatial stand-ins remain active."));
+    let result;
+    try {
+      result = await api.lesson(journey.question);
+    } catch (error) {
+      result = {
+        data: createFallbackLesson(journey.question),
+        live: false,
+        model: "curated-demo",
+        reason: "server_unavailable"
+      };
+      view.toast(`GPT connection unavailable; the complete curated route remains active. ${readable(error.message)}`);
+    }
+    state.provider = { live: result.live, model: result.model, reason: result.reason };
+    session.start(result.data);
     view.setCurationReady();
+  } catch (error) {
+    view.toast(`Curation unavailable: ${readable(error.message)}`);
+  } finally {
     state.busy = false;
-    await companionLoad;
+  }
+}
+
+async function enterWalk() {
+  if (state.busy || journey.stage !== "ai_curation" || !session.plan) return;
+  state.busy = true;
+  try {
+    journey.acceptCuration();
+    view.begin(session.plan, state.provider);
+    await activateProcessScene(session.currentStopId);
   } catch (error) {
     view.toast(readable(error.message));
   } finally {
@@ -102,30 +186,50 @@ async function curateJourney() {
   }
 }
 
-async function enterWalk() {
-  if (state.busy || journey.stage !== "curation") return;
-  const world = engine.activeWorld.id === "bright-gallery" ? engine.activeWorld : await engine.setWorld("bright-gallery");
-  state.worldId = world.id;
-  view.setWorld(world);
-  if (await startLesson(journey.question)) journey.advance();
+async function startLesson(goal) {
+  if (journey.stage === "life_question") startJourney(goal);
+  if (journey.stage === "companion_selection") await curateJourney();
+  if (journey.stage === "ai_curation") await enterWalk();
+  return session.plan;
 }
 
-async function startLesson(goal) {
-  if (state.busy) return false;
+async function activateProcessScene(sceneId) {
+  const scene = getExhibitionScene(sceneId);
+  if (!scene || scene.isFinal) throw new Error(`unknown_process_scene:${sceneId}`);
+  const worldConfig = getWorld(scene.worldId);
+  state.currentSceneId = scene.id;
+  state.worldId = scene.worldId;
+  view.setWorld(worldConfig);
+  view.showWalking(scene.id);
+  view.renderRoute(session.plan, session.visited, scene.id);
+
+  let world;
+  const firstBootInFlight = scene.id === firstScene.id && !state.bootSettled;
+  if (firstBootInFlight) await state.bootPromise;
+  if (engine.activeWorld.id === scene.worldId && engine.isWorldReady(scene.worldId)) world = engine.activeWorld;
+  else world = await engine.setWorld(scene.worldId);
+  if (world.id !== scene.worldId) world = await engine.setWorld(scene.worldId);
+  if (world.id !== scene.worldId) throw new Error(`scene_activation_interrupted:${scene.id}`);
+
+  state.worldId = world.id;
+  view.setWorld(world);
+  if (!engine.isWorldReady(scene.worldId)) {
+    view.showArchiveRequired(scene);
+    throw new Error(`archive_unavailable:${scene.id}`);
+  }
+  engine.navigateTo(scene.id);
+  postRoom("scene", scene.id);
+  return world;
+}
+
+async function retryProcessScene() {
+  if (state.busy || !["walking", "asking"].includes(session.phase) || !session.currentStopId) return;
   state.busy = true;
-  view.toast("Preparing a route for your question…");
   try {
-    const result = await api.lesson(goal);
-    state.provider = { live: result.live, model: result.model };
-    const first = session.start(result.data);
-    view.begin(session.plan, state.provider);
-    view.renderRoute(session.plan, session.visited, first.stop_id);
-    engine.navigateTo(first.stop_id);
-    postRoom("stop", first.stop_id);
-    return true;
+    if (session.phase === "asking") session.retryArrival();
+    await activateProcessScene(session.currentStopId);
   } catch (error) {
-    view.toast(`Route unavailable: ${readable(error.message)}`);
-    return false;
+    view.toast(readable(error.message));
   } finally {
     state.busy = false;
   }
@@ -134,6 +238,14 @@ async function startLesson(goal) {
 function handleGuideState(event) {
   view.setGuideState(event.state);
   if (event.state !== "asking" || session.phase !== "walking" || event.stopId !== session.currentStopId) return;
+  const scene = getExhibitionScene(event.stopId);
+  const expectedWorld = scene?.worldId;
+  if (engine.activeWorld.id !== expectedWorld) return;
+  if (!engine.isWorldReady(expectedWorld)) {
+    view.showArchiveRequired(scene);
+    view.toast("The source archive must be live before this question can open.");
+    return;
+  }
   if (!event.correspondence.synced) {
     view.toast("Scene correspondence is settling.");
     return;
@@ -144,14 +256,33 @@ function handleGuideState(event) {
 }
 
 function answerQuestion(value) {
+  recordEvidence(() => session.answer(value));
+}
+
+function answerObservation(value) {
+  recordEvidence(() => session.answerObservation(value));
+}
+
+function recordEvidence(resolveAnswer) {
   try {
+    const currentId = session.currentStopId;
+    const expectedWorld = getExhibitionScene(currentId)?.worldId;
+    if (engine.activeWorld.id !== expectedWorld) {
+      view.toast("Return to the current process world before recording evidence.");
+      return;
+    }
+    if (!engine.isWorldReady(expectedWorld)) {
+      view.showArchiveRequired(getExhibitionScene(currentId));
+      view.toast("This fallback view cannot create evidence. Retry the source archive.");
+      return;
+    }
     const correspondence = engine.director.correspondence();
     if (engine.director.state !== "asking" || !correspondence.synced) {
       view.toast("Wait for your companion to reach and face the evidence.");
       return;
     }
-    const currentId = session.currentStopId;
-    const choice = session.answer(value);
+    const choice = resolveAnswer();
+    journey.recordSceneVisit(currentId);
     engine.director.listen();
     engine.applyEffect(currentId, choice.effect);
     engine.director.reflect();
@@ -165,26 +296,162 @@ function answerQuestion(value) {
 }
 
 async function continueLesson() {
-  if (journey.stage === "salon" && session.phase === "complete") {
-    await conveneSalonExperience();
-    return;
-  }
+  if (state.busy) return;
+  state.busy = true;
   try {
     const next = session.continue();
     if (next) {
-      view.showWalking(next.stop_id);
-      view.renderRoute(session.plan, session.visited, next.stop_id);
-      engine.navigateTo(next.stop_id);
-      postRoom("stop", next.stop_id);
+      await activateProcessScene(next.stop_id);
       return;
     }
-    const digest = session.digest();
-    const recap = await api.recap(digest).catch(() => ({ data: { title: "Your learning map", summary: "You turned three observations into a route through visible evidence." } }));
+    const digest = currentDigest();
+    const recap = await api.recap(digest).catch(() => ({
+      data: {
+        title: "Eight worlds are now in the record",
+        summary: "You carried one question through visibility, inheritance, perception, invention, intensity, transformation, identity and infinity."
+      }
+    }));
+    state.recap = recap.data;
     view.showRecap(recap.data, digest);
-    if (journey.stage === "walk") journey.advance();
     state.profile = profileStore.record(session.plan.learning_goal, recap.data);
   } catch (error) {
     view.toast(readable(error.message));
+  } finally {
+    state.busy = false;
+  }
+}
+
+function beginSummoning() {
+  if (state.busy) return;
+  try {
+    journey.beginSummoning();
+    const digest = currentDigest();
+    view.showSummoning(digest, selectedCompanionRecords(), state.recap);
+    state.salonPromise = requestSalon(digest);
+    engine.showSalonCharacters(true).catch(() => view.toast("Companion staging unavailable; their perspectives remain in the record."));
+  } catch (error) {
+    view.toast(readable(error.message));
+  }
+}
+
+async function conveneRoundtable() {
+  if (state.busy || journey.stage !== "summoning") return;
+  state.busy = true;
+  try {
+    journey.openRoundtable();
+    const companions = selectedCompanionRecords();
+    view.showRoundtable(null, companions, state.salonProvider);
+    const result = await (state.salonPromise || requestSalon(currentDigest()));
+    state.salon = result.data;
+    state.salonProvider = { live: result.live, model: result.model, reason: result.reason };
+    await engine.showSalonCharacters(true);
+    view.showRoundtable(state.salon, companions, state.salonProvider);
+  } catch (error) {
+    view.toast(readable(error.message));
+  } finally {
+    state.busy = false;
+  }
+}
+
+async function requestSalon(digest) {
+  try {
+    return await api.salon(digest);
+  } catch {
+    return {
+      data: createFallbackSalon(digest),
+      live: false,
+      model: "curated-demo",
+      reason: "server_unavailable"
+    };
+  }
+}
+
+function chooseContradiction(axis) {
+  if (state.busy || !state.salon) return;
+  try {
+    if (journey.stage === "roundtable") journey.completeRoundtable(state.salon);
+    journey.chooseContradiction(axis);
+    state.contradiction = axis;
+    view.showTransformation(axis, state.salon);
+  } catch (error) {
+    view.toast(readable(error.message));
+  }
+}
+
+async function completeTransformation() {
+  if (state.busy || journey.stage !== "world_transformation" || !state.contradiction) return;
+  state.busy = true;
+  view.setTransformationBusy(true);
+  try {
+    const result = await requestTransformation(currentDigest(), state.contradiction, state.salon);
+    state.salon = result.data;
+    state.salonProvider = { live: result.live, model: result.model, reason: result.reason };
+    journey.completeTransformation(state.salon);
+    view.showManifesto(state.salon, {
+      axis: state.contradiction,
+      live: state.salonProvider.live,
+      model: state.salonProvider.model
+    });
+  } catch (error) {
+    view.setTransformationBusy(false);
+    view.toast(readable(error.message));
+  } finally {
+    state.busy = false;
+  }
+}
+
+async function requestTransformation(digest, contradiction, priorConcept) {
+  try {
+    return await api.transform(digest, contradiction, priorConcept);
+  } catch {
+    return {
+      data: createFallbackTransformation(digest, contradiction),
+      live: false,
+      model: "curated-demo",
+      reason: "server_unavailable"
+    };
+  }
+}
+
+function publishManifesto(value) {
+  try {
+    const manifesto = journey.publishManifesto(value);
+    view.setManifestoPublished(manifesto);
+  } catch (error) {
+    view.toast(readable(error.message));
+  }
+}
+
+async function enterFinalWorld() {
+  if (state.busy) return;
+  state.busy = true;
+  try {
+    const scene = journey.prepareFinalWorld();
+    engine.activeStopId = null;
+    await engine.showSalonCharacters(false);
+    const world = await engine.setWorld(scene.worldId);
+    state.worldId = world.id;
+    view.setWorld(world);
+    if (!engine.isWorldReady(scene.worldId)) {
+      view.showManifesto(state.salon, {
+        axis: state.contradiction,
+        live: state.salonProvider.live,
+        model: state.salonProvider.model,
+        published: true,
+        text: journey.manifesto
+      });
+      view.toast("The archived answer world is unavailable. Your manifesto is preserved; retry when the source asset is ready.");
+      return;
+    }
+    journey.enterFinalWorld();
+    view.toast("Opening 09 / ANSWER · archived 8K realization");
+    state.currentSceneId = scene.id;
+    view.enterFinalWorld(world, state.salon);
+    postRoom("scene", FINAL_SCENE.id);
+  } catch (error) {
+    view.toast(readable(error.message));
+  } finally {
+    state.busy = false;
   }
 }
 
@@ -192,11 +459,8 @@ function openDrawer(type) {
   const previousType = view.drawer.hidden ? null : view.drawer.dataset.type;
   if (previousType === type) {
     view.closeDrawer();
-    if (type === "salon") engine.showSalonCharacters(false);
     return;
   }
-  if (previousType === "salon") engine.showSalonCharacters(false);
-  if (type === "salon" && canConveneSalon()) engine.showSalonCharacters(true).catch(() => view.toast("Companion staging unavailable."));
   renderDrawer(type);
 }
 
@@ -205,35 +469,45 @@ function renderDrawer(type = view.drawer.dataset.type) {
     ...state,
     companions: selectedCompanionRecords(),
     hasLesson: Boolean(session.plan),
+    lessonComplete: session.phase === "complete",
     canConveneSalon: canConveneSalon(),
-    provider: state.provider
+    finalWorldEntered: journey.finalWorldEntered,
+    visited: [...journey.visitedSceneIds],
+    visitedSceneIds: [...journey.visitedSceneIds],
+    session,
+    provider: state.salon ? state.salonProvider : state.provider
   });
 }
 
 async function handleDrawerAction(action, button) {
   try {
     if (action === "world") {
-      const world = await engine.setWorld(button.dataset.value);
-      state.worldId = world.id;
-      view.setWorld(world);
+      if (state.busy) throw new Error("world_transition_in_progress");
+      if (journey.finalWorldEntered) throw new Error("answer_world_is_final");
+      const sceneIndex = EXHIBITION_SPINE.findIndex((item) => item.worldId === button.dataset.value);
+      const unlockedIndex = Math.min(journey.visitedSceneIds.length, EXHIBITION_SPINE.length - 1);
+      if (sceneIndex < 0 || sceneIndex > unlockedIndex) throw new Error("world_not_unlocked");
+      state.busy = true;
+      let world;
+      try {
+        world = await engine.setWorld(button.dataset.value);
+        state.worldId = world.id;
+        view.setWorld(world);
+      } finally {
+        state.busy = false;
+      }
       renderDrawer("atlas");
-      view.toast(`${world.name} active`);
+      view.toast(engine.isWorldReady(world.id)
+        ? `${world.name} · Atlas comparison only`
+        : `${world.name} · archive unavailable; comparison fallback only`);
     } else if (action === "forge") {
       button.disabled = true;
       const result = await api.forge(valueOf("forge-prompt"), valueOf("forge-token"));
       view.toast(`World operation started: ${result.name || "queued"}`);
     } else if (action === "salon") {
-      if (!canConveneSalon()) throw new Error("complete_route_before_salon");
-      button.disabled = true;
-      const result = await api.salon(session.digest());
-      state.salon = result.data;
-      await engine.showSalonCharacters(true);
-      renderDrawer("salon");
-    } else if (action === "open-rewrite") {
-      if (!canConveneSalon() || !state.salon) throw new Error("convene_salon_before_rewrite");
-      await engine.showSalonCharacters(false);
+      if (journey.stage !== "summoning") throw new Error("summoning_required_before_roundtable");
       view.closeDrawer();
-      view.showRewrite(WORLDS.filter((world) => world.id !== "bright-gallery"), state.salon, journey.question);
+      await conveneRoundtable();
     } else if (action === "save-profile") {
       state.profile = profileStore.save({ ...state.profile, name: valueOf("profile-name") });
       renderDrawer("profile");
@@ -258,55 +532,9 @@ async function handleDrawerAction(action, button) {
 }
 
 function handleAction(action) {
-  if (action === "close-drawer") {
-    if (view.drawer.dataset.type === "salon") engine.showSalonCharacters(false);
-    view.closeDrawer();
-  } else if (action === "home") {
-    window.location.reload();
-  } else if (action === "voice") {
-    toggleVoice();
-  }
-}
-
-async function conveneSalonExperience() {
-  if (state.busy) return;
-  if (!canConveneSalon()) {
-    view.toast("Complete the three-stop route before convening the Salon.");
-    return;
-  }
-  state.busy = true;
-  view.toast("Your companions are reading the evidence from the walk…");
-  try {
-    if (!state.salon) state.salon = (await api.salon(session.digest())).data;
-    await engine.showSalonCharacters(true);
-    renderDrawer("salon");
-  } catch (error) {
-    view.toast(readable(error.message));
-  } finally {
-    state.busy = false;
-  }
-}
-
-async function rewriteWorld(worldId) {
-  if (state.busy) return;
-  state.busy = true;
-  try {
-    journey.chooseRewrite(worldId);
-    engine.activeStopId = null;
-    await engine.showSalonCharacters(false);
-    const world = await engine.setWorld(worldId);
-    state.worldId = world.id;
-    view.setWorld(world);
-    view.showManifesto(world, state.salon);
-  } catch (error) {
-    view.toast(readable(error.message));
-  } finally {
-    state.busy = false;
-  }
-}
-
-function enterFinalWorld() {
-  view.enterFinalWorld(getWorld(state.worldId));
+  if (action === "close-drawer") view.closeDrawer();
+  else if (action === "home") window.location.reload();
+  else if (action === "voice") toggleVoice();
 }
 
 async function toggleVoice() {
@@ -317,7 +545,12 @@ async function toggleVoice() {
   const button = document.getElementById("voice-tool");
   if (button.getAttribute("aria-pressed") === "true") voice.stop();
   else {
-    try { await voice.start(); } catch (error) { voice.stop(); view.toast(readable(error.message)); }
+    try {
+      await voice.start();
+    } catch (error) {
+      voice.stop();
+      view.toast(readable(error.message));
+    }
   }
 }
 
@@ -335,7 +568,10 @@ function bindMovementControls() {
   });
   const joystick = document.getElementById("joystick");
   const knob = joystick.firstElementChild;
-  const reset = () => { engine.setTouchVector(0, 0); knob.style.transform = "translate(0, 0)"; };
+  const reset = () => {
+    engine.setTouchVector(0, 0);
+    knob.style.transform = "translate(0, 0)";
+  };
   joystick.addEventListener("pointerdown", (event) => joystick.setPointerCapture(event.pointerId));
   joystick.addEventListener("pointermove", (event) => {
     if (!joystick.hasPointerCapture(event.pointerId)) return;
@@ -379,12 +615,8 @@ function postRoom(type, value) {
   });
 }
 
-function valueOf(id) {
-  return document.getElementById(id)?.value?.trim() || "";
-}
-
-function readable(value) {
-  return String(value || "service unavailable").replaceAll("_", " ");
+function currentDigest() {
+  return session.digest({ companion_ids: journey.companions });
 }
 
 function selectedCompanionRecords() {
@@ -392,5 +624,13 @@ function selectedCompanionRecords() {
 }
 
 function canConveneSalon() {
-  return session.phase === "complete" && journey.stage === "salon";
+  return session.phase === "complete" && ["summoning", "roundtable", "decision", "world_transformation", "manifesto"].includes(journey.stage);
+}
+
+function valueOf(id) {
+  return document.getElementById(id)?.value?.trim() || "";
+}
+
+function readable(value) {
+  return String(value || "service unavailable").replaceAll("_", " ");
 }

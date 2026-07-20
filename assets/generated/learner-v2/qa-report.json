@@ -1,0 +1,146 @@
+{
+  "version": 1,
+  "asset": "assets/characters/learner.glb",
+  "sha256": "970134d492d1186dc551e60642cc24778254557571b52b1601423b5cd8965f15",
+  "bytes": 5009688,
+  "geometry": {
+    "vertices": 21672,
+    "triangles": 37659,
+    "joints": 41,
+    "height": 1.7999999723397195,
+    "bounds": {
+      "min": {
+        "x": -0.16269853711128235,
+        "y": 0.0024105110205709934,
+        "z": -0.9089217185974121
+      },
+      "max": {
+        "x": 0.16190524399280548,
+        "y": 1.8024104833602905,
+        "z": 0.9094077348709106
+      }
+    }
+  },
+  "weights": {
+    "hardCounts": {
+      "invalid_skin_weight": 0,
+      "upper_body_leg_influence": 0,
+      "opposite_leg_influence": 0,
+      "lower_body_arm_influence": 0
+    },
+    "maxima": {
+      "weightSumError": 4.563480615615845e-8,
+      "upperBodyLegWeight": 0,
+      "oppositeLegWeight": 0,
+      "lowerBodyArmWeight": 0
+    }
+  },
+  "clips": {
+    "preset:biped:wait": {
+      "duration": 6,
+      "samples": 576,
+      "deformation": {
+        "maxLength": 0.08162827451805167,
+        "maxDelta": 0.02676231409288314,
+        "maxRatio": 2.079904094080027,
+        "hardEdges": 0,
+        "worst": {
+          "time": 4.875,
+          "vertices": [
+            7262,
+            7510
+          ],
+          "bindLength": 0.010680615901947021,
+          "length": 0.02221465674175585,
+          "delta": 0.011534040839808829,
+          "ratio": 2.079904094080027
+        }
+      },
+      "gait": {
+        "bindFloor": 0.0036758319474756718,
+        "floor": 0.011230327188968658,
+        "minimumSole": 0.011171206831932068,
+        "groundOffset": 0.007495374884456396,
+        "sides": {
+          "negative": {
+            "contactRatio": 1,
+            "lift": 0.005874071270227432,
+            "contactWindowTravel": 0.02833007733803936,
+            "contactWindowLateralDrift": 0.026455461978912354,
+            "penetrationRatio": 0,
+            "kneeMin": 156.5919339085622,
+            "kneeMax": 161.70093405930933,
+            "kneeRange": 5.109000150747136
+          },
+          "positive": {
+            "contactRatio": 1,
+            "lift": 0.015795111656188965,
+            "contactWindowTravel": 0.008441125861260399,
+            "contactWindowLateralDrift": 0.007984224706888199,
+            "penetrationRatio": 0,
+            "kneeMin": 177.9736842038833,
+            "kneeMax": 178.17133251937335,
+            "kneeRange": 0.19764831549005635
+          }
+        },
+        "minFootSeparation": 0.38334834203124046,
+        "minKneeSeparation": 0.28465833375661914,
+        "bothAirborneRatio": 0
+      }
+    },
+    "preset:biped:walk": {
+      "duration": 2.375,
+      "samples": 256,
+      "deformation": {
+        "maxLength": 0.08414024343073871,
+        "maxDelta": 0.030803570308698194,
+        "maxRatio": 2.5925784936359033,
+        "hardEdges": 0,
+        "worst": {
+          "time": 1.458333,
+          "vertices": [
+            7429,
+            7509
+          ],
+          "bindLength": 0.00492361793294549,
+          "length": 0.012764865963834538,
+          "delta": 0.007841248030889049,
+          "ratio": 2.5925784936359033
+        }
+      },
+      "gait": {
+        "bindFloor": 0.0036758319474756718,
+        "floor": 0.009274804964661598,
+        "minimumSole": 0.003929503262042999,
+        "groundOffset": 0.0002536713145673275,
+        "sides": {
+          "negative": {
+            "contactRatio": 0.5859375,
+            "lift": 0.0829728078097105,
+            "contactWindowTravel": 0.5229514883679237,
+            "contactWindowLateralDrift": 0.03356284648180008,
+            "penetrationRatio": 0,
+            "kneeMin": 110.63725782562457,
+            "kneeMax": 177.6532266311512,
+            "kneeRange": 67.01596880552663
+          },
+          "positive": {
+            "contactRatio": 0.546875,
+            "lift": 0.08860237710177898,
+            "contactWindowTravel": 0.5904533135704305,
+            "contactWindowLateralDrift": 0.0594879575073719,
+            "penetrationRatio": 0,
+            "kneeMin": 105.14590735907865,
+            "kneeMax": 177.85645552096142,
+            "kneeRange": 72.71054816188277
+          }
+        },
+        "minFootSeparation": 0.16371756792068481,
+        "minKneeSeparation": 0.20500412951189645,
+        "bothAirborneRatio": 0
+      }
+    }
+  },
+  "hardFindings": [],
+  "pass": true
+}
