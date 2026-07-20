@@ -1,7 +1,7 @@
 import { EXHIBITION_SPINE } from "../src/config/exhibitionSpine.js";
 
 export const OPENAI_MODEL = "gpt-5.6";
-export const REALTIME_MODEL = "gpt-realtime";
+export const REALTIME_MODEL = "gpt-realtime-2.1";
 export const MANIFEST_VERSION = "muse-infinity-v2";
 export const LESSON_CONTRACT_VERSION = "2.0";
 

@@ -147,7 +147,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--signal); ou
 .final-dismiss { position: absolute; top: 9px; right: 9px; width: 32px; height: 32px; border: 1px solid var(--line); background: transparent; cursor: pointer; font-size: 20px; }
 .final-world-name { margin: 0 0 9px; color: var(--cyan); font-size: 9px; font-weight: 800; text-transform: uppercase; }
 
-.dialogue { position: fixed; z-index: 12; right: 24px; bottom: 54px; width: min(430px, calc(100vw - 48px)); padding: 18px; border: 1px solid var(--line); border-top: 3px solid var(--signal); border-radius: 4px; background: var(--panel); box-shadow: 0 22px 60px rgba(0,0,0,.35); }
+.dialogue { position: fixed; z-index: 12; right: 24px; bottom: 54px; width: min(430px, calc(100vw - 48px)); max-height: calc(100vh - 126px); overflow: auto; padding: 18px; border: 1px solid var(--line); border-top: 3px solid var(--signal); border-radius: 4px; background: var(--panel); box-shadow: 0 22px 60px rgba(0,0,0,.35); }
 #app[data-drawer-open] .dialogue { visibility: hidden; pointer-events: none; }
 .speaker { display: flex; gap: 7px; align-items: center; color: var(--signal); font-size: 9px; }
 .speaker img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
@@ -162,6 +162,21 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--signal); ou
 .observation-form input { min-width: 0; height: 42px; border: 0; padding: 0 11px; background: rgba(8,10,9,.72); color: var(--paper); outline: none; }
 .observation-form input:focus { box-shadow: inset 0 0 0 1px var(--signal); }
 .observation-form button { min-height: 42px; border: 0; border-left: 1px solid var(--line); border-radius: 0; background: var(--signal); color: var(--ink); font-weight: 800; }
+.inquiry-thread { max-height: 190px; margin-top: 12px; overflow: auto; border-top: 1px solid var(--line); }
+.inquiry-turn { padding: 8px 0 8px 10px; border-left: 2px solid var(--cyan); }
+.inquiry-turn + .inquiry-turn { border-top: 1px solid rgba(255,255,255,.07); }
+.inquiry-turn b { display: block; margin-bottom: 3px; color: var(--cyan); font-size: 8px; }
+.inquiry-turn p { color: #e7eae5; font-size: 12px; }
+.visitor-turn { border-left-color: var(--signal); }
+.visitor-turn b { color: var(--signal); }
+.inquiry-error { border-left-color: var(--coral); }
+.inquiry-error b { color: var(--coral); }
+.inquiry-pending { padding: 8px 0 8px 10px; color: var(--muted); font-size: 8px; }
+.inquiry-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; border: 1px solid var(--cyan); }
+.inquiry-form input { min-width: 0; height: 42px; border: 0; padding: 0 11px; background: rgba(8,10,9,.72); color: var(--paper); outline: none; }
+.inquiry-form input:focus { box-shadow: inset 0 0 0 1px var(--cyan); }
+.inquiry-form button { min-height: 42px; border: 0; border-left: 1px solid var(--cyan); border-radius: 0; background: var(--cyan); color: var(--ink); font-weight: 800; }
+.inquiry-form :disabled { opacity: .55; cursor: wait; }
 .return-question { margin: 14px 0 0; padding-left: 12px; border-left: 2px solid var(--cyan); color: var(--paper); font-family: Georgia, serif; font-size: 17px; line-height: 1.35; }
 .continue-button { width: 100%; height: 42px; margin-top: 13px; border: 0; }
 
@@ -263,6 +278,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--signal); ou
 @media (max-width: 420px) {
   .world-state { display: none; }
   .topbar { grid-template-columns: 76px 1fr auto; }
+  #provider-label { max-width: none; overflow: visible; font-size: 0; text-overflow: clip; }
+  #provider-label::after { content: attr(data-short-label); font-size: 7px; white-space: nowrap; }
   .companion-choice { min-height: 132px; }
   .companion-choice img { height: 76px; }
   .curation-route, .summoning-ledger { grid-template-columns: 1fr 1fr; }

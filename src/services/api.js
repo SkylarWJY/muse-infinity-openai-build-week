@@ -1,4 +1,4 @@
-export const MUSE_API_TIMEOUT_MS = 32000;
+export const MUSE_API_TIMEOUT_MS = 65_000;
 
 export class MuseApi {
   constructor({ sessionId } = {}) {
@@ -8,6 +8,12 @@ export class MuseApi {
   status() { return this.request("/api/status", { timeout: 5000 }); }
   lesson(goal) { return this.request("/api/lesson/plan", { method: "POST", body: { goal, session_id: this.sessionId } }); }
   recap(digest) { return this.request("/api/lesson/recap", { method: "POST", body: digest }); }
+  dialogue(context) {
+    return this.request("/api/dialogue", {
+      method: "POST",
+      body: { ...context, session_id: this.sessionId }
+    });
+  }
   salon(digest) { return this.request("/api/salon", { method: "POST", body: digest }); }
   transform(digest, contradiction, priorConcept) {
     return this.request("/api/salon/transform", {

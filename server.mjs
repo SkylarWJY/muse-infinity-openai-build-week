@@ -1,6 +1,7 @@
 import http from "node:http";
 import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
+import { isIP } from "node:net";
 import path from "node:path";
 import { loadEnvFile } from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -8,6 +9,8 @@ import { OpenAIService } from "./services/openai.js";
 import { RoomService } from "./services/rooms.js";
 import { WorldLabsService } from "./services/worldLabs.js";
 import { PHILOSOPHY_AXES, createFallbackLesson, createSessionDigest, normalizeText } from "./shared/contracts.js";
+import { getExhibitionScene } from "./src/config/exhibitionSpine.js";
+import { artworksForScene } from "./src/config/sceneCollections.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const BODY_LIMIT = 160_000;
@@ -38,8 +41,9 @@ const MIME = new Map([
 export function createMuseServer({ env = process.env, fetchImpl = fetch, roomService, staticReadStreamFactory = createReadStream } = {}) {
   const openai = new OpenAIService({
     apiKey: env.OPENAI_API_KEY,
+    gatewayApiKey: env.MUSE_GPT_GATEWAY_API_KEY,
+    baseUrl: env.OPENAI_BASE_URL,
     model: env.OPENAI_MODEL,
-    realtimeModel: env.OPENAI_REALTIME_MODEL,
     fetchImpl,
     safetySalt: env.SAFETY_ID_SALT || "muse-build-week"
   });
@@ -66,10 +70,14 @@ export function createMuseServer({ env = process.env, fetchImpl = fetch, roomSer
 async function handleApi({ req, res, url, openai, worlds, rooms, modelBudget }) {
   if (req.method === "GET" && url.pathname === "/api/status") {
     return sendJson(res, 200, {
-      openai: openai.configured,
+      configured: openai.configured,
+      openai: openai.configured && openai.gateway === "official",
       model: openai.model,
-      realtime: openai.configured,
-      realtime_model: openai.realtimeModel,
+      gateway: openai.gateway,
+      model_source: openai.modelSource,
+      dialogue: openai.configured,
+      realtime: openai.realtimeConfigured,
+      realtime_model: openai.realtimeConfigured ? openai.realtimeModel : null,
       world_forge: worlds.configured,
       rooms: true
     });
@@ -112,10 +120,21 @@ async function handleApi({ req, res, url, openai, worlds, rooms, modelBudget }) 
     });
     return sendJson(res, 200, result);
   }
+  if (req.method === "POST" && url.pathname === "/api/dialogue") {
+    if (!modelBudget.take(clientKey(req), 2)) return sendJson(res, 429, { error: "rate_limited" });
+    const body = await readJson(req);
+    const context = trustedDialogueContext(body);
+    if (!context.question) return sendJson(res, 400, { error: "question_required" });
+    const result = await openai.createDialogue(context, body.session_id || req.headers["x-session-id"]);
+    return sendJson(res, 200, result);
+  }
   if (req.method === "POST" && url.pathname === "/api/realtime/call") {
     if (!modelBudget.take(clientKey(req), 6)) return sendJson(res, 429, { error: "rate_limited" });
-    const sdp = await readText(req, 120_000);
-    const answer = await openai.createRealtimeCall(sdp, req.headers["x-session-id"]);
+    const jsonRequest = String(req.headers["content-type"] || "").toLowerCase().includes("application/json");
+    const body = jsonRequest ? await readJson(req) : null;
+    const sdp = jsonRequest ? body.sdp : await readText(req, 120_000);
+    const context = body ? trustedDialogueContext(body.context || body) : {};
+    const answer = await openai.createRealtimeCall(sdp, req.headers["x-session-id"], context);
     res.writeHead(200, { "Content-Type": "application/sdp" });
     return res.end(answer);
   }
@@ -146,6 +165,44 @@ async function handleApi({ req, res, url, openai, worlds, rooms, modelBudget }) 
     return sendJson(res, 201, rooms.post(roomEvents[1], body.member_id, body.event));
   }
   return sendJson(res, 404, { error: "not_found" });
+}
+
+function trustedDialogueContext(input = {}) {
+  const source = input && typeof input === "object" && !Array.isArray(input) ? input : {};
+  const requestedScene = source.scene_id || source.sceneId || source.scene?.id || source.currentSceneId;
+  const scene = getExhibitionScene(normalizeText(requestedScene, 80));
+  if (!scene) throw Object.assign(new Error("invalid_scene"), { statusCode: 400 });
+  const artworks = artworksForScene(scene.id);
+  const requestedArtwork = normalizeText(source.artwork_id || source.artworkId || source.artwork?.id, 100);
+  const artwork = artworks.find((item) => item.id === requestedArtwork) || artworks[0] || null;
+  return {
+    question: normalizeText(source.question, 600),
+    scene: {
+      id: scene.id,
+      title: scene.title,
+      artist: scene.artist,
+      chapter: scene.chapter,
+      guide_id: scene.guideId,
+      prompt: scene.question,
+      detail: scene.detail
+    },
+    artwork: artwork ? {
+      id: artwork.id,
+      title: artwork.title,
+      artist: artwork.artist,
+      date: artwork.date
+    } : {},
+    companion_ids: Array.isArray(source.companion_ids)
+      ? source.companion_ids
+      : Array.isArray(source.companions)
+        ? source.companions.map((item) => typeof item === "string" ? item : item?.id)
+        : [],
+    recent_evidence: Array.isArray(source.recent_evidence)
+      ? source.recent_evidence
+      : Array.isArray(source.recentEvidence)
+        ? source.recentEvidence
+        : []
+  };
 }
 
 async function serveStatic(req, res, pathname, staticReadStreamFactory) {
@@ -372,8 +429,77 @@ class RequestBudget {
   }
 }
 
-function clientKey(req) {
-  return req.socket.remoteAddress || "unknown";
+export function clientKey(req) {
+  const remoteAddress = canonicalIp(req.socket?.remoteAddress) || req.socket?.remoteAddress || "unknown";
+  if (!isTrustedLoopbackProxy(remoteAddress)) return remoteAddress;
+
+  const xForwardedFor = req.headers?.["x-forwarded-for"];
+  if (xForwardedFor !== undefined) return lastForwardedIp(xForwardedFor) || remoteAddress;
+
+  const forwarded = req.headers?.forwarded;
+  if (forwarded !== undefined) return forwardedClientIp(forwarded) || remoteAddress;
+  return remoteAddress;
+}
+
+function isTrustedLoopbackProxy(address) {
+  return address === "127.0.0.1" || address === "::1" || address === "::ffff:7f00:1";
+}
+
+function forwardedClientIp(header) {
+  const elements = headerValue(header).split(",");
+  const proxyAppendedElement = elements.at(-1)?.trim() || "";
+  for (const parameter of proxyAppendedElement.split(";")) {
+    const separator = parameter.indexOf("=");
+    if (separator < 0 || parameter.slice(0, separator).trim().toLowerCase() !== "for") continue;
+    let value = parameter.slice(separator + 1).trim();
+    if (value.startsWith('"')) {
+      if (!value.endsWith('"') || value.length < 2 || value.slice(1, -1).includes("\\")) return null;
+      value = value.slice(1, -1);
+    } else if (value.includes('"')) return null;
+    return forwardedNodeIp(value);
+  }
+  return null;
+}
+
+function lastForwardedIp(header) {
+  return forwardedNodeIp(headerValue(header).split(",").at(-1)?.trim());
+}
+
+function headerValue(value) {
+  return (Array.isArray(value) ? value.join(",") : String(value || "")).trim();
+}
+
+function forwardedNodeIp(value) {
+  if (!value) return null;
+  const bracketed = /^\[([^\]]+)\](?::(\d{1,5}))?$/.exec(value);
+  if (bracketed) {
+    if (!validPort(bracketed[2])) return null;
+    return canonicalIp(bracketed[1]);
+  }
+
+  const direct = canonicalIp(value);
+  if (direct) return direct;
+
+  const ipv4WithPort = /^([^:]+):(\d{1,5})$/.exec(value);
+  if (!ipv4WithPort || !validPort(ipv4WithPort[2])) return null;
+  const address = canonicalIp(ipv4WithPort[1]);
+  return isIP(address || "") === 4 ? address : null;
+}
+
+function validPort(value) {
+  return value === undefined || Number(value) <= 65_535;
+}
+
+function canonicalIp(value) {
+  const address = String(value || "").trim();
+  const version = isIP(address);
+  if (version === 4) return address.split(".").map(Number).join(".");
+  if (version !== 6) return null;
+  try {
+    return new URL(`http://[${address}]/`).hostname.slice(1, -1).toLowerCase();
+  } catch {
+    return null;
+  }
 }
 
 export function loadLocalEnv(file = path.join(ROOT, ".env")) {

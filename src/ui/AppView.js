@@ -10,6 +10,34 @@ const PHILOSOPHY_AXES = Object.freeze([
 
 const PROCESS_WORLDS = EXHIBITION_SPINE.map((item) => WORLDS.find((world) => world.id === item.worldId)).filter(Boolean);
 
+export function providerPresentation(status = {}) {
+  const model = String(status.model || "GPT-5.6").toUpperCase();
+  const configured = Boolean(status.configured ?? status.openai);
+  if (!configured) {
+    return {
+      label: `${model} READY · CURATED FALLBACK ACTIVE`,
+      shortLabel: "CURATED DEMO",
+      badge: "CURATED FALLBACK"
+    };
+  }
+
+  const live = status.live === true;
+  if (status.gateway === "inherited-gpt") {
+    const responseReported = status.model_source === "gateway-response-reported";
+    return {
+      label: `${model} ${live ? "LIVE" : "CONFIGURED"} · INHERITED GATEWAY · ${responseReported ? "MODEL RESPONSE REPORTED" : "MODEL REQUESTED"}`,
+      shortLabel: `${model} · GATEWAY · ${responseReported ? "RESPONSE" : "REQUEST"}`,
+      badge: `${model} · GATEWAY ${live ? "LIVE" : "READY"}`
+    };
+  }
+
+  return {
+    label: `${model} ${live ? "LIVE" : "CONFIGURED"} · OPENAI RESPONSES API`,
+    shortLabel: `${model} · OPENAI ${live ? "LIVE" : "READY"}`,
+    badge: `${model} · OPENAI ${live ? "LIVE" : "READY"}`
+  };
+}
+
 export class AppView {
   constructor() {
     this.app = byId("app");
@@ -18,6 +46,7 @@ export class AppView {
     this.stopTitle = byId("stop-title");
     this.guideLine = byId("guide-line");
     this.guideState = byId("guide-state");
+    this.inquiryThread = byId("inquiry-thread");
     this.speakerName = byId("speaker-name");
     this.speakerPortrait = byId("speaker-portrait");
     this.answers = byId("answers");
@@ -35,7 +64,7 @@ export class AppView {
     this.toastElement = byId("toast");
     this.currentSalon = null;
     this.conceptProvider = { live: false, model: "curated-demo" };
-    this.providerStatus = { openai: false, model: "GPT-5.6" };
+    this.providerStatus = { configured: false, live: false, openai: false, gateway: "official", model: "GPT-5.6" };
     this.toastTimer = 0;
   }
 
@@ -95,10 +124,14 @@ export class AppView {
       if (button) call("onAnswer", button.dataset.answer);
     });
     this.answers.addEventListener("submit", (event) => {
-      if (!event.target.matches(".observation-form")) return;
       event.preventDefault();
-      const observation = event.target.elements.observation?.value.trim();
-      if (observation) call("onObservation", observation);
+      if (event.target.matches(".observation-form")) {
+        const observation = event.target.elements.observation?.value.trim();
+        if (observation) call("onObservation", observation);
+      } else if (event.target.matches(".inquiry-form")) {
+        const question = event.target.elements.question?.value.trim();
+        if (question) call("onInquiry", question);
+      }
     });
     this.continueButton.addEventListener("click", () => call("onContinue"));
     document.addEventListener("click", (event) => {
@@ -149,17 +182,31 @@ export class AppView {
   }
 
   setProvider(status) {
-    this.providerStatus = { ...this.providerStatus, ...status };
-    const model = String(status.model || "GPT-5.6").toUpperCase();
+    this.providerStatus = { ...this.providerStatus, ...status, live: status.live === true };
     this.updateModelBadge();
-    this.providerLabel.textContent = status.openai ? `${model} LIVE · RESPONSES API` : `${model} READY · CURATED FALLBACK ACTIVE`;
+    this.updateProviderLabel();
+  }
+
+  updateProviderLabel() {
+    const presentation = providerPresentation(this.providerStatus);
+    this.providerLabel.textContent = presentation.label;
+    this.providerLabel.dataset.shortLabel = presentation.shortLabel;
   }
 
   begin(plan, provider) {
     this.entry.hidden = true;
     this.dialogue.hidden = false;
-    this.providerStatus = { openai: provider.live === true, model: provider.model || this.providerStatus.model };
+    this.providerStatus = {
+      ...this.providerStatus,
+      configured: provider.live === true,
+      live: provider.live === true,
+      openai: provider.live === true && provider.gateway !== "inherited-gpt",
+      gateway: provider.gateway || this.providerStatus.gateway,
+      model: provider.model || this.providerStatus.model,
+      model_source: provider.model_source || this.providerStatus.model_source
+    };
     this.updateModelBadge();
+    this.updateProviderLabel();
     this.renderRoute(plan, [], plan.start_stop_id);
     this.showWalking(plan.start_stop_id);
   }
@@ -239,6 +286,8 @@ export class AppView {
     this.guideState.textContent = "WALKING";
     this.stopTitle.textContent = `Approaching ${sceneStop.title}`;
     this.guideLine.textContent = `${this.speakerName.textContent} is moving to the selected evidence point.`;
+    this.inquiryThread.hidden = true;
+    this.inquiryThread.replaceChildren();
     this.answers.replaceChildren();
     this.continueButton.hidden = true;
   }
@@ -258,6 +307,14 @@ export class AppView {
     this.guideState.textContent = "ASKING";
     this.stopTitle.textContent = `${sceneStop.title} · ${sceneStop.artist}`;
     this.guideLine.textContent = `${stop.guide_line} ${stop.prompt}`;
+    this.inquiryThread.hidden = false;
+    this.inquiryThread.replaceChildren();
+    const inquiryForm = element("form", { className: "inquiry-form" });
+    inquiryForm.append(
+      element("label", { className: "sr-only", htmlFor: "inquiry-input" }, "Question for the company"),
+      element("input", { id: "inquiry-input", name: "question", maxLength: 600, autoComplete: "off", placeholder: "Ask about this work" }),
+      element("button", { type: "submit" }, "Ask")
+    );
     const observationForm = element("form", { className: "observation-form" });
     observationForm.append(
       element("label", { className: "sr-only", htmlFor: "observation-input" }, "Your observation"),
@@ -265,6 +322,7 @@ export class AppView {
       element("button", { type: "submit" }, "Record")
     );
     this.answers.replaceChildren(
+      inquiryForm,
       ...stop.choices.map((choice) => element("button", { type: "button", dataset: { answer: choice.value } }, choice.label)),
       observationForm
     );
@@ -277,6 +335,81 @@ export class AppView {
     this.answers.replaceChildren();
     this.continueButton.textContent = "Continue →";
     this.continueButton.hidden = false;
+  }
+
+  showInquiryPending(question) {
+    const form = this.answers.querySelector(".inquiry-form");
+    for (const control of form?.elements || []) control.disabled = true;
+    const turn = element("div", { className: "inquiry-turn visitor-turn" });
+    turn.append(element("b", {}, "YOU"), element("p", {}, question));
+    const pending = element("div", { className: "inquiry-pending", dataset: { inquiryPending: "true" } }, "READING THE WORK…");
+    this.inquiryThread.append(turn, pending);
+    this.inquiryThread.scrollTop = this.inquiryThread.scrollHeight;
+  }
+
+  showInquiryReply(result) {
+    this.inquiryThread.querySelector("[data-inquiry-pending]")?.remove();
+    const source = result?.live === true ? liveProviderName(result) : "CURATED LOCAL";
+    for (const item of result?.perspectives || []) {
+      const turn = element("div", { className: "inquiry-turn company-turn" });
+      turn.append(
+        element("b", {}, `${item.speaker || item.speakerId} · ${source}`),
+        element("p", {}, item.text || "")
+      );
+      this.inquiryThread.append(turn);
+    }
+    const form = this.answers.querySelector(".inquiry-form");
+    for (const control of form?.elements || []) control.disabled = false;
+    if (form?.elements.question) form.elements.question.value = "";
+    this.inquiryThread.scrollTop = this.inquiryThread.scrollHeight;
+  }
+
+  showInquiryError(message) {
+    this.inquiryThread.querySelector("[data-inquiry-pending]")?.remove();
+    const turn = element("div", { className: "inquiry-turn inquiry-error" });
+    turn.append(element("b", {}, "CONNECTION"), element("p", {}, message));
+    this.inquiryThread.append(turn);
+    const form = this.answers.querySelector(".inquiry-form");
+    for (const control of form?.elements || []) control.disabled = false;
+  }
+
+  appendVoiceTranscript({ role, id, delta = "", text, final, mode, provider }) {
+    if (this.inquiryThread.hidden || (!delta && typeof text !== "string" && !final)) return;
+    const turnId = String(id || `${role}-active`).slice(0, 160);
+    let turn = [...this.inquiryThread.querySelectorAll(`.voice-turn[data-role="${role}"]:not([data-final="true"])`)]
+      .find((item) => item.dataset.turnId === turnId);
+    if (!turn) {
+      turn = element("div", {
+        className: `inquiry-turn voice-turn ${role === "user" ? "visitor-turn" : "company-turn"}`,
+        dataset: { role, turnId, final: "false" }
+      });
+      turn.append(element("b"), element("p"));
+      this.inquiryThread.append(turn);
+    }
+    const label = turn.querySelector("b");
+    if (label) label.textContent = voiceTranscriptLabel(role, mode, provider);
+    const copy = turn.querySelector("p");
+    if (copy) copy.textContent = typeof text === "string" ? text : `${copy.textContent}${delta}`;
+    if (final) turn.dataset.final = "true";
+    this.inquiryThread.scrollTop = this.inquiryThread.scrollHeight;
+  }
+
+  setVoiceState(value) {
+    const button = document.getElementById("voice-tool");
+    const label = button.querySelector(".tool-label");
+    const copy = {
+      off: ["Voice", "Start voice conversation"],
+      connecting: ["Connect", "Connecting voice"],
+      live: ["Live", "Stop voice conversation"],
+      listening: ["Listen", "Listening"],
+      thinking: ["Think", "Preparing response"],
+      speaking: ["Speak", "Speaking"],
+      error: ["Error", "Voice connection error"]
+    }[value] || ["Voice", "Voice"];
+    button.dataset.voiceState = value;
+    button.setAttribute("aria-pressed", String(value !== "off" && value !== "error"));
+    button.title = copy[1];
+    if (label) label.textContent = copy[0];
   }
 
   showRecap(recap, digest) {
@@ -441,7 +574,7 @@ export class AppView {
   enterFinalWorld(world, salon = this.currentSalon, provider = this.conceptProvider) {
     this.currentSalon = salon || this.currentSalon;
     const title = conceptTitle(this.currentSalon);
-    const source = provider?.live === true || salon?.live === true ? "live GPT" : "curated fallback";
+    const source = provider?.live === true || salon?.live === true ? liveProviderName(provider) : "curated fallback";
     this.dialogue.hidden = true;
     this.presentEntry("final-answer", [
       element("button", { type: "button", className: "final-dismiss", dataset: { entryAction: "dismiss-final" }, "aria-label": "Close answer plaque" }, "×"),
@@ -629,7 +762,7 @@ export class AppView {
     this.drawerTitle.textContent = "Evidence";
     const live = context.provider?.live === true;
     const rows = [
-      ["Reasoning model", live ? `${context.provider.model || "GPT-5.6"} · live` : "GPT contract · curated fallback"],
+      ["Reasoning model", live ? liveProviderName(context.provider) : "GPT contract · curated fallback"],
       ["Scene manifest", SCENE_MANIFEST.version],
       ["Canonical process", "8 ordered worlds"],
       ["Final realization", "Shimmering Spheres · archived world 09"],
@@ -678,9 +811,7 @@ export class AppView {
     const badge = document.getElementById("model-badge");
     if (!badge) return;
     this.modelBadge = badge;
-    badge.textContent = this.providerStatus.openai
-      ? `${String(this.providerStatus.model || "GPT-5.6").toUpperCase()} LIVE`
-      : "CURATED FALLBACK";
+    badge.textContent = providerPresentation(this.providerStatus).badge;
   }
 }
 
@@ -705,7 +836,23 @@ function conceptBadge(salon, provider = {}) {
   const live = salon?.live === true || provider?.live === true;
   const fallbackText = `${salon?.synthesis || ""} ${salon?.warning || ""}`;
   const fallback = salon?.live === false || provider?.live === false || salon?.source === "fallback" || /curated demo|fallback|not generated live/i.test(fallbackText);
-  return element("span", { className: `concept-badge ${live ? "live" : fallback ? "fallback" : "pending"}` }, live ? "LIVE GPT CONCEPT" : fallback ? "CURATED FALLBACK CONCEPT" : "CONCEPT RECORD");
+  const liveLabel = provider?.gateway === "inherited-gpt" ? "GATEWAY GPT CONCEPT" : "LIVE GPT CONCEPT";
+  return element("span", { className: `concept-badge ${live ? "live" : fallback ? "fallback" : "pending"}` }, live ? liveLabel : fallback ? "CURATED FALLBACK CONCEPT" : "CONCEPT RECORD");
+}
+
+function liveProviderName(provider = {}) {
+  const model = String(provider.model || "GPT-5.6").toUpperCase();
+  return provider.gateway === "inherited-gpt" ? `${model} · INHERITED GATEWAY` : `${model} · OPENAI API`;
+}
+
+function voiceTranscriptLabel(role, mode, provider = {}) {
+  if (role === "user") return "YOU · VOICE";
+  if (mode === "realtime") return "MIRA · OPENAI REALTIME";
+  if (provider.live === true && provider.gateway === "inherited-gpt") {
+    return `MIRA · ${String(provider.model || "GPT-5.6").toUpperCase()} · INHERITED GATEWAY`;
+  }
+  if (provider.live === true) return `MIRA · ${String(provider.model || "GPT-5.6").toUpperCase()} · OPENAI`;
+  return "MIRA · CURATED LOCAL";
 }
 
 function axisName(id) {

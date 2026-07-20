@@ -14,12 +14,24 @@ bytes, hashes and unresolved provenance records are maintained in `docs/PROVENAN
 
 ## OpenAI model services
 
-OpenAI GPT-5.6 Responses and the optional OpenAI Realtime model are the only language and
-reasoning model services used by this runtime. Requests are sent only to `api.openai.com`.
-No Claude, Gemini, MiniMax or configurable OpenAI-compatible LLM endpoint is included.
+The official judging configuration requests OpenAI GPT-5.6 Responses and optional OpenAI
+Realtime. Requests default to `api.openai.com`; local operators may select the single
+allowlisted inherited MUSE GPT gateway, to which the runtime sends only `gpt-5.6` requests.
+That request configuration is not official-provider evidence. The runtime rejects all other origins and rewrites every
+text-model selection to `gpt-5.6`. No Claude, Gemini or MiniMax runtime is included.
 
-OpenAI service use is governed by the terms associated with the operator's OpenAI account;
-no model service is bundled as software in this repository.
+Official and inherited credentials are stored under different environment variables and are
+bound to their respective origins. Gateway status is labeled `request-configured`; an actual
+response is labeled `gateway-response-reported` only when its payload identifies an allowed
+GPT-5.6 model. Neither label is official OpenAI Platform evidence, and Realtime is disabled on
+that gateway. Questions and scene
+evidence sent through the gateway are visible to its operator, and `store: false` does not
+assert proxy-side retention behavior.
+
+Direct `api.openai.com` use is governed by the terms associated with the operator's OpenAI
+account. Use of the allowlisted inherited gateway is governed by that gateway operator and
+its upstream service terms; its credential is not represented as an official OpenAI Platform
+API key. No model service or credential is bundled as software in this repository.
 
 ## World Labs scene assets
 
@@ -35,8 +47,10 @@ remain only as noncanonical compatibility records. They are not used by the 8+1 
 World Labs is not a language/reasoning runtime. A separately gated Forge adapter can
 optionally contact World Labs for explicit spatial generation when both provider and admin
 credentials are supplied; no-key operation uses local files and sends no provider request.
-Complete source World IDs and explicit output redistribution records were not recovered.
-Inclusion must not be read as a new MIT license grant for any generated asset.
+Three noncanonical account records (Bright Gallery and two World of Light generations) were
+recovered, but complete source World IDs for the formal nine-world route and explicit output
+redistribution records were not. Inclusion must not be read as a new MIT license grant for any
+generated asset.
 
 ## Tripo character assets
 
@@ -86,15 +100,34 @@ Commons file page and jurisdiction-specific status before redistribution.
 
 The archived Freud, Qi Baishi and Yayoi Kusama portrait copies lack recovered upstream URLs
 or rights records. They should not be redistributed outside this hackathon repository until
-those records are recovered.
+those records are recovered. Yayoi Kusama is living; neither her portrait nor generated
+representation is described here as a public-domain historical likeness.
 
 ## Artwork images
 
-The three images under `assets/art/` are identified by the prior records as public-domain
-artwork images obtained through the Art Institute of Chicago Open Access / IIIF program:
+The runtime gallery uses 36 locally stored JPEGs under `assets/art/collection/`, four globally
+unique works for each of the nine scenes. Their object metadata and IIIF source URLs came from
+the Art Institute of Chicago public API and Open Access program. The complete title, artist,
+date, object-page link, local filename, byte count and SHA-256 ledger is in
+`docs/PROVENANCE.md`.
 
-- [Water Lilies](https://www.artic.edu/artworks/16568/water-lilies)
-- [The Bedroom](https://www.artic.edu/artworks/28560/the-bedroom)
-- [A Sunday on La Grande Jatte](https://www.artic.edu/artworks/27992/a-sunday-on-la-grande-jatte-1884)
+The Art Institute designates qualifying Open Access images CC0 and asks users to include the
+artist, title, date and institution caption. Its API documents artwork response data as CC0
+except for the `description` field, which this gallery does not copy. Use remains subject to
+the museum's website terms, and downstream users remain responsible for any third-party
+permissions. See the official [Open Access Images policy](https://www.artic.edu/open-access/open-access-images),
+[public API documentation](https://api.artic.edu/docs/) and
+[website terms](https://www.artic.edu/terms).
 
-No cloned voice, stock interface illustration or non-OpenAI language model runtime is bundled.
+The older `assets/art/water-lilies.jpg`, `assets/art/bedroom.jpg` and
+`assets/art/grande-jatte.jpg` are retained lower-resolution compatibility copies of three
+works also represented in the 36-work collection. They are not additional unique works.
+
+No cloned voice, stock interface illustration or alternate model-family runtime is bundled.
+Dynamic text dialogue requests `gpt-5.6` through the official API or visibly disclosed local
+legacy gateway. The official judging path can use OpenAI Realtime WebRTC with the built-in
+`marin` voice. Gateway and no-key operation may instead use the browser's Web Speech
+recognition and synthesis around the same text-dialogue contract; browser implementations may
+delegate speech transport to platform services. Recognition availability, synthesis voices and
+speech behavior therefore vary by browser and operating system, but this repository does not
+route reasoning to another model provider.

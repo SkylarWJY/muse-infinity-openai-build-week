@@ -2,7 +2,7 @@
 
 ## Authorship boundary
 
-This repository is the OpenAI Build Week implementation created with Codex: the OpenAI-only
+This repository is the OpenAI Build Week implementation created with Codex: the official-OpenAI
 service boundary, ten-beat state machine, 8+1 manifest, high-fidelity loaders, collider
 grounding, all-selected-companion movement, free-form grounded observations, two-phase GPT
 concept transformation, UI, fallbacks, static Range serving and tests. Majority
@@ -14,6 +14,13 @@ mixed-agent work. It is not this repository's source tree, but it is intentional
 of the product concept and bundled digital assets. This is reuse, not research-only
 inspiration.
 
+The ordered archive is corroborated by the prior repository's
+`config/exhibitionScenes.js`, historical `config/immersiveAssets.js`, and commits `53bb818`
+(nine World Labs LFS pointers), `98f1997` (eight Tripo character pointers) and `9da7b12`
+(the complete immersive flow). The source files were retained outside that repository under
+the original hackathon archive; its ignored `assets/worlds` and `assets/characters` entries
+were symlinks rather than independent copies.
+
 ### Reused from `muse-infinity`
 
 - The ten narrative beats: threshold, life question, companion selection, AI curation,
@@ -23,12 +30,14 @@ inspiration.
   GLBs, native transforms, spawns, bounds, yaw and camera profiles.
 - Nine interpretive scene images and canonical world thumbnails.
 - Eight Tripo-generated historical-character interpretations and eight portraits.
-- Three retained Art Institute of Chicago open-access artwork images.
+- The prior `sceneCollections.js` cast of 36 Art Institute of Chicago Open Access works, plus
+  three lower-resolution compatibility copies retained from the earlier asset bundle.
 - Provider request-shape knowledge for the separately gated World Labs Forge adapter.
 
 ### Newly implemented in this repository
 
-- A clean GPT-5.6-only language/reasoning runtime with no alternate LLM host.
+- A GPT-5.6-only language/reasoning contract with an official OpenAI default and one
+  separately keyed, visibly disclosed local legacy gateway.
 - The strict ten-beat state machine and independent `EXHIBITION_SPINE` / `FINAL_SCENE`
   boundary.
 - Eight-stop lesson validation and a final-concept contract that require the exact ordered
@@ -46,17 +55,39 @@ inspiration.
 - High/balanced/performance renderer tiers, DPR restoration, `NoToneMapping`, archive race
   disposal, collider height sampling and byte-range static responses.
 - Shader-deformed companion movement and correspondence-gated dialogue.
+- Local delivery and collider-aware placement of four globally unique AIC works in each of
+  the nine worlds.
+- Context-grounded GPT-5.6 Responses dialogue and an OpenAI Realtime WebRTC session that can
+  refresh scene, artwork, companion and evidence context between turns.
 - A new fictional learner designed with GPT Image 2, reconstructed with Tripo v3.1, rigged
   with a semantic 41-joint biped skeleton and shipped with baked wait/walk clips.
 - New security boundaries, tests and desktop/mobile E2E coverage.
 
-No legacy application module, server module, stylesheet, MiniMax narration path, Claude model
-path or configurable OpenAI-compatible LLM endpoint is included.
+No legacy application module, server module, stylesheet, MiniMax narration path or Claude
+model path is included. The inherited GPT-5.6 gateway is represented by one explicit allowlist
+entry rather than a general provider registry.
 
 ## Provider boundary
 
-OpenAI GPT is the only language and reasoning runtime. World Labs and Tripo identify where
+The judging path uses OpenAI GPT through `api.openai.com`. World Labs and Tripo identify where
 pre-generated scene and character files came from; neither is used as a language model.
+
+The default endpoint is the official OpenAI API. The previous MUSE deployment stored a
+server-side credential for `api.baizhiyuan.cloud`, whose model catalogue exposes `gpt-5.6` and
+whose Responses route was used by that project. This rebuild accepts that one inherited HTTPS
+origin through `OPENAI_BASE_URL`, while hard-locking the request model to `gpt-5.6` and rejecting
+arbitrary compatible origins. `OPENAI_API_KEY` is origin-bound to `api.openai.com`, while
+`MUSE_GPT_GATEWAY_API_KEY` is origin-bound to the inherited gateway; either cross-origin
+configuration is treated as unconfigured. Credentials remain untracked.
+
+The inherited gateway's catalogue exposes `gpt-5.6`, but a compatible gateway cannot
+independently prove its upstream provider. Status and responses without model metadata carry
+`gateway: inherited-gpt` and `model_source: request-configured`; only a response payload that
+identifies an allowed GPT-5.6 model carries `model_source: gateway-response-reported` and
+`response_model`. The UI preserves that distinction. Competition evidence should use an
+official OpenAI Platform credential.
+When the gateway is active it receives the learner's question, scene evidence and dialogue;
+`store: false` is a request field, not a guarantee about proxy-side retention.
 
 The server retains an isolated Forge adapter that can send an explicit spatial-generation
 request to World Labs only when both `WORLDLABS_API_KEY` and `INTEGRATION_ADMIN_TOKEN` are
@@ -70,6 +101,36 @@ materially rewrite `world_title`, `synthesis`, `principle` and `visual_prompt` a
 against that axis. No-key mode applies an axis-specific curated replacement under the same
 contract. The loaded Fantasy Realm of Shimmering Spheres mesh was generated before Build Week
 and reused from `muse-infinity`; neither concept request generates new geometry.
+
+## Dialogue and voice boundary
+
+`POST /api/dialogue` is the text interaction path. The server reconstructs the requested
+scene and focused artwork from the local exhibition and AIC collection manifests instead of
+trusting client-supplied titles. It bounds the visitor question and recent evidence,
+canonicalizes one to three selected companions, and asks GPT-5.6 Responses for a strict JSON
+result containing exactly one named perspective and one allowed visual effect per companion.
+Invalid output or an absent key returns an explicitly non-live local curated response under
+the same shape.
+
+`POST /api/realtime/call` exchanges the browser's WebRTC SDP only with the official OpenAI
+Realtime endpoint. The server session instructions carry the sanitized current scene,
+focused artwork, selected companion lenses and recent evidence; ask for visible evidence;
+follow the visitor's language; and prohibit impersonation or fabricated quotations. The
+browser's `oai-events` data channel sends `session.update` when that museum context changes
+and surfaces user/assistant transcript events. Audio output uses OpenAI's built-in `marin`
+voice. There is no cloned historical voice, lip synchronization or alternate speech provider.
+
+Both live paths require an untracked, origin-bound server credential. Realtime is fixed to the
+checked-in OpenAI Realtime model constant and is disabled when the inherited text gateway is
+selected. Text inquiry remains the authoritative accessible path when microphone permission,
+WebRTC or official Realtime access is unavailable.
+
+The inherited GPT gateway's model catalogue lists legacy audio models but its unified
+`/v1/realtime/calls` route returned `404` during the 2026-07-20 deployment check. The runtime
+therefore reports Realtime as unavailable for that origin and uses browser speech recognition
+and synthesis around the same GPT-5.6 `/api/dialogue` turns. This fallback does not send the
+audio stream through this application's reasoning-provider boundary; browser support and
+platform speech-service behavior vary.
 
 ## Canonical World Labs archive ledger
 
@@ -186,8 +247,9 @@ Bright Gallery is explicitly not scene 1, a process world or the answer world.
 
 The eight deployed historical-character GLBs are browser-optimized copies of the
 corresponding full-size files in the prior MUSE archive. The prior project identifies the
-originals as Tripo outputs. Complete original task IDs, model IDs, prompts, source images,
-settings and output redistribution records have not been recovered.
+originals as Tripo outputs, and every archived GLB embeds `asset.generator: "Tripo"`.
+Complete original task IDs, model IDs, prompts, generation manifests, account receipts and
+output redistribution records have not been recovered.
 
 | Companion | Archived source / bytes | Deployed file / bytes | SHA-256 |
 | --- | --- | --- | --- |
@@ -221,7 +283,8 @@ clips. Runtime motion is a Build Week addition: approximate shader-region deform
 root translation make the first selected companion guide and up to two other selected
 companions follow in formation, with collider-derived ground height. Roundtable staging uses
 the same selected roster. The figures are AI interpretations, not authentic likeness
-reconstructions or endorsements by the named people.
+reconstructions or endorsements by the named people. Yayoi Kusama is a living person; this
+repository does not describe her representation as a public-domain historical likeness.
 
 ## Portrait ledger
 
@@ -304,17 +367,73 @@ image-generation model/task records were not retained.
 
 Thumbnail generation/export records are incomplete.
 
-## Retained open-access artwork ledger
+## Art Institute of Chicago Open Access artwork ledger
 
-| File | Source | Bytes | SHA-256 |
+`src/config/sceneCollections.js` retains the deterministic 36-work cast from
+`muse-infinity`, grouped as four globally unique works per world. This repository stores one
+JPEG for each record under `assets/art/collection/`; the files were downloaded from the
+recorded Art Institute of Chicago IIIF `full/1686,/0/default.jpg` URLs so gallery rendering
+does not depend on a live image request. The title, creator, date and object-page source below
+match the AIC public API records.
+
+| # | Scene | Local file | AIC object page / title | Creator and date | Bytes | SHA-256 |
+| ---: | --- | --- | --- | --- | ---: | --- |
+| 1 | `threshold-conservatory` | `assets/art/collection/aic-153799.jpg` | [Woman Bathing Her Feet in a Brook](https://www.artic.edu/artworks/153799) | Camille Pissarro, 1895 | 1,687,686 | `08037a7d5e5d1de5ae8925b017e096e94102b08bc1a32c49affb4275d5b36b71` |
+| 2 | `threshold-conservatory` | `assets/art/collection/aic-81551.jpg` | [The Place du Havre, Paris](https://www.artic.edu/artworks/81551) | Camille Pissarro, 1893 | 1,317,684 | `d8496ed76fae533f6cddf6e9145b4e62aa58c4238a554443fb16b54d6ba1165b` |
+| 3 | `threshold-conservatory` | `assets/art/collection/aic-110541.jpg` | [The Crystal Palace](https://www.artic.edu/artworks/110541) | Camille Pissarro, 1871 | 620,390 | `286dc771965fa322cf20a48bdee1282a22f651152723962a052521658db227e6` |
+| 4 | `threshold-conservatory` | `assets/art/collection/aic-81552.jpg` | [Woman and Child at the Well](https://www.artic.edu/artworks/81552) | Camille Pissarro, 1882 | 2,289,971 | `707dd010eb15248aae1c46b4867eaadae3f8cdd50ad8a9ac95e3a909a86ebd5a` |
+| 5 | `court-of-light` | `assets/art/collection/aic-14655.jpg` | [Two Sisters (On the Terrace)](https://www.artic.edu/artworks/14655) | Pierre-Auguste Renoir, 1881 | 1,536,797 | `a82cfe8c8a4fa4167463ecb16d2bdbb09dbe80c10a630db6197e4cce7a26a4f6` |
+| 6 | `court-of-light` | `assets/art/collection/aic-81558.jpg` | [Acrobats at the Cirque Fernando (Francisca and Angelina Wartenberg)](https://www.artic.edu/artworks/81558) | Pierre-Auguste Renoir, 1879 | 1,202,639 | `0aff322b7f2a819b7d3d1fcfe14f01a77203dec572f09729407854b1fce225d6` |
+| 7 | `court-of-light` | `assets/art/collection/aic-25825.jpg` | [Woman at the Piano](https://www.artic.edu/artworks/25825) | Pierre-Auguste Renoir, 1875–76 | 1,421,468 | `fecac6873de16e228e2945d3319402c7204f98c2e2b3578b6d1b0a03318f2fa6` |
+| 8 | `court-of-light` | `assets/art/collection/aic-81555.jpg` | [Lunch at the Restaurant Fournaise (The Rowers' Lunch)](https://www.artic.edu/artworks/81555) | Pierre-Auguste Renoir, 1875 | 1,078,619 | `379f0a7c3b93818873bd3f511722492f58fe1306c89d37f0a37963439f52362e` |
+| 9 | `water-and-light` | `assets/art/collection/aic-16568.jpg` | [Water Lilies](https://www.artic.edu/artworks/16568) | Claude Monet, 1906 | 1,165,558 | `bab7cc062608fdb0601f3bb43f927eb20516525755a0a519f5f40fb301fe0074` |
+| 10 | `water-and-light` | `assets/art/collection/aic-16571.jpg` | [Arrival of the Normandy Train, Gare Saint-Lazare](https://www.artic.edu/artworks/16571) | Claude Monet, 1877 | 668,941 | `7e1adf4695cdb62c248973e65a608b4ec8114323cda944cf77599076fe0ee864` |
+| 11 | `water-and-light` | `assets/art/collection/aic-64818.jpg` | [Stacks of Wheat (End of Summer)](https://www.artic.edu/artworks/64818) | Claude Monet, 1890–91 | 505,036 | `d554b0ec60a3545478ef876e32ae515e133157dd4828df0d30b923305947263c` |
+| 12 | `water-and-light` | `assets/art/collection/aic-14620.jpg` | [Cliff Walk at Pourville](https://www.artic.edu/artworks/14620) | Claude Monet, 1882 | 902,821 | `012a25e3b3b7c695cd251ca2cf7bd95f1eb2bdc54e2f52590a6e4cd2cf73e8a2` |
+| 13 | `sunset-frames` | `assets/art/collection/aic-111436.jpg` | [The Basket of Apples](https://www.artic.edu/artworks/111436) | Paul Cezanne, c. 1893 | 697,660 | `1b0679b1534163f79c5c8b5a96632e67555ee88f67ee5278d19a7b96bf0e952c` |
+| 14 | `sunset-frames` | `assets/art/collection/aic-16487.jpg` | [The Bay of Marseille, Seen from L'Estaque](https://www.artic.edu/artworks/16487) | Paul Cezanne, c. 1885 | 691,601 | `5934f7268614edd9225b79a695acce3aa522329f59c147023ad01d3326dad3ef` |
+| 15 | `sunset-frames` | `assets/art/collection/aic-14556.jpg` | [Auvers, Panoramic View](https://www.artic.edu/artworks/14556) | Paul Cezanne, 1873–75 | 849,158 | `158e8ad7bdd8729c6d302560fa991f59e4ff9afe92d39f385ae97ff28a128315` |
+| 16 | `sunset-frames` | `assets/art/collection/aic-62371.jpg` | [Madame Cezanne in a Yellow Chair](https://www.artic.edu/artworks/62371) | Paul Cezanne, 1888–90 | 997,941 | `7d2ab20a28ca90348c68a1af927e3e8ef6743a3e4cd608109eff903db1188d85` |
+| 17 | `burning-sky` | `assets/art/collection/aic-28560.jpg` | [The Bedroom](https://www.artic.edu/artworks/28560) | Vincent van Gogh, 1889 | 932,823 | `7b0cb3c2514181a95a15706c5863bf6a9602d52d7d844259475a98434d0ae556` |
+| 18 | `burning-sky` | `assets/art/collection/aic-80607.jpg` | [Self-Portrait](https://www.artic.edu/artworks/80607) | Vincent van Gogh, 1887 | 1,689,053 | `51c9029de2192fe4551d5e6bc208268cf33d7145aa4285286f43cf2c311cd34a` |
+| 19 | `burning-sky` | `assets/art/collection/aic-14586.jpg` | [The Poet's Garden](https://www.artic.edu/artworks/14586) | Vincent van Gogh, 1888 | 957,209 | `f8ad0be55c7d1653a1a4ce35cb796e65a7e907d354b4fdd6c34306c4fa3ef964` |
+| 20 | `burning-sky` | `assets/art/collection/aic-28862.jpg` | [A Peasant Woman Digging in Front of Her Cottage](https://www.artic.edu/artworks/28862) | Vincent van Gogh, c. 1885 | 697,285 | `49f105b2d4314ea6af73a1ccd34e46de2ae3bcb439f553f324722fa3531dd00c` |
+| 21 | `petal-transition` | `assets/art/collection/aic-27992.jpg` | [A Sunday on La Grande Jatte — 1884](https://www.artic.edu/artworks/27992) | Georges Seurat, 1884–86, border added 1888–89 | 849,983 | `14a893bee0c73c9bae05508c1901e2cdf7940d4686988d17360d098dff561d7f` |
+| 22 | `petal-transition` | `assets/art/collection/aic-61616.jpg` | [Oil Sketch for "A Sunday on La Grande Jatte — 1884"](https://www.artic.edu/artworks/61616) | Georges Seurat, 1884 | 823,347 | `d960e83adfcd9b496498f752372295749ccd5f82358698682c814bff86f8dcd6` |
+| 23 | `petal-transition` | `assets/art/collection/aic-20199.jpg` | [Final Study for "Bathers at Asnières"](https://www.artic.edu/artworks/20199) | Georges Seurat, 1883 | 684,203 | `4b863d2cf22955c9ee8cd971134c4dd2d54e64f7d76edfd27ccb0428daffc043` |
+| 24 | `petal-transition` | `assets/art/collection/aic-150773.jpg` | [Seated Woman with a Parasol (study for La Grande Jatte)](https://www.artic.edu/artworks/150773) | Georges Seurat, 1884/85 | 1,501,415 | `35045070d69ee61064805c85557d8ddf48ee64373864021d61f01525553fc788` |
+| 25 | `living-memory` | `assets/art/collection/aic-111442.jpg` | [The Child's Bath](https://www.artic.edu/artworks/111442) | Mary Cassatt, 1893 | 1,382,866 | `82b9ace5cdb81b74e0a6c83e2bdff56e6b683cb4248b4bd43ca83791203b58d6` |
+| 26 | `living-memory` | `assets/art/collection/aic-13506.jpg` | [Woman Bathing](https://www.artic.edu/artworks/13506) | Mary Cassatt, 1890–91 | 1,146,985 | `406401239d083ad1634d732cdcdd24eddc9e4a0e1a26a6c21889aa30986e22b9` |
+| 27 | `living-memory` | `assets/art/collection/aic-26650.jpg` | [On a Balcony](https://www.artic.edu/artworks/26650) | Mary Cassatt, 1878–79 | 1,333,912 | `d277b6800274e48c3906d729d3b1f1dcfd4af9634b5899d1ec9741585fd54985` |
+| 28 | `living-memory` | `assets/art/collection/aic-28826.jpg` | [Sleepy Nicolle](https://www.artic.edu/artworks/28826) | Mary Cassatt, c. 1900 | 1,219,413 | `f2eeeff323e8577bb8e5093c06c93d1cf33f7d4efb6e1ec6bcf05a9f7c4ca8b3` |
+| 29 | `infinite-repetition` | `assets/art/collection/aic-8991.jpg` | [Improvisation No. 30 (Cannons)](https://www.artic.edu/artworks/8991) | Vasily Kandinsky, 1913 | 891,783 | `9f1c00bfb966eb3ba012f1418202f6b1875c41981f919985d961d664b8a4b35a` |
+| 30 | `infinite-repetition` | `assets/art/collection/aic-8980.jpg` | [Landscape with Two Poplars](https://www.artic.edu/artworks/8980) | Vasily Kandinsky, 1912 | 931,176 | `c6ea4b73a5f32dae95c9efdf2f61f317ebe537eba72d04221ce017db83a79f56` |
+| 31 | `infinite-repetition` | `assets/art/collection/aic-8987.jpg` | [Painting with Green Center](https://www.artic.edu/artworks/8987) | Vasily Kandinsky, 1913 | 1,296,594 | `bfdd5543e41e9bcf53df4fb5899724745e4006376e4d905619b2dce0a917086d` |
+| 32 | `infinite-repetition` | `assets/art/collection/aic-8983.jpg` | [Painting with Troika](https://www.artic.edu/artworks/8983) | Vasily Kandinsky, January 18, 1911 | 716,604 | `6f8c6b14eb461c55ad9eb8ff914d4f2f1f1fa19d3289c993b78b9b13e127a6ed` |
+| 33 | `personal-dream-world` | `assets/art/collection/aic-76395.jpg` | [Flower Clouds](https://www.artic.edu/artworks/76395) | Odilon Redon, c. 1903 | 833,388 | `5196f3536350459bbe36d48682071c8319af781c3cc5de4c1efaa1f2985bf7c4` |
+| 34 | `personal-dream-world` | `assets/art/collection/aic-90316.jpg` | [Guardian Spirit of the Waters](https://www.artic.edu/artworks/90316) | Odilon Redon, 1878 | 1,625,583 | `a859584d4eaea5ce817f3955b3b0962c81b2436aeb760d534be68bba22b72c42` |
+| 35 | `personal-dream-world` | `assets/art/collection/aic-110982.jpg` | [Still Life with Flowers](https://www.artic.edu/artworks/110982) | Odilon Redon, 1905 | 2,011,674 | `30dded44fdf3746cdb44b739dad2ef6c3af4c6f13ed41a1d784176031ad1f701` |
+| 36 | `personal-dream-world` | `assets/art/collection/aic-94240.jpg` | [Flowers: Poppies and Daisies](https://www.artic.edu/artworks/94240) | Odilon Redon, c. 1867 | 859,576 | `da5023a8f0dab27710b397730c8a55d8bcd92845cc8073ef9f994133d3ff0d17` |
+
+On July 20, 2026, one batched request to the AIC artworks API returned all 36 object IDs,
+matched every configured title and creator, and reported `is_public_domain: true` for every
+record. AIC states that qualifying Open Access images are available under a Creative Commons
+Zero designation and its website terms, and requests a caption containing artist, title,
+date and The Art Institute of Chicago. The API documentation licenses artwork response data
+under CC0 except for the `description` field; this manifest does not copy that field. See the
+[AIC Open Access Images policy](https://www.artic.edu/open-access/open-access-images),
+[AIC API documentation](https://api.artic.edu/docs/) and
+[AIC website terms](https://www.artic.edu/terms). AIC also states that image users remain
+responsible for identifying and obtaining any necessary third-party permissions.
+
+The three earlier lower-resolution files remain for traceability but are not separate works
+in the runtime cast:
+
+| Compatibility file | AIC source | Bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| `assets/art/water-lilies.jpg` | [Art Institute of Chicago, Water Lilies](https://www.artic.edu/artworks/16568/water-lilies) | 278,626 | `06367197ac8d6745537dcfe6722ff4b8ef2cb33e044168d8c471782b55f7dd39` |
-| `assets/art/bedroom.jpg` | [Art Institute of Chicago, The Bedroom](https://www.artic.edu/artworks/28560/the-bedroom) | 235,077 | `cb5839d854aa1a092801939b8d732fa653f22a1c87fdbbd7248c9882250ce400` |
-| `assets/art/grande-jatte.jpg` | [Art Institute of Chicago, A Sunday on La Grande Jatte](https://www.artic.edu/artworks/27992/a-sunday-on-la-grande-jatte-1884) | 197,727 | `90197c037e6041fcae1c35606b921b5b626d868c2ff21cd653edb640b3f6e2dd` |
-
-The prior MUSE records identify these as public-domain images obtained through the Art
-Institute's Open Access / IIIF program. Users should still verify the current object record
-and API terms.
+| `assets/art/water-lilies.jpg` | [Water Lilies](https://www.artic.edu/artworks/16568) | 278,626 | `06367197ac8d6745537dcfe6722ff4b8ef2cb33e044168d8c471782b55f7dd39` |
+| `assets/art/bedroom.jpg` | [The Bedroom](https://www.artic.edu/artworks/28560) | 235,077 | `cb5839d854aa1a092801939b8d732fa653f22a1c87fdbbd7248c9882250ce400` |
+| `assets/art/grande-jatte.jpg` | [A Sunday on La Grande Jatte — 1884](https://www.artic.edu/artworks/27992) | 197,727 | `90197c037e6041fcae1c35606b921b5b626d868c2ff21cd653edb640b3f6e2dd` |
 
 ## Coordinate and navigation record
 
@@ -330,11 +449,18 @@ for ground height; route order and movement bounds remain deterministic.
 ## World Labs records and rights status
 
 The earlier MUSE repository and asset archive identify the canonical spaces as World Labs
-Marble outputs. However, the evidence package is incomplete:
+Marble outputs. Read-only account lookups recovered three successful `marble-1.1` records:
+
+| Operation ID | World ID | Account display name | Canonical 8+1? |
+| --- | --- | --- | --- |
+| `a1e7f907-6840-4824-83a1-66c9017a78d3` | `705b7748-c0fc-4faa-ab95-1b293cc5fac2` | MUSE Bright Gallery Hall | No |
+| `c1c1063f-9d87-464e-af82-44a0ddd7ecf2` | `6758fe98-a006-4831-95c0-cd11b2ecdaad` | World of Light v2 (image-to-world) | No |
+| `ac3af15e-a305-49ab-ba98-8e0908c89b90` | `bea1cbce-d5e7-4125-9bda-71cdc86444b7` | MUSE - World of Light (text-to-world) | No |
+
+These records establish prior account activity but are not source IDs for the formal 8+1
+archive. That evidence package remains incomplete:
 
 - no complete World Labs world ID has been recovered for the canonical nine worlds;
-- the prior repository preserves only a `705b7748...` prefix for Bright Gallery, which is not
-  part of the canonical spine;
 - complete generation prompts, source images, operation logs, account receipts and export
   timestamps have not been recovered for every world;
 - explicit World Labs output redistribution records for these bundled exports have not been
@@ -350,11 +476,12 @@ available files and comments support.
 - Source code and documentation authored for this repository are MIT licensed.
 - The MIT grant does not relicense World Labs outputs, Tripo outputs, portraits, thumbnails,
   scene concepts or museum images. Those remain subject to source/provider terms.
-- Complete World Labs IDs and output redistribution evidence remain missing.
+- Complete World Labs IDs for the canonical nine worlds and output redistribution evidence
+  remain missing; the three recovered noncanonical account records do not close this gap.
 - Task IDs, original prompts/settings and redistribution evidence remain missing for the eight
   inherited historical-character GLBs. The newer learner records its own task chain.
 - Upstream URL/rights records remain missing for the Freud, Qi Baishi and Yayoi Kusama
-  portraits.
+  portraits. Kusama is living, so likeness and image rights require particular care.
 - Generation task/model records remain incomplete for the nine interpretive scene images and
   world thumbnails.
 - No claim is made that historical figures authored, endorsed or spoke the generated

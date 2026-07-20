@@ -294,9 +294,11 @@ export class MuseumEngine {
     if (!stop) throw new Error(`unknown_scene_stop:${stopId}`);
     this.activeStopId = stopId;
     this.worldLayer.highlight(stopId, "focus");
-    const guideAnchor = [...stop.guideAnchor];
+    const pose = this.worldLayer.stopPose(stopId);
+    const target = pose ? { ...stop, ...pose } : stop;
+    const guideAnchor = [...target.guideAnchor];
     guideAnchor[1] = this.worldLayer.groundHeightAt(guideAnchor[0], guideAnchor[2]);
-    this.director.goTo({ ...stop, guideAnchor });
+    this.director.goTo({ ...target, guideAnchor });
   }
 
   applyEffect(stopId, effect) {
@@ -304,7 +306,8 @@ export class MuseumEngine {
     const stop = getSceneStop(stopId, this.activeWorld.id);
     if (!stop) return;
     const color = effect === "warmth" ? 0xff6b4a : effect === "ripple" ? 0x63dfe0 : 0xd8ff42;
-    const anchor = new THREE.Vector3().fromArray(stop.guideAnchor);
+    const pose = this.worldLayer.stopPose(stopId);
+    const anchor = new THREE.Vector3().fromArray(pose?.guideAnchor || stop.guideAnchor);
     anchor.y = this.worldLayer.groundHeightAt(anchor.x, anchor.z) + 0.04;
     for (let i = 0; i < 3; i += 1) {
       const ring = new THREE.Mesh(new THREE.RingGeometry(0.55 + i * 0.38, 0.58 + i * 0.38, 48), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.65, side: THREE.DoubleSide, depthWrite: false }));

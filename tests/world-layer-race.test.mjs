@@ -38,27 +38,29 @@ test("stale artwork textures cannot populate a newer archived world", async () =
     onArtworkReady: (id) => ready.push(id)
   });
 
-  const firstWorld = { ...getWorld("grand-conservatory-with-lush-gardens"), splat: null, collider: null };
-  const secondWorld = { ...getWorld("elegant-floral-palace-interior"), splat: null, collider: null };
+  const firstWorld = { ...getWorld("grand-conservatory-with-lush-gardens"), rad: null, splat: null, collider: null };
+  const secondWorld = { ...getWorld("elegant-floral-palace-interior"), rad: null, splat: null, collider: null };
   const first = layer.build(firstWorld);
-  await waitUntil(() => pending.length === 1);
+  await waitUntil(() => pending.length === 4);
   const second = layer.build(secondWorld);
-  await waitUntil(() => pending.length === 2);
+  await waitUntil(() => pending.length === 8);
 
   let staleTexturesDisposed = 0;
   pending.forEach((request, index) => {
     const texture = new THREE.Texture();
-    if (index === 0) texture.addEventListener("dispose", () => { staleTexturesDisposed += 1; });
+    if (index < 4) texture.addEventListener("dispose", () => { staleTexturesDisposed += 1; });
     request.resolve(texture);
   });
   await Promise.all([first, second]);
 
   assert.equal(layer.activeWorld.id, secondWorld.id);
-  assert.equal(staleTexturesDisposed, 1);
-  assert.equal(layer.artworkGroup.children.length, 1);
+  assert.equal(staleTexturesDisposed, 4);
+  assert.equal(layer.artworkGroup.children.length, 4);
   assert.deepEqual(ready, ["court-of-light"]);
   for (const stop of stopsForWorld(secondWorld.id)) {
-    assert.deepEqual(layer.artworks.get(stop.id).frame.position.toArray(), stop.artworkPosition);
+    const pose = layer.stopPose(stop.id);
+    assert.ok(pose);
+    assert.equal(pose.artwork.id.startsWith("aic-"), true);
   }
   await layer.clear();
 });
@@ -81,7 +83,7 @@ test("a stalled artwork settles to the spatial fallback and its late texture is 
   const startedAt = Date.now();
   assert.equal(await layer.build(world), false);
   assert.ok(Date.now() - startedAt < 250);
-  assert.equal(layer.artworkGroup.children.length, 1);
+  assert.equal(layer.artworkGroup.children.length, 4);
   assert.equal(layer.artworks.values().next().value.picture.material.map, null);
 
   const texture = new THREE.Texture();
@@ -89,8 +91,42 @@ test("a stalled artwork settles to the spatial fallback and its late texture is 
   texture.addEventListener("dispose", () => { disposals += 1; });
   resolveTexture(texture);
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(disposals, 1);
+  assert.equal(disposals, 4);
   await layer.clear();
+});
+
+test("artwork supports own their render resources and dispose them exactly once", async () => {
+  const layer = new WorldLayer(new THREE.Scene(), {
+    textureLoader: { loadAsync: async () => null }
+  });
+  const world = {
+    ...getWorld("grand-conservatory-with-lush-gardens"),
+    rad: null,
+    splat: null,
+    mesh: null,
+    collider: null
+  };
+
+  assert.equal(await layer.build(world), false);
+  const supports = [...layer.artworks.values()].flatMap((record) => record.frame.userData.supports);
+  const geometries = new Set(supports.map((support) => support.geometry));
+  const materials = new Set(supports.map((support) => support.material));
+  const geometryDisposals = new Map([...geometries].map((geometry) => [geometry, 0]));
+  const materialDisposals = new Map([...materials].map((material) => [material, 0]));
+
+  for (const geometry of geometries) {
+    geometry.addEventListener("dispose", () => geometryDisposals.set(geometry, geometryDisposals.get(geometry) + 1));
+  }
+  for (const material of materials) {
+    material.addEventListener("dispose", () => materialDisposals.set(material, materialDisposals.get(material) + 1));
+  }
+
+  assert.equal(supports.length, 8);
+  assert.equal(geometries.size, supports.length);
+  assert.equal(materials.size, supports.length);
+  await layer.clear();
+  assert.deepEqual([...geometryDisposals.values()], Array(supports.length).fill(1));
+  assert.deepEqual([...materialDisposals.values()], Array(supports.length).fill(1));
 });
 
 test("stale mesh and collider loads are disposed before the next world becomes resident", async () => {
@@ -127,7 +163,7 @@ test("stale mesh and collider loads are disposed before the next world becomes r
   assert.equal(layer.archive.worldId, secondWorld.id);
   assert.equal(layer.collider.name, `world-collider-${secondWorld.id}`);
   assert.equal(layer.isLive(secondWorld.id), true);
-  assert.equal(layer.artworkGroup.visible, false);
+  assert.equal(layer.artworkGroup.visible, true);
   assert.equal(scene.children.some((child) => child.userData.archivedWorld === firstWorld.id), false);
   await layer.clear();
   assert.equal(layer.artworkGroup.visible, true);

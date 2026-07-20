@@ -59,8 +59,10 @@ threshold
    eight-world exhibition spine.
 4. Walk every process world in order with all selected companions physically present. The
    first companion guides; the other selected companions follow in a grounded formation. The
-   guide moves to the declared evidence point, faces it, gestures, asks, listens and reflects
-   before either a bounded choice or an 80-character visitor-written observation is accepted.
+   guide moves to the current artwork, faces it, gestures, asks, listens and reflects before
+   either a bounded choice or an 80-character visitor-written observation is accepted. Every
+   world contains four globally unique Art Institute of Chicago Open Access works; their
+   frames are placed against collider-tested walls or on grounded freestanding supports.
 5. Review all eight observations at Summoning, then convene the selected company at the
    Roundtable for a provisional evidence-grounded concept.
 6. Choose the unresolved axis between perception, emotion and invention. On the live path,
@@ -141,9 +143,14 @@ leg-twist influence from 11 shoulder vertices before deployment; runtime code do
 skin weights. See [the production pipeline](docs/CHARACTER_PIPELINE.md) and
 [the v2 manifest](assets/generated/learner-v2/manifest.json).
 
-## OpenAI-only reasoning boundary
+## Official OpenAI judging boundary and local GPT bridge
 
-OpenAI GPT models are the only language and reasoning runtime in this repository.
+The judging configuration uses an official OpenAI Platform key at `api.openai.com`. Every
+text request is locked to `gpt-5.6`; no alternate model family or general provider registry
+exists. A separately keyed, explicitly labeled inherited gateway remains available only to
+exercise the prior MUSE credential locally. Its status says only that `gpt-5.6` was requested;
+the UI upgrades the label to response-reported only when a payload identifies an allowed
+GPT-5.6 model. Neither state is presented as proof of official OpenAI Platform usage.
 
 - **AI curation:** GPT-5.6 uses the Responses API and strict Structured Outputs. It can write
   bounded prompts, choices, gestures and effects, but it cannot change the eight scene IDs,
@@ -157,15 +164,26 @@ OpenAI GPT models are the only language and reasoning runtime in this repository
   requires a rewrite of `world_title`, `synthesis`, `principle` and `visual_prompt`; validation
   rejects the result unless every one of those fields differs from the provisional concept.
   Only the validated replacement concept advances to the Manifesto.
-- **Voice:** optional OpenAI Realtime WebRTC is additive; text remains authoritative.
+- **Scene dialogue:** a visitor can ask a free-form question about the current scene and
+  focused artwork. GPT-5.6 Responses returns one strict-schema perspective for each selected
+  companion, grounded in trusted scene metadata and the visitor's recent evidence.
+- **Voice:** optional official OpenAI Realtime WebRTC carries the same scene, artwork, companion and
+  evidence context into a continuing spoken exchange. Context refreshes through
+  `session.update`, Realtime transcripts appear in the inquiry thread, and responses follow
+  the visitor's language. The built-in `marin` voice is not a cloned historical voice; text
+  inquiry remains available when microphone or Realtime access is unavailable. The inherited
+  GPT gateway does not expose Realtime calls, so that deployment uses browser speech
+  recognition and synthesis around the same live GPT-5.6 scene-dialogue endpoint.
 - **Fallback:** unavailable, invalid or incomplete output is labeled `CURATED DEMO` and uses
   the same contracts and gates.
 
 World Labs and Tripo are disclosed providers of pre-generated spatial and character assets;
 they are not reasoning providers. The separately gated World Labs Forge adapter is outside
 the judging path, requires both a provider key and admin token, and does not produce language
-reasoning. Claude, Gemini, MiniMax and configurable OpenAI-compatible LLM endpoints are absent
-from this runtime.
+reasoning. Claude, Gemini and MiniMax are absent from this runtime. GPT requests default to
+`api.openai.com`; the only alternate origin accepted by code is the inherited MUSE GPT gateway,
+and every request is still forced to model `gpt-5.6`. Official and gateway credentials use
+different environment variables and cannot cross origins. Realtime is disabled on the gateway.
 
 The final claim is intentionally precise: **GPT personalizes the concept** (`world_title`,
 `synthesis`, `principle` and `visual_prompt`); **the ninth scene's geometry is the archived,
@@ -186,18 +204,36 @@ Open <http://127.0.0.1:4175>. `.env` is optional for the complete curated path.
 
 ```bash
 OPENAI_API_KEY=...
+OPENAI_BASE_URL=https://api.openai.com
 OPENAI_MODEL=gpt-5.6
-OPENAI_REALTIME_MODEL=gpt-realtime
+# Local legacy bridge only, with OPENAI_BASE_URL=https://api.baizhiyuan.cloud:
+MUSE_GPT_GATEWAY_API_KEY=...
 WORLDLABS_API_KEY=...
 INTEGRATION_ADMIN_TOKEN=...
 PORT=4175
 HOST=127.0.0.1
 ```
 
-Secrets remain server-side. Set `HOST=0.0.0.0` only for container or hosted deployment.
+Secrets remain server-side. `OPENAI_API_KEY` can only be sent to the official API origin;
+`MUSE_GPT_GATEWAY_API_KEY` can only be sent to the explicit inherited gateway. Arbitrary
+OpenAI-compatible providers are rejected. The gateway receives the questions and evidence
+submitted while it is active, so use it only when the local operator accepts that gateway's
+data handling terms. Set `HOST=0.0.0.0` only for container or hosted deployment.
 World Labs generation is not needed to load any of the nine local canonical worlds.
 
+The request budget trusts forwarding headers only when the TCP peer is loopback. A local
+reverse proxy must append the actual client address to the right side of
+`X-Forwarded-For`; when both forwarding formats are present, that proxy-appended XFF node
+takes precedence over `Forwarded`. Do not pass an unmodified client-supplied XFF chain.
+
 ### Run in the background with PM2
+
+PM2 must be installed and available on `PATH`. Install it globally when it is not already
+available:
+
+```bash
+npm install -g pm2
+```
 
 The checked-in process file pins PM2 to this checkout and keeps one server listening on
 `127.0.0.1:4175`:
@@ -232,7 +268,8 @@ src/main.js                              server.mjs
     GuideDirector                          shared/contracts.js
     ArchivedAvatar / LearnerAvatar
     WorldLayer -> Spark paged RAD / SPZ fallback / 8K GLB / collider
-  AppView / Profile / Voice / API
+    sceneCollections -> 36 local AIC Open Access images
+  AppView / Profile / Voice / API        Responses dialogue / Realtime WebRTC
 ```
 
 `shared/contracts.js` is the model boundary. `src/config/exhibitionSpine.js` owns the exact
@@ -253,14 +290,16 @@ npm audit --audit-level=high
 The suite locks the nine-scene manifest, quality-RAD headers and exact asset metadata, 8K
 texture dimensions, ten-beat and archive-required retry gates, free-form grounded evidence,
 the eight-visit digest, strict initial/transformed GPT schemas, all-selected-companion movement,
-high-quality renderer policy, Range/late-load/Spark-pager disposal and desktop/mobile behavior.
+the 36-work gallery cast, context-grounded dialogue and Realtime session updates, high-quality
+renderer policy, Range/late-load/Spark-pager disposal and desktop/mobile behavior.
 
 ## Prior work and limits
 
 The nine archived worlds, colliders, scene concepts, thumbnails, eight historical character
 assets and the original MUSE narrative came from `muse-infinity`. This repository does not
-present them as Build Week generation. The Build Week additions are the Codex-built
-OpenAI-only runtime, restored strict 8+1 flow, all-selected-companion movement, natural
+present them as Build Week generation. The Build Week additions are the Codex-built GPT-5.6
+runtime with an official OpenAI judging configuration, restored strict 8+1 flow,
+all-selected-companion movement, natural
 free-form observation path, deterministic evidence gates, high-fidelity delivery, collider
 grounding, two-phase final-concept transformation and verification.
 
@@ -273,12 +312,15 @@ Known limits:
   not provide navmesh obstacle avoidance or full-body IK.
 - There is no lip sync. Realtime voice is optional.
 - Collaboration rooms are in-memory demo infrastructure.
-- Live OpenAI/Realtime/Forge requests and real-hardware GPU performance require external
-  credentials or hardware.
-- Complete World Labs generation IDs, prompts, receipts and explicit redistribution records
-  for the inherited worlds have not been recovered. Several inherited Tripo and portrait
-  source records are also incomplete. Do not infer redistribution rights from hackathon
-  credit access.
+- Live GPT/Realtime/Forge requests require uncommitted server credentials; real-hardware GPU
+  performance across all nine worlds still requires target-device validation.
+- The inherited local credential targets the one allowlisted GPT gateway, not
+  `api.openai.com`; use an official OpenAI Platform key for any competition rule that
+  specifically requires official account/API billing evidence.
+- Three noncanonical World Labs account records were recovered, but complete generation IDs,
+  prompts, receipts and explicit redistribution records for the formal nine worlds remain
+  missing. Several inherited Tripo and portrait source records are also incomplete. Do not
+  infer redistribution rights from hackathon credit access.
 
 Source code and authored documentation are released under the [MIT License](LICENSE).
 Bundled generated and third-party assets are excluded from that grant; see

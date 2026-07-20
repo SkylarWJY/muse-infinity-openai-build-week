@@ -1,8 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { createFallbackSalon, createFallbackTransformation } from "../shared/contracts.js";
 
 const desktop = { width: 1440, height: 900 };
 const mobile = { width: 390, height: 844 };
-const appUrl = process.env.MUSE_E2E_BASE_URL || "/?quality=performance";
+const appUrl = process.env.MUSE_E2E_BASE_URL || "/?quality=high";
 
 const PROCESS = Object.freeze([
   { sceneId: "threshold-conservatory", worldId: "grand-conservatory-with-lush-gardens", title: "The Threshold Conservatory" },
@@ -22,6 +23,29 @@ const FINAL = Object.freeze({
 });
 
 const FREE_OBSERVATION = "The reflected doorway brightens when I step beside the water.";
+const LIVE_INQUIRY = Object.freeze({
+  question: "How does the doorway redirect my attention?",
+  perspectives: Object.freeze([
+    Object.freeze({
+      speakerId: "monet",
+      speaker: "Claude Monet",
+      text: "Follow the pale edge of the doorway: its changing contrast pulls your eye from the garden into the room.",
+      effect: "echo"
+    }),
+    Object.freeze({
+      speakerId: "van-gogh",
+      speaker: "Vincent van Gogh",
+      text: "The stronger color around the opening makes the threshold feel charged rather than passive.",
+      effect: "warmth"
+    }),
+    Object.freeze({
+      speakerId: "socrates",
+      speaker: "Socrates",
+      text: "Which visible edge makes you call the doorway an invitation instead of a boundary?",
+      effect: "focus"
+    })
+  ])
+});
 
 const DOMAIN_STAGES = Object.freeze([
   "threshold",
@@ -53,6 +77,9 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
   test.setTimeout(480_000);
   await page.setViewportSize(desktop);
   const errors = captureErrors(page);
+  const interceptedModelRequests = [];
+  const dialogueRequests = [];
+  await installCuratedModelRoutes(page, interceptedModelRequests, dialogueRequests);
   await page.goto(appUrl, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => Boolean(window.__MUSE_APP__));
   await installStageTrace(page);
@@ -119,7 +146,15 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     expect(archive.source).toMatch(/\.rad$/);
     expect(archive.pagedLodSplats).toBeGreaterThan(0);
     expect(archive.activeSplats).toBeGreaterThan(0);
-    await constrainRadForScreenshot(page);
+    expect(await page.evaluate(() => window.__MUSE_APP__.canOpenDialogue())).toBe(false);
+    await page.locator("#voice-tool").click();
+    await expect(page.locator("#toast")).toContainText("Reach and face the current artwork");
+    expect(await page.evaluate(() => window.__MUSE_APP__.voiceActive())).toBe(false);
+
+    const pixels = await canvasPixels(page, "artifacts/screenshots/desktop-rad-threshold.png");
+    expect(pixels.variance).toBeGreaterThan(180);
+    expect(pixels.nonDominantRatio).toBeGreaterThan(0.12);
+    await constrainRadAfterScreenshot(page);
 
     const before = await playerPosition(page);
     const partyBefore = await partyPositions(page);
@@ -140,9 +175,6 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     }
     expect(poseDistance(firstLegPose, secondLegPose)).toBeGreaterThan(0.02);
 
-    const pixels = await canvasPixels(page, "artifacts/screenshots/desktop-rad-threshold.png");
-    expect(pixels.variance).toBeGreaterThan(180);
-    expect(pixels.nonDominantRatio).toBeGreaterThan(0.12);
   });
 
   await installLightweightWorldSwitches(page);
@@ -259,12 +291,14 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
         await installLightweightWorldSwitches(page);
       }
       await arriveAtCurrentStop(page);
+      expect(await page.evaluate(() => window.__MUSE_APP__.canOpenDialogue())).toBe(true);
       await expect(page.locator("#stop-title")).toContainText(expected.title);
       await expect(page.locator("[data-answer]")).toHaveCount(2);
 
       if (index === 1) await verifyCurrentArchiveFailureBlocksEvidence(page, expected, index);
 
       if (index === 0) {
+        await verifyLiveInquiry(page, dialogueRequests);
         await page.setViewportSize(mobile);
         const questionLayout = await mobileLayout(page, "#dialogue");
         expect(questionLayout.documentOverflow).toBeLessThanOrEqual(0);
@@ -287,6 +321,7 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
           && app.session.visited.length === count
           && app.journey.visitedSceneIds.length === count;
       }, index + 1);
+      expect(await page.evaluate(() => window.__MUSE_APP__.canOpenDialogue())).toBe(false);
       expect((await journeySnapshot(page)).visited).toEqual(PROCESS.slice(0, index + 1).map((item) => item.sceneId));
       await expect(page.locator("#route-list > li.done")).toHaveCount(index + 1);
 
@@ -489,6 +524,21 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     expect(finalLayout.documentOverflow).toBeLessThanOrEqual(0);
     expect(finalLayout.panelOverflow).toBeLessThanOrEqual(0);
     expect(finalLayout.panelTouchesMovement).toBe(false);
+    const footerLayout = await page.evaluate(() => {
+      const status = document.querySelector(".statusbar").getBoundingClientRect();
+      const provider = document.querySelector("#provider-label");
+      const bounds = provider.getBoundingClientRect();
+      return {
+        shortLabel: provider.dataset.shortLabel,
+        renderedLabel: getComputedStyle(provider, "::after").content,
+        inBounds: bounds.left >= status.left && bounds.right <= status.right
+      };
+    });
+    expect(footerLayout).toEqual({
+      shortLabel: "CURATED DEMO",
+      renderedLabel: '"CURATED DEMO"',
+      inBounds: true
+    });
     await page.screenshot({ path: "artifacts/screenshots/mobile-final-shimmering-spheres.png" });
 
     await page.locator("[data-drawer='atlas']").click();
@@ -504,8 +554,126 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     expect(await page.evaluate(() => window.__MUSE_APP__.engine.activeWorld.id)).toBe(FINAL.worldId);
   });
 
+  expect(interceptedModelRequests).toEqual(["/api/dialogue", "/api/salon", "/api/salon/transform"]);
   expect(errors).toEqual([]);
 });
+
+async function installCuratedModelRoutes(page, interceptedModelRequests, dialogueRequests) {
+  let dialogueReplyAvailable = true;
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    if (pathname === "/api/status") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          configured: false,
+          openai: false,
+          model: "gpt-5.6",
+          gateway: "official",
+          model_source: "openai-api",
+          dialogue: false,
+          realtime: false,
+          realtime_model: null,
+          world_forge: false,
+          rooms: true
+        })
+      });
+    }
+    if (request.method() === "POST" && pathname === "/api/salon") {
+      interceptedModelRequests.push(pathname);
+      const body = request.postDataJSON();
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: createFallbackSalon(body), live: false, model: "curated-demo", reason: "e2e_isolated" })
+      });
+    }
+    if (request.method() === "POST" && pathname === "/api/salon/transform") {
+      interceptedModelRequests.push(pathname);
+      const body = request.postDataJSON();
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: createFallbackTransformation(body, body.contradiction),
+          live: false,
+          model: "curated-demo",
+          reason: "e2e_isolated"
+        })
+      });
+    }
+    if (request.method() === "POST" && pathname === "/api/dialogue" && dialogueReplyAvailable) {
+      dialogueReplyAvailable = false;
+      interceptedModelRequests.push(pathname);
+      dialogueRequests.push(request.postDataJSON());
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          perspectives: LIVE_INQUIRY.perspectives,
+          live: true,
+          fallback: false,
+          model: "gpt-5.6",
+          response_model: "gpt-5.6",
+          gateway: "inherited-gpt",
+          model_source: "gateway-response-reported"
+        })
+      });
+    }
+    if (["/api/lesson/plan", "/api/dialogue", "/api/realtime/call"].includes(pathname)) {
+      interceptedModelRequests.push(pathname);
+      return route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "e2e_model_endpoint_disabled" })
+      });
+    }
+    return route.continue();
+  });
+}
+
+async function verifyLiveInquiry(page, dialogueRequests) {
+  await page.locator("#inquiry-input").fill(LIVE_INQUIRY.question);
+  await page.locator(".inquiry-form").evaluate((form) => form.requestSubmit());
+
+  const visitorTurn = page.locator("#inquiry-thread .visitor-turn").last();
+  await expect(visitorTurn.locator("b")).toHaveText("YOU");
+  await expect(visitorTurn.locator("p")).toHaveText(LIVE_INQUIRY.question);
+
+  const replies = page.locator("#inquiry-thread .company-turn");
+  await expect(replies).toHaveCount(LIVE_INQUIRY.perspectives.length);
+  for (const [index, perspective] of LIVE_INQUIRY.perspectives.entries()) {
+    await expect(replies.nth(index).locator("b")).toHaveText(`${perspective.speaker} · GPT-5.6 · INHERITED GATEWAY`);
+    await expect(replies.nth(index).locator("p")).toHaveText(perspective.text);
+  }
+
+  await expect(page.locator("[data-inquiry-pending]")).toHaveCount(0);
+  await expect(page.locator("#inquiry-input")).toBeEnabled();
+  await expect(page.locator("#inquiry-input")).toHaveValue("");
+  await expect(page.locator(".inquiry-form button[type='submit']")).toBeEnabled();
+  expect(dialogueRequests).toHaveLength(1);
+  expect(dialogueRequests[0]).toMatchObject({
+    question: LIVE_INQUIRY.question,
+    scene_id: PROCESS[0].sceneId,
+    companion_ids: ["monet", "van-gogh", "socrates"],
+    recent_evidence: [],
+    scene: { id: PROCESS[0].sceneId },
+    artwork: { id: dialogueRequests[0].artwork_id }
+  });
+  expect(dialogueRequests[0].artwork_id).toMatch(/^aic-/);
+
+  const visualEffect = await page.evaluate((sceneId) => {
+    const record = window.__MUSE_APP__.engine.worldLayer.artworks.get(sceneId);
+    return {
+      opacity: record?.border.material.opacity,
+      transparent: record?.border.material.transparent
+    };
+  }, PROCESS[0].sceneId);
+  expect(visualEffect.opacity).toBeCloseTo(0.82, 2);
+  expect(visualEffect.transparent).toBe(true);
+}
 
 async function installStageTrace(page) {
   await page.evaluate(() => {
@@ -674,7 +842,7 @@ async function waitForRealRadWorld(page, worldId) {
   }, worldId, { timeout: 180_000 });
 }
 
-async function constrainRadForScreenshot(page) {
+async function constrainRadAfterScreenshot(page) {
   await page.evaluate(() => {
     const spark = window.__MUSE_APP__.engine.worldLayer.archive.spark;
     spark.lodSplatCount = 120_000;
@@ -808,8 +976,15 @@ async function loadedImages(page, selector) {
 
 function captureErrors(page) {
   const errors = [];
-  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
-  page.on("pageerror", (error) => errors.push(error.message));
+  const seen = new Set();
+  const record = (value) => {
+    const message = String(value || "unknown browser error");
+    if (seen.has(message)) return;
+    seen.add(message);
+    errors.push(message);
+  };
+  page.on("console", (message) => { if (message.type() === "error") record(message.text()); });
+  page.on("pageerror", (error) => record(error.stack || error.message));
   return errors;
 }
 

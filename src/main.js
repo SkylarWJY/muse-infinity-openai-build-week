@@ -16,7 +16,7 @@ const journey = new JourneySession();
 const view = new AppView();
 const firstScene = EXHIBITION_SPINE[0];
 const state = {
-  status: { openai: false, realtime: false, world_forge: false, model: "gpt-5.6" },
+  status: { configured: false, openai: false, gateway: "official", realtime: false, world_forge: false, model: "gpt-5.6" },
   provider: { live: false, model: "curated-demo" },
   salonProvider: { live: false, model: "curated-demo" },
   profile: profileStore.load(),
@@ -32,6 +32,8 @@ const state = {
   contradiction: null,
   metrics: null,
   busy: false,
+  dialogueBusy: false,
+  dialogueGeneration: 0,
   bootPromise: null,
   bootSettled: false
 };
@@ -48,13 +50,23 @@ const engine = new MuseumEngine(document.getElementById("world"), {
     ? `${companion.fullName} · archived 3D companion live`
     : `${companion.fullName} · spatial fallback active`)
 });
-const voice = new VoiceSession({ sessionId: api.sessionId, onState: (value) => setVoiceState(value) });
+const voice = new VoiceSession({
+  sessionId: api.sessionId,
+  context: (question = "") => currentDialogueContext(question),
+  dialogue: (context) => api.dialogue(context),
+  onState: (value) => setVoiceState(value),
+  onTranscript: (event) => view.appendVoiceTranscript(event),
+  onEvent: (event) => {
+    if (String(event?.type || "").endsWith("_voice.error")) view.toast(`Voice unavailable: ${readable(event.error)}`);
+  }
+});
 
 view.bind({
   onCrossThreshold: crossThreshold,
   onStart: startJourney,
   onAnswer: answerQuestion,
   onObservation: answerObservation,
+  onInquiry: askInquiry,
   onContinue: continueLesson,
   onDrawer: openDrawer,
   onAction: handleAction,
@@ -96,6 +108,10 @@ window.__MUSE_APP__ = {
   startJourney,
   startLesson,
   answerQuestion,
+  askInquiry,
+  canOpenDialogue,
+  voiceActive: () => voice.active,
+  currentDialogueContext,
   continueLesson,
   beginSummoning,
   conveneRoundtable,
@@ -145,6 +161,7 @@ async function curateJourney() {
     journey.setCompanions(state.draftCompanions);
     journey.beginCuration();
     state.selectedCompanions = [...journey.companions];
+    voice.updateContext();
     const companions = selectedCompanionRecords();
     view.showCuration(journey.question, companions);
     view.setSpeaker(companions[0]);
@@ -162,7 +179,7 @@ async function curateJourney() {
       };
       view.toast(`GPT connection unavailable; the complete curated route remains active. ${readable(error.message)}`);
     }
-    state.provider = { live: result.live, model: result.model, reason: result.reason };
+    state.provider = providerRecord(result);
     session.start(result.data);
     view.setCurationReady();
   } catch (error) {
@@ -196,7 +213,10 @@ async function startLesson(goal) {
 async function activateProcessScene(sceneId) {
   const scene = getExhibitionScene(sceneId);
   if (!scene || scene.isFinal) throw new Error(`unknown_process_scene:${sceneId}`);
+  voice.stop();
   const worldConfig = getWorld(scene.worldId);
+  state.dialogueGeneration += 1;
+  state.dialogueBusy = false;
   state.currentSceneId = scene.id;
   state.worldId = scene.worldId;
   view.setWorld(worldConfig);
@@ -263,6 +283,50 @@ function answerObservation(value) {
   recordEvidence(() => session.answerObservation(value));
 }
 
+async function askInquiry(question) {
+  const normalizedQuestion = String(question || "").trim();
+  if (!normalizedQuestion || state.dialogueBusy) return;
+  const sceneId = state.currentSceneId;
+  if (!canOpenDialogue()) {
+    view.toast("Reach and face the current artwork before opening a conversation.");
+    return;
+  }
+
+  const generation = ++state.dialogueGeneration;
+  state.dialogueBusy = true;
+  view.showInquiryPending(normalizedQuestion);
+  try {
+    const result = await api.dialogue(currentDialogueContext(normalizedQuestion));
+    if (!isCurrentInquiry(sceneId, generation)) return;
+    view.showInquiryReply(result);
+    const effect = result?.perspectives?.find((item) => item?.effect)?.effect;
+    if (effect) engine.applyEffect(sceneId, effect);
+  } catch (error) {
+    if (isCurrentInquiry(sceneId, generation)) view.showInquiryError(`Dialogue unavailable: ${readable(error.message)}`);
+  } finally {
+    if (state.dialogueGeneration === generation) state.dialogueBusy = false;
+  }
+}
+
+function isCurrentInquiry(sceneId, generation) {
+  return state.dialogueGeneration === generation
+    && state.currentSceneId === sceneId
+    && session.currentStopId === sceneId
+    && session.phase === "asking";
+}
+
+function canOpenDialogue() {
+  const sceneId = session.currentStopId;
+  const expectedWorld = getExhibitionScene(sceneId)?.worldId;
+  if (session.phase !== "asking"
+    || !sceneId
+    || state.currentSceneId !== sceneId
+    || engine.activeWorld.id !== expectedWorld
+    || !engine.isWorldReady(expectedWorld)
+    || engine.director.state !== "asking") return false;
+  return engine.director.correspondence().synced === true;
+}
+
 function recordEvidence(resolveAnswer) {
   try {
     const currentId = session.currentStopId;
@@ -282,6 +346,9 @@ function recordEvidence(resolveAnswer) {
       return;
     }
     const choice = resolveAnswer();
+    voice.stop();
+    state.dialogueGeneration += 1;
+    state.dialogueBusy = false;
     journey.recordSceneVisit(currentId);
     engine.director.listen();
     engine.applyEffect(currentId, choice.effect);
@@ -324,6 +391,7 @@ async function continueLesson() {
 function beginSummoning() {
   if (state.busy) return;
   try {
+    voice.stop();
     journey.beginSummoning();
     const digest = currentDigest();
     view.showSummoning(digest, selectedCompanionRecords(), state.recap);
@@ -343,7 +411,7 @@ async function conveneRoundtable() {
     view.showRoundtable(null, companions, state.salonProvider);
     const result = await (state.salonPromise || requestSalon(currentDigest()));
     state.salon = result.data;
-    state.salonProvider = { live: result.live, model: result.model, reason: result.reason };
+    state.salonProvider = providerRecord(result);
     await engine.showSalonCharacters(true);
     view.showRoundtable(state.salon, companions, state.salonProvider);
   } catch (error) {
@@ -385,13 +453,9 @@ async function completeTransformation() {
   try {
     const result = await requestTransformation(currentDigest(), state.contradiction, state.salon);
     state.salon = result.data;
-    state.salonProvider = { live: result.live, model: result.model, reason: result.reason };
+    state.salonProvider = providerRecord(result);
     journey.completeTransformation(state.salon);
-    view.showManifesto(state.salon, {
-      axis: state.contradiction,
-      live: state.salonProvider.live,
-      model: state.salonProvider.model
-    });
+    view.showManifesto(state.salon, { axis: state.contradiction, ...state.salonProvider });
   } catch (error) {
     view.setTransformationBusy(false);
     view.toast(readable(error.message));
@@ -426,6 +490,7 @@ async function enterFinalWorld() {
   if (state.busy) return;
   state.busy = true;
   try {
+    voice.stop();
     const scene = journey.prepareFinalWorld();
     engine.activeStopId = null;
     await engine.showSalonCharacters(false);
@@ -445,6 +510,8 @@ async function enterFinalWorld() {
     }
     journey.enterFinalWorld();
     view.toast("Opening 09 / ANSWER · archived 8K realization");
+    state.dialogueGeneration += 1;
+    state.dialogueBusy = false;
     state.currentSceneId = scene.id;
     view.enterFinalWorld(world, state.salon);
     postRoom("scene", FINAL_SCENE.id);
@@ -488,6 +555,7 @@ async function handleDrawerAction(action, button) {
       const unlockedIndex = Math.min(journey.visitedSceneIds.length, EXHIBITION_SPINE.length - 1);
       if (sceneIndex < 0 || sceneIndex > unlockedIndex) throw new Error("world_not_unlocked");
       state.busy = true;
+      voice.stop();
       let world;
       try {
         world = await engine.setWorld(button.dataset.value);
@@ -538,26 +606,29 @@ function handleAction(action) {
 }
 
 async function toggleVoice() {
-  if (!state.status.realtime) {
-    view.toast("OpenAI Realtime is not configured; text inquiry remains active.");
+  if (voice.active) {
+    voice.stop();
     return;
   }
-  const button = document.getElementById("voice-tool");
-  if (button.getAttribute("aria-pressed") === "true") voice.stop();
-  else {
-    try {
-      await voice.start();
-    } catch (error) {
-      voice.stop();
-      view.toast(readable(error.message));
+  if (!canOpenDialogue()) {
+    view.toast("Reach and face the current artwork before opening voice.");
+    return;
+  }
+  try {
+    await voice.start({ realtime: state.status.realtime === true });
+    if (!state.status.realtime) {
+      view.toast(state.status.configured
+        ? "Browser voice · GPT-5.6 dialogue via inherited gateway"
+        : "Browser voice · curated local dialogue");
     }
+  } catch (error) {
+    voice.stop();
+    view.toast(readable(error.message));
   }
 }
 
 function setVoiceState(value) {
-  const button = document.getElementById("voice-tool");
-  button.setAttribute("aria-pressed", value === "live" ? "true" : "false");
-  button.title = value === "live" ? "Stop voice" : "Voice";
+  view.setVoiceState(value);
 }
 
 function bindMovementControls() {
@@ -617,6 +688,49 @@ function postRoom(type, value) {
 
 function currentDigest() {
   return session.digest({ companion_ids: journey.companions });
+}
+
+function providerRecord(result = {}) {
+  return {
+    live: result.live === true,
+    model: result.model,
+    reason: result.reason,
+    gateway: result.gateway,
+    model_source: result.model_source
+  };
+}
+
+function currentDialogueContext(question = "") {
+  const scene = getExhibitionScene(state.currentSceneId) || firstScene;
+  const artwork = engine.worldLayer.stopPose(scene.id)?.artwork || null;
+  const companions = selectedCompanionRecords().map((companion) => ({
+    id: companion.id,
+    name: companion.fullName || companion.name,
+    lens: companion.lens
+  }));
+  return {
+    question,
+    scene_id: scene.id,
+    artwork_id: artwork?.id,
+    companion_ids: [...state.selectedCompanions],
+    recent_evidence: session.visits.map((visit) => ({ ...visit })),
+    scene: {
+      id: scene.id,
+      title: scene.title,
+      artist: scene.artist,
+      chapter: scene.chapter,
+      guide_id: scene.guideId,
+      prompt: scene.question,
+      detail: scene.detail?.label || ""
+    },
+    artwork: artwork ? {
+      id: artwork.id,
+      title: artwork.title,
+      artist: artwork.artist,
+      date: artwork.date
+    } : {},
+    companions
+  };
 }
 
 function selectedCompanionRecords() {

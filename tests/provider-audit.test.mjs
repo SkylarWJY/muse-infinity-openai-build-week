@@ -6,12 +6,19 @@ import path from "node:path";
 const ROOT = path.resolve(import.meta.dirname, "..");
 const RUNTIME_DIRS = ["server.mjs", "services", "shared", "src"];
 
-test("runtime model boundary is OpenAI-only", () => {
+test("runtime has no alternate model family and uses explicit origin boundaries", () => {
   const files = collect(RUNTIME_DIRS.flatMap((entry) => [path.join(ROOT, entry)]));
   const source = files.map((file) => fs.readFileSync(file, "utf8")).join("\n");
   for (const forbidden of ["Anthropic", "Gemini", "MiniMax", "LLM_BASE_URL", "LLM_API_KEY"]) assert.doesNotMatch(source, new RegExp(forbidden, "i"));
   assert.match(source, /gpt-5\.6/);
-  assert.match(source, /api\.openai\.com\/v1\/responses/);
+  assert.match(source, /api\.openai\.com/);
+  assert.match(source, /api\.baizhiyuan\.cloud/);
+  assert.match(source, /TRUSTED_OPENAI_BASE_URLS/);
+  assert.match(source, /MUSE_GPT_GATEWAY_API_KEY/);
+  assert.match(source, /realtimeConfigured/);
+  assert.match(source, /request-configured/);
+  assert.match(source, /gateway-response-reported/);
+  assert.match(source, /untrusted_openai_base_url/);
 });
 
 function collect(entries) {

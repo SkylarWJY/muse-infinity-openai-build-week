@@ -17,7 +17,8 @@ Roundtable is grounded in the observations made across the whole walk.
 
 The narrative vocabulary, eight process worlds, gated ninth world, colliders, spatial
 profiles, historical-character files, portraits and scene imagery are inherited from
-`muse-infinity`. Build Week work is the new OpenAI-only executable system around them: strict
+`muse-infinity`. Build Week work is the new official-OpenAI judging system, plus a visibly
+disclosed local legacy GPT bridge, around them: strict
 8+1 gates, quality-RAD derivation and Range delivery, collider-grounded party movement,
 free-form observations, provisional synthesis, decision-triggered concept transformation and
 verification. Inherited assets are never presented as newly generated during this event.
@@ -216,16 +217,21 @@ world was generated live".
 - GPT-5.6 Responses API: strict lesson, provisional-concept and transformed-concept Structured
   Outputs. The decision transformation is a second concept request, not a client-side label
   change.
-- OpenAI Realtime: optional voice transport/model; never required for the text path.
+- OpenAI Realtime: optional official-origin voice transport/model; never required for the text
+  path and disabled on the inherited gateway.
 - World Labs: provenance for the nine local worlds. A separately gated Forge adapter may
   send an explicit spatial-generation request only with both provider and admin credentials;
   it is outside the canonical path and performs no language reasoning.
 - Tripo: provenance for eight inherited companion GLBs and the newer rigged learner. There is
   no Tripo runtime API in the judging path.
-- Claude, Gemini, MiniMax and configurable OpenAI-compatible LLM endpoints: prohibited.
+- Claude, Gemini and MiniMax: prohibited. GPT requests may use only the official OpenAI origin
+  or the explicitly allowlisted inherited MUSE GPT gateway; the requested model is always
+  rewritten to `gpt-5.6`. Separate key variables are origin-bound. Gateway status is labeled
+  `request-configured`; only payloads that identify an allowed GPT-5.6 model are labeled
+  `gateway-response-reported`, and neither is official OpenAI evidence.
 
 All Responses API calls use `store: false`, a hashed `safety_identifier`, a strict schema,
-bounded timeout and at most one transient retry. Deterministic code owns scene order,
+bounded timeout and a single billable POST attempt. Deterministic code owns scene order,
 coordinates, movement, rendering, validation and fallback labels.
 
 ## Visual and layout system

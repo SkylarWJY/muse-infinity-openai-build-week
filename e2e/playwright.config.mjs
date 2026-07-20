@@ -2,6 +2,8 @@ import { defineConfig } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
+const port = process.env.MUSE_E2E_PORT || "4175";
+const baseURL = process.env.MUSE_E2E_BASE_URL || `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: ".",
@@ -11,7 +13,7 @@ export default defineConfig({
   workers: 1,
   reporter: "line",
   use: {
-    baseURL: "http://127.0.0.1:4175",
+    baseURL,
     headless: true,
     screenshot: "only-on-failure",
     trace: "off"
@@ -19,10 +21,19 @@ export default defineConfig({
   webServer: {
     command: "node server.mjs",
     cwd: projectRoot,
-    url: "http://127.0.0.1:4175/api/status",
+    url: `${baseURL}/api/status`,
     reuseExistingServer: true,
     timeout: 15_000,
-    env: { PORT: "4175" }
+    env: {
+      PORT: port,
+      HOST: "127.0.0.1",
+      OPENAI_API_KEY: "",
+      MUSE_GPT_GATEWAY_API_KEY: "",
+      OPENAI_BASE_URL: "https://api.openai.com",
+      OPENAI_MODEL: "gpt-5.6",
+      WORLDLABS_API_KEY: "",
+      INTEGRATION_ADMIN_TOKEN: ""
+    }
   },
   projects: [{ name: "chromium", use: { browserName: "chromium" } }]
 });

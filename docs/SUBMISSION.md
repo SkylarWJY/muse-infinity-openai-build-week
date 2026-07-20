@@ -42,10 +42,12 @@ That final claim is deliberately bounded: GPT generates the personalized **conce
 Shimmering Spheres **geometry is a pre-generated archived realization**. The session does not
 generate a new 3D world live, and there is no manual Van Gogh/Infinity ending chooser.
 
-The complete path also works without credentials. A live OpenAI key activates GPT-5.6
+The complete path also works without credentials. For judging, an official OpenAI Platform
+credential at `api.openai.com` activates GPT-5.6
 curation, provisional synthesis and decision-triggered transformation; missing, late or
-invalid output activates a visibly labeled, schema-validated curated contract. OpenAI GPT is
-the only language/reasoning runtime. World Labs and Tripo are disclosed sources of
+invalid output activates a visibly labeled, schema-validated curated contract. The local
+legacy bridge is separately keyed and visibly labeled; its request/response model metadata is
+not used as official OpenAI evidence. World Labs and Tripo are disclosed sources of
 pre-generated digital assets, not alternate reasoning providers.
 
 ## Prior work disclosure
@@ -59,7 +61,8 @@ asset collection. This submission intentionally reuses:
 - inherited SPZ source archives, texture-mesh exports, collider GLBs, transforms, spawn
   points, bounds and thumbnails;
 - eight Tripo historical-character GLBs and eight archived portraits;
-- nine interpretive scene images and three retained Art Institute open-access images;
+- nine interpretive scene images and the inherited deterministic 36-work Art Institute Open
+  Access cast, plus three lower-resolution compatibility copies of works already in that cast;
 - provider request-shape knowledge for the separately gated World Labs Forge adapter.
 
 These elements are not represented as created during Build Week. Exact files, original and
@@ -67,12 +70,15 @@ deployed byte sizes, SHA-256 hashes, splat/mesh counts and unresolved source rec
 `docs/PROVENANCE.md`.
 
 The previous application included mixed-agent work and non-OpenAI provider paths. It was not
-forked as this runtime. No legacy application/server module, MiniMax narration path, Claude
-runtime or configurable OpenAI-compatible LLM endpoint is shipped.
+forked as this runtime. No legacy application/server module, MiniMax narration path or Claude
+runtime is shipped. The one inherited GPT gateway is explicitly allowlisted, requests only
+`gpt-5.6`, uses a key that cannot cross to or from the official origin, and cannot be changed
+into an arbitrary compatible provider.
 
 ## What was built during Build Week
 
-- A new modular OpenAI-only runtime around the disclosed `muse-infinity` assets.
+- A new modular GPT-5.6 runtime with an official OpenAI judging configuration around the
+  disclosed `muse-infinity` assets.
 - A strict ten-beat state machine and independent 8+1 exhibition manifest.
 - An eight-stop GPT-5.6 Structured Output contract that cannot change scene order or
   coordinates, plus an honest no-key fallback with the same shape.
@@ -197,6 +203,8 @@ synthesizes attention; deterministic space proves where the learner and guide ac
 - [ ] Recover or attach complete World Labs IDs, prompts, account receipts and applicable
   output/redistribution terms if the organizer requires them.
 - [ ] Recover remaining inherited Tripo task IDs and portrait source records.
+- [ ] Use an official `api.openai.com` Platform key if official-account billing evidence is a
+  competition requirement; the inherited local credential is for the allowlisted GPT gateway.
 - [ ] Confirm no secrets are committed.
 
 ## Evidence to capture for the final video/entry
