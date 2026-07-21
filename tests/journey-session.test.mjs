@@ -86,9 +86,27 @@ test("journey cannot skip narrative beats, scenes, evidence or manifesto", () =>
   journey.setCompanions(["monet"]);
   journey.beginCuration();
   journey.acceptCuration();
-  assert.throws(() => journey.recordSceneVisit(PROCESS_SCENE_IDS[1]), /scene_out_of_order/);
+  assert.throws(() => journey.recordSceneVisit("personal-dream-world"), /unknown_process_scene/);
   assert.throws(() => journey.beginSummoning(), /complete_eight_scenes_before_summoning/);
   assert.throws(() => journey.enterFinalWorld(), /final_world_requires_manifesto/);
+});
+
+test("unordered scene completion is canonicalized, deduplicated, and still gates Summoning", () => {
+  const journey = new JourneySession();
+  journey.crossThreshold();
+  journey.setQuestion("What makes attention become responsibility?");
+  journey.setCompanions(["socrates"]);
+  journey.beginCuration();
+  journey.acceptCuration();
+
+  const unordered = [3, 0, 7, 2, 6, 1, 5, 4].map((index) => PROCESS_SCENE_IDS[index]);
+  for (const sceneId of unordered.slice(0, -1)) journey.recordSceneVisit(sceneId);
+  assert.throws(() => journey.recordSceneVisit(unordered[0]), /scene_already_recorded/);
+  assert.throws(() => journey.beginSummoning(), /complete_eight_scenes_before_summoning/);
+
+  journey.recordSceneVisit(unordered.at(-1));
+  assert.deepEqual(journey.visitedSceneIds, PROCESS_SCENE_IDS);
+  assert.equal(journey.beginSummoning(), "summoning");
 });
 
 test("preparing the answer world never commits entry before its archive is ready", () => {

@@ -19,6 +19,19 @@ function completedSession(companionIds = ["frida", "socrates"]) {
   };
 }
 
+function completeStationEvidence(plan = createFallbackLesson()) {
+  return plan.stops.flatMap((stop) => stop.stations.map((station) => ({
+    scene_id: stop.stop_id,
+    station_id: station.station_id,
+    artwork_id: station.artwork_id,
+    focus_question: station.focus_question,
+    visitor_observation: station.choices[0].label,
+    visitor_question: "",
+    choice: station.choices[0],
+    perspectives: [{ speaker_id: "frida", text: `Frida tests ${station.choices[0].stance}` }]
+  })));
+}
+
 function dialogueContext(overrides = {}) {
   return {
     question: "What should I notice in the reflected doorway?",
@@ -30,10 +43,10 @@ function dialogueContext(overrides = {}) {
       detail: { label: "a private memory translated into shared form" }
     },
     artwork: {
-      id: "aic-123",
-      title: "Woman Before a Mirror",
-      artist: "Pablo Picasso",
-      date: "1932"
+      id: "aic-111442",
+      title: "The Child's Bath",
+      artist: "Mary Cassatt",
+      date: "1893"
     },
     companions: ["frida", "socrates"],
     recent_evidence: [
@@ -98,6 +111,56 @@ test("the language model provider is fixed to the official OpenAI endpoint and G
   assert.equal(request.headers.Authorization, "Bearer official-test-key");
   assert.equal(request.body.model, "gpt-5.6");
   assert.deepEqual(resolveOpenAIEndpoints("https://example.com"), OPENAI_ENDPOINTS);
+});
+
+test("the explicitly authorized Codex gateway can run the allowlisted GPT-5.6-sol model", async () => {
+  let request;
+  const fetchImpl = async (url, options) => {
+    request = { url, headers: options.headers, body: JSON.parse(options.body) };
+    return {
+      ok: true,
+      json: async () => ({
+        model: "gpt-5.6-sol",
+        output_text: JSON.stringify(createFallbackLesson("notice relation"))
+      })
+    };
+  };
+  const service = new OpenAIService({
+    apiKey: "authorized-codex-key",
+    baseUrl: "https://api.baizhiyuan.cloud/",
+    model: "gpt-5.6-sol",
+    fetchImpl
+  });
+
+  const result = await service.createLesson("notice relation", "session-gateway");
+  assert.equal(request.url, "https://api.baizhiyuan.cloud/v1/responses");
+  assert.equal(request.headers.Authorization, "Bearer authorized-codex-key");
+  assert.equal(request.body.model, "gpt-5.6-sol");
+  assert.equal(service.gateway, "authorized-openai-compatible");
+  assert.equal(service.realtimeConfigured, false);
+  assert.equal(service.narrationConfigured, false);
+  assert.equal(result.gateway, "authorized-openai-compatible");
+  assert.equal(result.model, "gpt-5.6-sol");
+  assert.equal(result.response_model, "gpt-5.6-sol");
+  assert.equal(result.model_source, "openai-compatible-gateway");
+});
+
+test("gateway and model injection stay inside the explicit HTTPS allowlists", () => {
+  for (const baseUrl of [
+    "http://api.baizhiyuan.cloud",
+    "https://api.baizhiyuan.cloud.evil.example",
+    "https://api.baizhiyuan.cloud/v1",
+    "https://user:secret@api.baizhiyuan.cloud"
+  ]) {
+    assert.deepEqual(resolveOpenAIEndpoints(baseUrl), OPENAI_ENDPOINTS, baseUrl);
+  }
+  const service = new OpenAIService({
+    apiKey: "test-key",
+    baseUrl: "https://api.baizhiyuan.cloud.evil.example",
+    model: "claude-not-allowed"
+  });
+  assert.equal(service.gateway, "official");
+  assert.equal(service.model, "gpt-5.6");
 });
 
 test("the official OpenAI response may report the fixed GPT-5.6 model", async () => {
@@ -168,6 +231,8 @@ test("live inquiry request is fixed to Responses API, GPT-5.6 and the canonical 
   assert.equal(request.body.text.format.strict, true);
   assert.equal(request.body.input[0].role, "developer");
   assert.match(request.body.input[0].content, /eight-scene guided inquiry/i);
+  assert.match(request.body.input[0].content, /three required artwork stations/i);
+  assert.equal(request.body.reasoning.effort, "medium");
   for (const sceneId of PROCESS_SCENE_IDS) assert.match(request.body.input[0].content, new RegExp(sceneId));
   assert.equal(request.body.input[1].role, "user");
   assert.match(request.options.headers.Authorization, /^Bearer /);
@@ -199,6 +264,7 @@ test("billable provider POSTs are single-shot even on transient responses", asyn
 
 test("live final synthesis uses GPT-5.6, all eight scenes and selected historical perspectives", async () => {
   const session = completedSession();
+  session.station_evidence = completeStationEvidence();
   const salon = createFallbackSalon(createSessionDigest(session));
   let request;
   const fetchImpl = async (url, options) => {
@@ -212,6 +278,11 @@ test("live final synthesis uses GPT-5.6, all eight scenes and selected historica
   assert.equal(request.body.text.format.name, "muse_final_concept");
   assert.deepEqual(result.data.evidence_scene_ids, PROCESS_SCENE_IDS);
   assert.deepEqual(result.data.perspectives.map((item) => item.character_id), ["frida", "socrates"]);
+  assert.match(request.body.input[0].content, /visitor_observation is the only visitor-attributed visual observation/i);
+  assert.match(request.body.input[0].content, /Never turn an inquiry, choice label, evidence prompt or companion perspective/i);
+  assert.match(request.body.input[1].content, /"station_evidence":\[/);
+  assert.match(request.body.input[1].content, /"visitor_observation":"","inquiry":/);
+  assert.match(request.body.input[1].content, /"evidence_kind":"inquiry"/);
 });
 
 test("live transformation is schema-locked to the visitor's chosen contradiction", async () => {
@@ -281,9 +352,37 @@ test("a hung provider is aborted once and returns the honest fallback", async ()
   assert.ok(Date.now() - started < 250);
 });
 
+test("live lesson output cannot rewrite the learner's carrying question", async () => {
+  const question = "How does looking closely change what I owe others?";
+  const candidate = createFallbackLesson(question);
+  candidate.learning_goal = "A model-authored replacement question";
+  const fetchImpl = async () => ({
+    ok: true,
+    json: async () => ({ output_text: JSON.stringify(candidate) })
+  });
+
+  const result = await new OpenAIService({ apiKey: "test-key", fetchImpl }).createLesson(question, "session");
+  assert.equal(result.live, true);
+  assert.equal(result.data.learning_goal, question);
+});
+
+test("dialogue sanitization preserves a bounded carrying question separately from the current turn", () => {
+  const carryingQuestion = `How can memory become shared? ${"x".repeat(300)}`;
+  const context = sanitizeDialogueContext(dialogueContext({
+    question: "What changes in this painting?",
+    carrying_question: carryingQuestion
+  }));
+
+  assert.equal(context.question, "What changes in this painting?");
+  assert.equal(context.carrying_question.length, 160);
+  assert.equal(context.carrying_question, carryingQuestion.slice(0, 160));
+});
+
 test("dialogue context is bounded, canonicalizes companions and clamps recent evidence", () => {
   const context = sanitizeDialogueContext(dialogueContext({
     question: `请谈谈这幅画。\u0000${"问".repeat(700)}`,
+    station_id: `living-memory:station-1${"x".repeat(200)}`,
+    focus_question: `Which relation changes? ${"f".repeat(300)}`,
     scene: {
       id: "living-memory",
       title: "S".repeat(300),
@@ -302,11 +401,33 @@ test("dialogue context is bounded, canonicalizes companions and clamps recent ev
       stop_id: `stop-${index}`,
       answer: `answer-${index}-${"x".repeat(220)}`,
       effect: index === 11 ? "not-an-effect" : "focus"
+    })),
+    scene_station_history: Array.from({ length: 7 }, (_, index) => ({
+      station_id: `station-${index}`,
+      artwork_id: `artwork-${index}`,
+      focus_question: `focus-${index}-${"f".repeat(260)}`,
+      visitor_observation: `observation-${index}-${"o".repeat(300)}`,
+      visitor_question: `visitor-question-${index}-${"q".repeat(300)}`,
+      choice: {
+        value: `choice-${index}`,
+        label: `label-${index}`,
+        stance: `stance-${index}-${"s".repeat(300)}`,
+        evidence_prompt: `evidence-${index}-${"e".repeat(300)}`
+      },
+      evidence_fact_ids: Array.from({ length: 14 }, (_, fact) => `fact-${index}-${fact}`),
+      perspectives: Array.from({ length: 5 }, (_, speaker) => ({ speaker_id: `speaker-${speaker}`, text: `summary-${speaker}-${"p".repeat(300)}` }))
+    })),
+    visual_facts: Array.from({ length: 16 }, (_, index) => ({
+      id: `visitor-fact-${index}`,
+      kind: "visitor_observation",
+      text: `fact-${index}-${"v".repeat(300)}`
     }))
   }));
 
   assert.equal(context.question.length, 600);
   assert.doesNotMatch(context.question, /\u0000/);
+  assert.equal(context.station_id.length, 120);
+  assert.equal(context.focus_question.length, 240);
   assert.equal(context.scene.title.length, 160);
   assert.equal(context.scene.detail.length, 180);
   assert.deepEqual(context.companions.map((item) => item.id), ["frida", "monet", "socrates"]);
@@ -316,6 +437,39 @@ test("dialogue context is bounded, canonicalizes companions and clamps recent ev
   assert.equal(context.recent_evidence[0].stop_id, "stop-4");
   assert.equal(context.recent_evidence.at(-1).answer.length, 180);
   assert.equal(context.recent_evidence.at(-1).effect, "stillness");
+  assert.equal(context.station_history.length, 4);
+  assert.equal(context.station_history[0].station_id, "station-3");
+  assert.equal(context.station_history.at(-1).focus_question.length, 240);
+  assert.equal(context.station_history.at(-1).visitor_observation.length, 240);
+  assert.equal(context.station_history.at(-1).visitor_question.length, 240);
+  assert.equal(context.station_history.at(-1).choice.stance.length, 240);
+  assert.equal(context.station_history.at(-1).choice.evidence_prompt.length, 240);
+  assert.equal(context.station_history.at(-1).evidence_fact_ids.length, 8);
+  assert.equal(context.station_history.at(-1).perspectives.length, 3);
+  assert.equal(context.station_history.at(-1).perspectives[0].text.length, 240);
+  assert.equal(context.visual_facts.length, 12);
+  assert.equal(context.visual_facts[0].id, "visitor-fact-4");
+  assert.equal(context.visual_facts.at(-1).text.length, 240);
+});
+
+test("known focused artwork is canonicalized and gains trusted catalog evidence", () => {
+  const context = sanitizeDialogueContext(dialogueContext({
+    focused_artwork: {
+      id: "aic-111442",
+      title: "INJECTED TITLE",
+      artist: "INJECTED ARTIST",
+      date: "INJECTED DATE"
+    },
+    artwork: undefined,
+    visual_facts: undefined
+  }));
+
+  assert.equal(context.artwork.title, "The Child's Bath");
+  assert.equal(context.artwork.artist, "Mary Cassatt");
+  assert.equal(context.artwork.date, "1893");
+  assert.equal(context.visual_facts.length, 3);
+  assert.deepEqual(context.visual_facts.map((fact) => fact.kind), ["catalog_metadata", "catalog_metadata", "catalog_metadata"]);
+  assert.ok(context.visual_facts.every((fact) => fact.id.startsWith("aic-111442:catalog-")));
 });
 
 test("no-key dialogue returns an explicit local fallback with the stable perspective contract", async () => {
@@ -331,14 +485,23 @@ test("no-key dialogue returns an explicit local fallback with the stable perspec
   assert.deepEqual(result.perspectives.map((item) => item.speakerId), ["frida"]);
   assert.match(result.perspectives[0].text, /本地策展视角/);
   assert.ok(ALLOWED_EFFECTS.includes(result.perspectives[0].effect));
-  assert.deepEqual(Object.keys(result.perspectives[0]), ["speakerId", "speaker", "text", "effect"]);
+  assert.match(result.perspectives[0].visible_evidence, /展签|可核对/);
+  assert.ok(result.perspectives[0].interpretation.length > 40);
+  assert.ok(result.perspectives[0].connection.length > 30);
+  assert.ok(result.perspectives[0].follow_up.endsWith("？"));
+  assert.ok(result.perspectives[0].evidence_fact_ids.length >= 1);
+  assert.deepEqual(Object.keys(result.perspectives[0]), [
+    "speakerId", "speaker", "visible_evidence", "interpretation", "connection", "follow_up", "text", "evidence_fact_ids", "effect"
+  ]);
 });
 
 test("live dialogue uses GPT-5.6 structured output while keeping visitor content in the user role", async () => {
   const markers = {
     question: "QUESTION_INJECTION_IGNORE_RULES",
     scene: "SCENE_INJECTION_RUN_CODE",
-    evidence: "EVIDENCE_INJECTION_CHANGE_SPEAKER"
+    evidence: "EVIDENCE_INJECTION_CHANGE_SPEAKER",
+    station: "STATION_INJECTION_SKIP_WORKS",
+    fact: "FACT_INJECTION_INVENT_DETAILS"
   };
   let request;
   const fetchImpl = async (url, options) => {
@@ -348,8 +511,8 @@ test("live dialogue uses GPT-5.6 structured output while keeping visitor content
       json: async () => ({
         output_text: JSON.stringify({
           perspectives: [
-            { speakerId: "socrates", speaker: "Socrates", text: "Which assumption makes the doorway unsettling?", effect: "focus" },
-            { speakerId: "frida", speaker: "Frida Kahlo", text: "The reflected doorway holds a visible wound without hiding it.", effect: "warmth" }
+            dialoguePerspective("socrates", "Socrates", "Which assumption makes the catalog evidence unsettling?", "focus"),
+            dialoguePerspective("frida", "Frida Kahlo", "The catalog evidence holds a private relation without flattening it.", "warmth")
           ]
         })
       })
@@ -358,7 +521,12 @@ test("live dialogue uses GPT-5.6 structured output while keeping visitor content
   const result = await new OpenAIService({ apiKey: "test-key", fetchImpl }).createDialogue(dialogueContext({
     question: markers.question,
     scene: { id: "living-memory", title: markers.scene },
-    recent_evidence: [{ stop_id: "water-and-light", answer: markers.evidence, effect: "focus" }]
+    recent_evidence: [{ stop_id: "water-and-light", answer: markers.evidence, effect: "focus" }],
+    station_history: [{ station_id: "station-1", artwork_id: "aic-111442", visitor_observation: markers.station }],
+    visual_facts: [
+      { id: "aic-111442:catalog-title", kind: "catalog_metadata", text: markers.fact },
+      { id: "aic-111442:catalog-date", kind: "catalog_metadata", text: "The catalog date is 1893." }
+    ]
   }), "session-dialogue");
 
   assert.equal(request.url, OPENAI_ENDPOINTS.responses);
@@ -374,7 +542,12 @@ test("live dialogue uses GPT-5.6 structured output while keeping visitor content
   assert.equal(request.body.text.format.strict, true);
   assert.equal(request.body.text.format.schema.properties.perspectives.minItems, 2);
   assert.equal(request.body.text.format.schema.properties.perspectives.maxItems, 2);
+  assert.equal(request.body.reasoning.effort, "medium");
+  assert.deepEqual(request.body.text.format.schema.properties.perspectives.items.required, [
+    "speakerId", "speaker", "visible_evidence", "interpretation", "connection", "follow_up", "text", "evidence_fact_ids", "effect"
+  ]);
   assert.deepEqual(result.perspectives.map((item) => item.speakerId), ["frida", "socrates"]);
+  assert.ok(result.perspectives.every((item) => item.evidence_fact_ids[0] === "aic-111442:catalog-title"));
   assert.equal(result.live, true);
   assert.equal(result.fallback, false);
 });
@@ -397,6 +570,37 @@ test("invalid live dialogue output falls back instead of leaking a partial contr
   assert.equal(result.reason, "invalid_response");
   assert.deepEqual(result.perspectives.map((item) => item.speakerId), ["frida", "socrates"]);
 });
+
+test("live dialogue cannot cite a fact outside the focused artwork context", async () => {
+  const forged = dialoguePerspective("frida", "Frida Kahlo", "A forged evidence chain.", "warmth");
+  forged.evidence_fact_ids = ["invented-artwork:invented-fact"];
+  const fetchImpl = async () => ({
+    ok: true,
+    json: async () => ({ output_text: JSON.stringify({ perspectives: [forged] }) })
+  });
+  const result = await new OpenAIService({ apiKey: "test-key", fetchImpl }).createDialogue(dialogueContext({
+    companions: ["frida"]
+  }), "session-dialogue");
+
+  assert.equal(result.live, false);
+  assert.equal(result.fallback, true);
+  assert.equal(result.reason, "invalid_response");
+  assert.ok(result.perspectives[0].evidence_fact_ids.every((id) => id.startsWith("aic-111442:catalog-")));
+});
+
+function dialoguePerspective(speakerId, speaker, text, effect) {
+  return {
+    speakerId,
+    speaker,
+    visible_evidence: "The catalog names The Child's Bath and dates it to 1893.",
+    interpretation: "That verified label evidence frames the work as a relation between care, attention, and representation.",
+    connection: "This complicates the earlier observation that the reflection changes before the surrounding form.",
+    follow_up: "Which visible relation in the work would confirm or challenge that reading?",
+    text,
+    evidence_fact_ids: ["aic-111442:catalog-title", "aic-111442:catalog-date"],
+    effect
+  };
+}
 
 test("realtime call carries sanitized museum context and language guidance to the official endpoint", async () => {
   let request;

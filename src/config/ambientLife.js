@@ -12,6 +12,8 @@ const life = (kind, mode, count, seed, center, extent, options = {}) => Object.f
   ...options
 });
 
+export const WHITE_DOVE_ASSET = "/assets/creatures/white-dove.glb";
+
 // These are authored world-space volumes, not semantic regions inferred from navigation bounds.
 export const AMBIENT_LIFE_BY_SCENE = Object.freeze({
   "threshold-conservatory": Object.freeze([
@@ -20,8 +22,9 @@ export const AMBIENT_LIFE_BY_SCENE = Object.freeze({
       period: 8.5,
       scale: 0.2
     }),
-    life("bird", "flyby", 1, 1102, [-2.5, 7.2, -20], [10, 1.8, 5.5], {
-      color: 0x424947,
+    life("white-dove", "flyby", 1, 1102, [-2.5, 7.2, -20], [10, 1.8, 5.5], {
+      asset: WHITE_DOVE_ASSET,
+      color: 0xf4f3ee,
       period: 12,
       scale: 0.55
     })
@@ -47,8 +50,9 @@ export const AMBIENT_LIFE_BY_SCENE = Object.freeze({
     })
   ]),
   "sunset-frames": Object.freeze([
-    life("gull", "orbit", 2, 1401, [-1.5, 15.2, -15.8], [8.5, 1.9, 7.5], {
-      color: 0xe7e3d8,
+    life("white-dove", "orbit", 2, 1401, [-1.5, 15.2, -15.8], [8.5, 1.9, 7.5], {
+      asset: WHITE_DOVE_ASSET,
+      color: 0xf4f3ee,
       period: 14,
       scale: 0.66
     })
@@ -66,8 +70,9 @@ export const AMBIENT_LIFE_BY_SCENE = Object.freeze({
       period: 7.5,
       scale: 0.2
     }),
-    life("bird", "flyby", 1, 1602, [-9.5, 10.2, 38], [8.5, 1.7, 5.8], {
-      color: 0x745b3d,
+    life("white-dove", "flyby", 1, 1602, [-9.5, 10.2, 38], [8.5, 1.7, 5.8], {
+      asset: WHITE_DOVE_ASSET,
+      color: 0xf4f3ee,
       period: 13,
       scale: 0.5
     })

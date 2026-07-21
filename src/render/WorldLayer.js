@@ -22,6 +22,7 @@ const MAX_HORIZONTAL_NORMAL_Y = 0.6;
 const HORIZONTAL_COLLISION_LOOKAHEAD = 1.5;
 const HORIZONTAL_CACHE_DIRECTION_DOT = 0.998;
 const HORIZONTAL_CACHE_LATERAL_TOLERANCE = 0.04;
+const SPLAT_PRESENTATION_STABLE_CHECKS = 3;
 
 export function resolveSceneQuality({ mobile = false, mode = "high" } = {}) {
   if (mode === "balanced") {
@@ -109,10 +110,12 @@ export class WorldLayer {
     this.horizontalIndex = null;
     this.horizontalCollisionCache = null;
     this.retirements = new Set();
+    this.lastArchiveError = null;
   }
 
   async build(world) {
     const token = ++this.buildToken;
+    this.lastArchiveError = null;
     this.clearCurrent();
     this.groundCache.clear();
     if (token !== this.buildToken) return false;
@@ -121,12 +124,18 @@ export class WorldLayer {
     this.scene.fog = new THREE.Fog(world.palette.sky, 22, 72);
     this.buildFloor(world);
     this.buildArchitecture(world);
+    this.scenery.visible = false;
+    this.artworkGroup.visible = false;
 
     await this.buildArtworks(world, token);
     if (token !== this.buildToken) return false;
 
     const hasArchive = Boolean(world.mesh || world.rad || world.splat);
-    if (!hasArchive) return false;
+    if (!hasArchive) {
+      this.scenery.visible = true;
+      this.artworkGroup.visible = true;
+      return false;
+    }
     this.onStatus({ type: world.render, live: false, pending: true, world, message: `Loading high-fidelity archive · ${world.name}` });
     const [live] = await Promise.all([
       this.loadArchive(world, token),
@@ -138,6 +147,8 @@ export class WorldLayer {
       this.onStatus({ type: this.archive?.type || world.render, live: true, pending: false, world, message: `${world.name} · high-fidelity archive live` });
       return true;
     }
+    this.scenery.visible = true;
+    this.artworkGroup.visible = true;
     this.onStatus({ type: world.render, live: false, pending: false, world, message: "Archive unavailable; spatial fallback retained" });
     return false;
   }
@@ -832,9 +843,24 @@ export class WorldLayer {
   }
 
   stopPose(stopId) {
-    const record = this.artworks.get(stopId);
+    const record = this.artworks.get(stopId)
+      || [...this.artworks.values()].find((candidate) => candidate.artwork.id === stopId || candidate.stopId === stopId);
     if (!record) return null;
     return {
+      id: record.artwork.id,
+      guideAnchor: [...record.frame.userData.guideAnchor],
+      lookAt: [...record.frame.userData.lookAt],
+      artwork: record.artwork
+    };
+  }
+
+  artworkPose(artworkId) {
+    const id = String(artworkId || "").trim();
+    if (!id) return null;
+    const record = [...this.artworks.values()].find((candidate) => candidate.artwork.id === id);
+    if (!record) return null;
+    return {
+      id: record.artwork.id,
       guideAnchor: [...record.frame.userData.guideAnchor],
       lookAt: [...record.frame.userData.lookAt],
       artwork: record.artwork
@@ -843,7 +869,7 @@ export class WorldLayer {
 
   highlight(stopId, effect = "focus") {
     for (const [id, artwork] of this.artworks) {
-      const active = id === stopId || artwork.stopId === stopId;
+      const active = id === stopId || artwork.stopId === stopId || artwork.artwork.id === stopId;
       artwork.border.material.color.set(active ? this.activeWorld.palette.accent : 0x4a3322);
       artwork.border.material.opacity = active && effect === "echo" ? 0.82 : 1;
       artwork.border.material.transparent = artwork.border.material.opacity < 1;
@@ -853,12 +879,30 @@ export class WorldLayer {
 
   async loadArchive(world, token) {
     if (world.render === "mesh" && world.mesh) {
-      const meshLive = await this.loadMesh(world, token).catch(() => false);
+      const meshLive = await this.loadMesh(world, token).catch((error) => {
+        this.recordArchiveError(world, token, error);
+        return false;
+      });
       if (meshLive || token !== this.buildToken || !(world.rad || world.splat)) return meshLive;
     }
-    if (world.rad || world.splat) return this.loadSplat(world, token).catch(() => false);
-    if (world.mesh) return this.loadMesh(world, token).catch(() => false);
+    if (world.rad || world.splat) return this.loadSplat(world, token).catch((error) => {
+      this.recordArchiveError(world, token, error);
+      return false;
+    });
+    if (world.mesh) return this.loadMesh(world, token).catch((error) => {
+      this.recordArchiveError(world, token, error);
+      return false;
+    });
     return false;
+  }
+
+  recordArchiveError(world, token, error) {
+    if (token !== this.buildToken) return;
+    this.lastArchiveError = {
+      worldId: world.id,
+      code: String(error?.message || "archive_load_failed"),
+      ...(error?.archiveMetrics || {})
+    };
   }
 
   async loadMesh(world, token) {
@@ -943,9 +987,17 @@ export class WorldLayer {
         spark,
         splat,
         paged ? 15_000 : 45_000,
-        () => token !== this.buildToken || this.archive !== archived
+        () => token !== this.buildToken || this.archive !== archived,
+        {
+          minimumActiveSplats: presentationSplatThreshold(this.quality)
+        }
       );
     } catch (error) {
+      error.archiveMetrics = {
+        activeSplats: Number(spark.activeSplats) || 0,
+        loadedSplats: Number(splat.paged?.numSplats || splat.numSplats) || 0,
+        requiredActiveSplats: presentationSplatThreshold(this.quality)
+      };
       if (this.archive === archived) {
         this.archive = null;
         this.splat = null;
@@ -1248,20 +1300,50 @@ function safeDispose(value) {
   try { value?.dispose?.(); } catch { /* terminal cleanup must continue */ }
 }
 
-async function waitForSplatFrame(spark, splat, timeoutMs, cancelled = () => false) {
+export async function waitForSplatFrame(
+  spark,
+  splat,
+  timeoutMs,
+  cancelled = () => false,
+  { minimumActiveSplats = 1 } = {}
+) {
   const deadline = Date.now() + timeoutMs;
+  let stableChecks = 0;
   while (Date.now() < deadline) {
     if (cancelled()) throw new Error("splat_frame_cancelled");
-    if (hasRenderableSplatFrame(spark, splat)) return;
+    if (hasRenderableSplatFrame(spark, splat)) {
+      stableChecks = hasPresentationReadySplatFrame(spark, splat, minimumActiveSplats)
+        ? stableChecks + 1
+        : 0;
+      if (stableChecks >= SPLAT_PRESENTATION_STABLE_CHECKS) return;
+    }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  throw new Error("splat_frame_timeout");
+  while (hasPresentationReadySplatFrame(spark, splat, minimumActiveSplats)) {
+    stableChecks += 1;
+    if (stableChecks >= SPLAT_PRESENTATION_STABLE_CHECKS) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    if (cancelled()) throw new Error("splat_frame_cancelled");
+  }
+  throw new Error(hasRenderableSplatFrame(spark, splat)
+    ? "splat_presentation_timeout"
+    : "splat_frame_timeout");
 }
 
 export function hasRenderableSplatFrame(spark, splat) {
   const instance = spark?.lodInstances?.get?.(splat);
   const loadedSplats = splat?.paged?.numSplats || instance?.numSplats || splat?.numSplats || 0;
   return loadedSplats > 0 && (spark?.activeSplats || 0) > 0;
+}
+
+export function hasPresentationReadySplatFrame(spark, splat, minimumActiveSplats = 1) {
+  const threshold = Math.max(1, Number(minimumActiveSplats) || 1);
+  return hasRenderableSplatFrame(spark, splat) && (spark?.activeSplats || 0) >= threshold;
+}
+
+export function presentationSplatThreshold(quality = {}) {
+  const target = Math.max(1, Number(quality.lodSplatCount) || 1);
+  return Math.round(Math.min(135_000, Math.max(40_000, target * 0.03)));
 }
 
 function artworkAspect(texture) {

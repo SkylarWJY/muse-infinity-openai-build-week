@@ -1,11 +1,89 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  MuseumScore,
   NarrationSession,
   ProceduralSoundscape,
+  museumScoreTrackForStage,
   splitNarration,
   soundtrackProfileForStage
 } from "../src/services/sound-experience.js";
+
+test("recorded museum score follows narrative acts, waits for a gesture and ducks for every speaker", async () => {
+  const players = [];
+  const timers = new Map();
+  let timerId = 0;
+  const score = new MuseumScore({
+    audioFactory: (src) => {
+      const player = {
+        src,
+        paused: true,
+        volume: 0,
+        playCalls: 0,
+        pauseCalls: 0,
+        async play() { this.playCalls += 1; this.paused = false; },
+        pause() { this.pauseCalls += 1; this.paused = true; }
+      };
+      players.push(player);
+      return player;
+    },
+    setIntervalImpl: (callback) => { timerId += 1; timers.set(timerId, callback); return timerId; },
+    clearIntervalImpl: (id) => timers.delete(id)
+  });
+  const settle = () => {
+    for (let step = 0; step < 80 && timers.size; step += 1) {
+      for (const callback of [...timers.values()]) callback();
+    }
+  };
+
+  assert.equal(museumScoreTrackForStage("life_question"), "promenade");
+  assert.equal(museumScoreTrackForStage("world_exploration"), "clair-de-lune");
+  assert.equal(museumScoreTrackForStage("roundtable"), "gymnopedie");
+  assert.deepEqual(score.snapshot(), {
+    enabled: true,
+    unlocked: false,
+    stage: "threshold",
+    track: "promenade",
+    ducked: false,
+    speakingSources: [],
+    targetVolume: 0
+  });
+  assert.equal(players.length, 0, "the browser must not create media before a gesture");
+
+  assert.equal(await score.unlock(), true);
+  settle();
+  assert.equal(players[0].src, "/assets/audio/promenade.ogg");
+  assert.equal(players[0].volume, 0.18);
+
+  score.setStage("companion_selection");
+  assert.equal(players.length, 1, "stages in the same act reuse the current recording");
+  score.setSpeaking("narration", true);
+  score.setSpeaking("conversation", true);
+  settle();
+  assert.equal(players[0].volume, 0.04);
+  score.setSpeaking("narration", false);
+  settle();
+  assert.equal(players[0].volume, 0.04, "conversation still owns the duck");
+  score.setSpeaking("conversation", false);
+  settle();
+  assert.equal(players[0].volume, 0.18);
+
+  score.setStage("world_exploration");
+  await Promise.resolve();
+  settle();
+  assert.equal(players.length, 2);
+  assert.equal(players[0].volume, 0);
+  assert.equal(players[0].paused, true);
+  assert.equal(players[1].src, "/assets/audio/clair-de-lune.opus");
+  assert.equal(players[1].volume, 0.18);
+
+  score.setEnabled(false);
+  settle();
+  assert.equal(players[1].volume, 0);
+  assert.equal(score.snapshot().targetVolume, 0);
+  score.dispose();
+  assert.equal(score.snapshot().unlocked, false);
+});
 
 test("every narrative stage maps to one of four original soundtrack acts", () => {
   const expected = {
@@ -103,6 +181,7 @@ test("muting during the first audio unlock does not leave a hidden score running
 test("narration is sentence-bounded and system voices speak character lines in order", async () => {
   const spoken = [];
   const states = [];
+  const lineEvents = [];
   const synthesis = {
     cancelCalls: 0,
     cancel() { this.cancelCalls += 1; },
@@ -119,7 +198,9 @@ test("narration is sentence-bounded and system voices speak character lines in o
     remoteEnabled: false,
     speechSynthesis: synthesis,
     utteranceFactory: (text) => ({ text }),
-    onSpeaking: (speaking) => states.push(speaking)
+    onSpeaking: (speaking) => states.push(speaking),
+    onLineStart: (line) => lineEvents.push(["start", line.speakerId, line.text]),
+    onLineEnd: (line) => lineEvents.push(["end", line.speakerId, line.text])
   });
 
   narrator.stop();
@@ -139,6 +220,12 @@ test("narration is sentence-bounded and system voices speak character lines in o
     "Then notice what the frame protects."
   ]);
   assert.deepEqual(states, [true, false]);
+  assert.deepEqual(lineEvents, [
+    ["start", "monet", "Look first at the reflected light."],
+    ["end", "monet", "Look first at the reflected light."],
+    ["start", "frida", "Then notice what the frame protects."],
+    ["end", "frida", "Then notice what the frame protects."]
+  ]);
   assert.equal(spoken.every((item) => Number.isFinite(item.rate) && Number.isFinite(item.pitch)), true);
 });
 

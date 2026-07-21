@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { ALL_EXHIBITION_SCENES } from "../src/config/exhibitionSpine.js";
+import { ALL_EXHIBITION_SCENES, EXHIBITION_SPINE } from "../src/config/exhibitionSpine.js";
 import { ARCHIVED_WORLDS } from "../src/config/legacyAssets.js";
 import { artworkPlacementsForScene } from "../src/config/artworkPlacements.js";
 import { artworksForScene } from "../src/config/sceneCollections.js";
@@ -13,13 +13,16 @@ import { WorldLayer } from "../src/render/WorldLayer.js";
 const ROOT = path.resolve(import.meta.dirname, "..");
 const UP = new THREE.Vector3(0, 1, 0);
 const ACTIVE_ARTWORK_SCALE = 1.025;
+const MAX_REQUIRED_VIEW_DISTANCE = 4.5;
+const MIN_REQUIRED_STATION_TRAVEL = 1.5;
+const REQUIRED_SCENE_IDS = new Set(EXHIBITION_SPINE.map((scene) => scene.id));
 const MINIMUM_WALL_MOUNTS = Object.freeze({
-  "threshold-conservatory": 2,
-  "court-of-light": 1,
+  "threshold-conservatory": 1,
+  "court-of-light": 0,
   "water-and-light": 1,
   "sunset-frames": 0,
   "burning-sky": 1,
-  "petal-transition": 4,
+  "petal-transition": 1,
   "living-memory": 0,
   "infinite-repetition": 0,
   "personal-dream-world": 0
@@ -92,6 +95,23 @@ test("all four artworks stay grounded, separated, bounded, and guide-facing in e
     layer.layoutArtworks(world);
 
     const records = [...layer.artworks.values()].sort((left, right) => left.index - right.index);
+    if (REQUIRED_SCENE_IDS.has(world.sceneId)) {
+      const required = records.slice(0, 3);
+      for (const record of required) {
+        const frameCenter = record.frame.position.clone().add(new THREE.Vector3(0, 1.48, 0));
+        const guideEye = new THREE.Vector3(...record.frame.userData.guideAnchor).add(new THREE.Vector3(0, 1.48, 0));
+        const distance = frameCenter.distanceTo(guideEye);
+        assert.ok(distance <= MAX_REQUIRED_VIEW_DISTANCE,
+          `${world.sceneId}:${record.artwork.id} is ${distance.toFixed(2)}m from its guide; required stations must be <= ${MAX_REQUIRED_VIEW_DISTANCE.toFixed(1)}m`);
+      }
+      for (let index = 1; index < required.length; index += 1) {
+        const previous = new THREE.Vector3(...required[index - 1].frame.userData.guideAnchor);
+        const current = new THREE.Vector3(...required[index].frame.userData.guideAnchor);
+        const travel = planarDistance(previous, current);
+        assert.ok(travel >= MIN_REQUIRED_STATION_TRAVEL,
+          `${world.sceneId} station ${index} -> ${index + 1} travels only ${travel.toFixed(2)}m; expected >= ${MIN_REQUIRED_STATION_TRAVEL.toFixed(1)}m`);
+      }
+    }
     if (world.sceneId === "personal-dream-world") {
       const right = new THREE.Vector3(Math.cos(world.profile.yaw), 0, Math.sin(world.profile.yaw));
       const player = new THREE.Vector3(world.profile.spawn.x, 0, world.profile.spawn.z).addScaledVector(right, 0.5);

@@ -61,3 +61,74 @@ test("a free observation becomes grounded evidence without changing the route", 
   assert.equal(session.digest().visits[0].answer, observation.label);
   assert.equal(session.continue().stop_id, PROCESS_SCENE_IDS[1]);
 });
+
+test("digest forwards persistent station evidence with snake_case and camelCase caller compatibility", () => {
+  const session = new LessonSession();
+  const plan = createFallbackLesson();
+  session.start(plan);
+  const station = plan.stops[0].stations[0];
+  const evidence = [{
+    station_id: station.station_id,
+    artwork_id: station.artwork_id,
+    visitor_question: station.focus_question,
+    choice: station.choices[0]
+  }];
+
+  assert.equal(session.digest({ station_evidence: evidence }).station_evidence[0].station_id, station.station_id);
+  assert.equal(session.digest({ stationEvidence: evidence }).station_evidence[0].station_id, station.station_id);
+  assert.equal(session.digest().station_evidence.length, 0);
+});
+
+test("jumping explores canonical scenes in any order without creating or duplicating visits", () => {
+  const session = new LessonSession();
+  const plan = createFallbackLesson("How does attention change what I can know?");
+  session.start(plan);
+
+  assert.equal(session.jumpTo(PROCESS_SCENE_IDS[4]).stop_id, PROCESS_SCENE_IDS[4]);
+  assert.equal(session.phase, "walking");
+  assert.deepEqual(session.visited, []);
+  assert.deepEqual(session.visits, []);
+
+  session.arrive();
+  session.answer(plan.stops[4].choices[0].value);
+  assert.deepEqual(session.visited, [PROCESS_SCENE_IDS[4]]);
+  assert.equal(session.continue().stop_id, PROCESS_SCENE_IDS[5]);
+
+  session.jumpTo(PROCESS_SCENE_IDS[4]);
+  session.arrive();
+  session.answer(plan.stops[4].choices[1].value);
+  assert.deepEqual(session.visited, [PROCESS_SCENE_IDS[4]]);
+  assert.equal(session.visits.length, 1);
+  assert.equal(session.visits[0].answer, plan.stops[4].choices[1].label);
+  assert.equal(session.continue().stop_id, PROCESS_SCENE_IDS[5]);
+
+  assert.throws(() => session.jumpTo("personal-dream-world"), /unknown_process_scene/);
+});
+
+test("continue wraps through the canonical route and selects the next unfinished scene", () => {
+  const session = new LessonSession();
+  const plan = createFallbackLesson();
+  session.start(plan);
+
+  for (const index of [6, 7]) {
+    session.jumpTo(PROCESS_SCENE_IDS[index]);
+    session.arrive();
+    session.answer(plan.stops[index].choices[0].value);
+  }
+  assert.equal(session.continue().stop_id, PROCESS_SCENE_IDS[0]);
+});
+
+test("an unordered completed lesson emits a canonical final digest", () => {
+  const session = new LessonSession();
+  const plan = createFallbackLesson();
+  session.start(plan);
+
+  for (const index of [3, 0, 7, 2, 6, 1, 5, 4]) {
+    session.jumpTo(PROCESS_SCENE_IDS[index]);
+    session.arrive();
+    session.answer(plan.stops[index].choices[0].value);
+  }
+
+  assert.equal(session.continue(), null);
+  assert.deepEqual(session.digest().visits.map((visit) => visit.stop_id), PROCESS_SCENE_IDS);
+});

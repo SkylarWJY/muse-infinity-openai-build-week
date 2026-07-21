@@ -3,6 +3,32 @@ const DUCKED_VOLUME = 0.035;
 const FADE_SECONDS = 1.2;
 const NARRATION_LIMIT = 280;
 
+const MUSEUM_SCORE_TRACKS = Object.freeze({
+  promenade: "/assets/audio/promenade.ogg",
+  "clair-de-lune": "/assets/audio/clair-de-lune.opus",
+  gymnopedie: "/assets/audio/gymnopedie.ogg"
+});
+
+const MUSEUM_SCORE_STAGES = Object.freeze({
+  threshold: "promenade",
+  life_question: "promenade",
+  companion_selection: "promenade",
+  ai_curation: "promenade",
+  world_exploration: "clair-de-lune",
+  summoning: "gymnopedie",
+  roundtable: "gymnopedie",
+  decision: "gymnopedie",
+  world_transformation: "promenade",
+  manifesto: "promenade",
+  final_answer: "promenade"
+});
+
+const SCORE_FULL_VOLUME = 0.18;
+const SCORE_DUCKED_VOLUME = 0.04;
+const SCORE_FADE_TICK_MS = 60;
+const SCORE_FADE_RATE = 0.22;
+const SCORE_SNAP_EPSILON = 0.005;
+
 const STAGE_PROFILES = Object.freeze({
   threshold: "threshold",
   life_question: "threshold",
@@ -63,6 +89,142 @@ const VOICE_CAST = Object.freeze({
 
 export function soundtrackProfileForStage(stage) {
   return STAGE_PROFILES[stage] || "threshold";
+}
+
+export function museumScoreTrackForStage(stage) {
+  return MUSEUM_SCORE_STAGES[stage] || "promenade";
+}
+
+/**
+ * Recorded public-domain score inherited from MUSE Infinity. Playback remains
+ * gesture-gated, changes only between narrative acts, and ducks under speech.
+ */
+export class MuseumScore {
+  constructor({
+    audioFactory = (url) => new Audio(url),
+    setIntervalImpl = (...args) => globalThis.setInterval(...args),
+    clearIntervalImpl = (id) => globalThis.clearInterval(id),
+    enabled = true,
+    fullVolume = SCORE_FULL_VOLUME,
+    duckedVolume = SCORE_DUCKED_VOLUME
+  } = {}) {
+    this.audioFactory = audioFactory;
+    this.setInterval = setIntervalImpl;
+    this.clearInterval = clearIntervalImpl;
+    this.enabled = Boolean(enabled);
+    this.fullVolume = fullVolume;
+    this.duckedVolume = duckedVolume;
+    this.unlocked = false;
+    this.stage = "threshold";
+    this.activeKey = null;
+    this.players = new Map();
+    this.speakingSources = new Set();
+    this.fadeTimer = null;
+  }
+
+  async unlock() {
+    this.unlocked = true;
+    if (!this.enabled) return false;
+    return this.syncTrack();
+  }
+
+  setEnabled(enabled) {
+    this.enabled = Boolean(enabled);
+    if (this.enabled && this.unlocked) void this.syncTrack();
+    else this.ensureFade();
+    return this.enabled;
+  }
+
+  setStage(stage) {
+    this.stage = MUSEUM_SCORE_STAGES[stage] ? stage : "threshold";
+    const nextKey = museumScoreTrackForStage(this.stage);
+    if (nextKey === this.activeKey) return false;
+    if (this.enabled && this.unlocked) void this.syncTrack();
+    return true;
+  }
+
+  setSpeaking(source, speaking) {
+    const key = String(source || "voice").slice(0, 40);
+    if (speaking) this.speakingSources.add(key);
+    else this.speakingSources.delete(key);
+    this.ensureFade();
+  }
+
+  snapshot() {
+    return {
+      enabled: this.enabled,
+      unlocked: this.unlocked,
+      stage: this.stage,
+      track: museumScoreTrackForStage(this.stage),
+      ducked: this.speakingSources.size > 0,
+      speakingSources: [...this.speakingSources].sort(),
+      targetVolume: this.targetVolume(this.activeKey)
+    };
+  }
+
+  dispose() {
+    if (this.fadeTimer != null) this.clearInterval(this.fadeTimer);
+    this.fadeTimer = null;
+    for (const player of this.players.values()) {
+      player.pause?.();
+      player.src = "";
+    }
+    this.players.clear();
+    this.activeKey = null;
+    this.unlocked = false;
+    this.speakingSources.clear();
+  }
+
+  async syncTrack() {
+    const key = museumScoreTrackForStage(this.stage);
+    this.activeKey = key;
+    let player = this.players.get(key);
+    if (!player) {
+      try {
+        player = this.audioFactory(MUSEUM_SCORE_TRACKS[key]);
+      } catch {
+        return false;
+      }
+      if (!player) return false;
+      player.loop = true;
+      player.preload = "auto";
+      player.volume = 0;
+      this.players.set(key, player);
+    }
+    let ready = true;
+    if (player.paused !== false) {
+      try { await Promise.resolve(player.play?.()); } catch { ready = false; }
+    }
+    this.ensureFade();
+    return ready;
+  }
+
+  targetVolume(key) {
+    if (!this.enabled || !this.unlocked || key !== this.activeKey) return 0;
+    return this.speakingSources.size ? this.duckedVolume : this.fullVolume;
+  }
+
+  ensureFade() {
+    if (this.fadeTimer != null || !this.players.size) return;
+    this.fadeTimer = this.setInterval(() => {
+      let settled = true;
+      for (const [key, player] of this.players) {
+        const target = this.targetVolume(key);
+        const diff = target - player.volume;
+        if (Math.abs(diff) <= SCORE_SNAP_EPSILON) {
+          player.volume = target;
+          if (target === 0 && player.paused === false) player.pause?.();
+          continue;
+        }
+        settled = false;
+        player.volume = clampVolume(player.volume + diff * SCORE_FADE_RATE);
+      }
+      if (settled) {
+        this.clearInterval(this.fadeTimer);
+        this.fadeTimer = null;
+      }
+    }, SCORE_FADE_TICK_MS);
+  }
 }
 
 export class ProceduralSoundscape {
@@ -316,6 +478,8 @@ export class NarrationSession {
     setTimeoutImpl = (...args) => globalThis.setTimeout(...args),
     clearTimeoutImpl = (id) => globalThis.clearTimeout(id),
     onSpeaking = () => {},
+    onLineStart = () => {},
+    onLineEnd = () => {},
     enabled = true
   } = {}) {
     this.synthesize = synthesize;
@@ -328,6 +492,8 @@ export class NarrationSession {
     this.setTimeout = setTimeoutImpl;
     this.clearTimeout = clearTimeoutImpl;
     this.onSpeaking = onSpeaking;
+    this.onLineStart = onLineStart;
+    this.onLineEnd = onLineEnd;
     this.enabled = Boolean(enabled);
     this.queue = [];
     this.playing = false;
@@ -409,7 +575,12 @@ export class NarrationSession {
 
       // Fetch one line ahead while the current line is playing, matching the legacy seamless cadence.
       if (this.queue.length) prepared = this.prepareQueuedLine(generation);
-      await this.speakPrepared(item, generation);
+      this.notifyLineObserver(this.onLineStart, item.line);
+      try {
+        await this.speakPrepared(item, generation);
+      } finally {
+        this.notifyLineObserver(this.onLineEnd, item.line);
+      }
     }
     if (generation !== this.generation) return;
     this.activeDrainGeneration = null;
@@ -546,6 +717,14 @@ export class NarrationSession {
     this.speaking = next;
     this.onSpeaking(next);
   }
+
+  notifyLineObserver(observer, line) {
+    try {
+      observer?.({ ...line });
+    } catch {
+      // Visual speaker cues are optional and cannot interrupt narration.
+    }
+  }
 }
 
 function defaultAudioContextFactory() {
@@ -555,6 +734,10 @@ function defaultAudioContextFactory() {
 
 function midiOffset(root, semitones) {
   return root * (2 ** (semitones / 12));
+}
+
+function clampVolume(value) {
+  return Math.max(0, Math.min(1, Number(value) || 0));
 }
 
 function narrationWatchdogMs(text) {

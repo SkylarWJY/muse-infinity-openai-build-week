@@ -5,7 +5,14 @@ import fs from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { clientKey, createFallbackLesson, createMuseServer, loadLocalEnv } from "../server.mjs";
+import {
+  MODEL_REQUEST_BUDGET,
+  NARRATION_REQUEST_BUDGET,
+  clientKey,
+  createFallbackLesson,
+  createMuseServer,
+  loadLocalEnv
+} from "../server.mjs";
 import { createFallbackSalon, createSessionDigest } from "../shared/contracts.js";
 
 async function withServer(run, options = {}) {
@@ -26,25 +33,27 @@ test("status is bounded and never exposes secrets", () => withServer(async (base
   assert.equal(body.narration, false);
   assert.equal(body.narration_provider, null);
   assert.equal(body.narration_model, null);
+  assert.equal(body.narration_fallback_provider, null);
   assert.equal(body.world_forge, false);
   assert.doesNotMatch(JSON.stringify(body), /key/i);
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
 }));
 
-test("legacy GPT gateway environment values cannot configure the language model", () => withServer(async (base) => {
+test("a legacy gateway credential cannot configure the allowlisted language model", () => withServer(async (base) => {
   const response = await fetch(`${base}/api/status`);
   const body = await response.json();
   assert.equal(response.status, 200);
   assert.equal(body.configured, false);
   assert.equal(body.openai, false);
   assert.equal(body.model, "gpt-5.6");
-  assert.equal(body.gateway, "official");
-  assert.equal(body.model_source, "openai-api");
+  assert.equal(body.gateway, "authorized-openai-compatible");
+  assert.equal(body.model_source, "openai-compatible-gateway");
   assert.equal(body.realtime, false);
   assert.equal(body.realtime_model, null);
   assert.equal(body.narration, false);
   assert.equal(body.narration_provider, null);
   assert.equal(body.narration_model, null);
+  assert.equal(body.narration_fallback_provider, null);
   assert.equal(body.world_forge, false);
   assert.doesNotMatch(JSON.stringify(body), /secret-value/);
 }, {
@@ -54,6 +63,41 @@ test("legacy GPT gateway environment values cannot configure the language model"
     OPENAI_MODEL: "not-an-allowed-model"
   }
 }));
+
+test("an explicitly allowlisted OpenAI-compatible gateway is reported and used", () => {
+  let upstream;
+  return withServer(async (base) => {
+    const status = await (await fetch(`${base}/api/status`)).json();
+    assert.equal(status.configured, true);
+    assert.equal(status.gateway, "authorized-openai-compatible");
+    assert.equal(status.model, "gpt-5.6-sol");
+    assert.equal(status.model_source, "openai-compatible-gateway");
+    assert.equal(status.realtime, false);
+    assert.equal(status.narration, false);
+
+    const response = await fetch(`${base}/api/lesson/plan`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ goal: "notice relationships" })
+    });
+    assert.equal(response.status, 200);
+    assert.equal(upstream.url, "https://api.baizhiyuan.cloud/v1/responses");
+    assert.equal(upstream.body.model, "gpt-5.6-sol");
+  }, {
+    env: {
+      OPENAI_API_KEY: "authorized-test-key",
+      OPENAI_BASE_URL: "https://api.baizhiyuan.cloud",
+      OPENAI_MODEL: "gpt-5.6-sol"
+    },
+    fetchImpl: async (url, options) => {
+      upstream = { url, body: JSON.parse(options.body) };
+      return new Response(JSON.stringify({ output_text: JSON.stringify(createFallbackLesson("notice relationships")) }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+  });
+});
 
 test("local startup loads an optional env file with Node's native parser", async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "muse-env-"));
@@ -81,6 +125,40 @@ test("no-key lesson endpoint returns curated contract", () => withServer(async (
   assert.equal(body.data.stops.length, 8);
 }));
 
+test("recap distinguishes scene reflections, firsthand observations and inquiry paths", () => withServer(async (base) => {
+  const plan = createFallbackLesson("How does attention change across works?");
+  const station = plan.stops[0].stations[0];
+  const response = await fetch(`${base}/api/lesson/recap`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      learning_goal: plan.learning_goal,
+      companion_ids: ["monet", "socrates"],
+      visits: plan.stops.map((stop) => ({
+        stop_id: stop.stop_id,
+        detail_id: stop.detail_id,
+        answer: stop.choices[0].label,
+        effect: stop.choices[0].effect
+      })),
+      station_evidence: [{
+        scene_id: plan.stops[0].stop_id,
+        station_id: station.station_id,
+        artwork_id: station.artwork_id,
+        focus_question: station.focus_question,
+        visitor_observation: "The edge brightens beside the darker interval.",
+        visitor_question: "Does the contrast hold from another position?",
+        choice: station.choices[0]
+      }]
+    })
+  });
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.match(body.data.summary, /8 scene reflections through 1 artwork stations/);
+  assert.match(body.data.summary, /1 firsthand observations and 1 inquiry paths/);
+  assert.equal(body.data.evidence.length, 8);
+  assert.equal(body.data.station_evidence[0].evidence_kind, "observation_and_inquiry");
+}));
+
 test("dialogue endpoint grounds the local fallback in the trusted scene collection", () => withServer(async (base) => {
   const response = await fetch(`${base}/api/dialogue`, {
     method: "POST",
@@ -101,6 +179,111 @@ test("dialogue endpoint grounds the local fallback in the trusted scene collecti
   assert.match(body.perspectives[0].text, /Water Lilies/);
   assert.doesNotMatch(JSON.stringify(body), /Injected title/);
 }));
+
+test("dialogue endpoint keeps the carrying question bounded and distinct from the current turn", () => {
+  let upstream;
+  const carryingQuestion = `How does attention become care? ${"x".repeat(300)}`;
+  return withServer(async (base) => {
+    const response = await fetch(`${base}/api/dialogue`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question: "What changes at this artwork?",
+        carrying_question: carryingQuestion,
+        scene_id: "water-and-light",
+        artwork_id: "aic-16568",
+        companion_ids: ["monet"]
+      })
+    });
+    const body = await response.json();
+    const context = JSON.parse(upstream.body.input[1].content.replace(/^Museum context JSON:\n/, ""));
+
+    assert.equal(response.status, 200);
+    assert.equal(context.question, "What changes at this artwork?");
+    assert.equal(context.carrying_question, carryingQuestion.slice(0, 160));
+    assert.match(body.perspectives[0].connection, /attention become care/i);
+  }, {
+    env: { OPENAI_API_KEY: "test-key" },
+    fetchImpl: async (url, options) => {
+      upstream = { url, body: JSON.parse(options.body) };
+      return new Response(JSON.stringify({ output_text: "{}" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+  });
+});
+
+test("dialogue endpoint forwards only bounded station history from the active scene", () => {
+  let upstream;
+  return withServer(async (base) => {
+    const response = await fetch(`${base}/api/dialogue`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question: "How does this station revise the last one?",
+        scene_id: "water-and-light",
+        artwork_id: "aic-16568",
+        station_id: "water-and-light:station-1",
+        focus_question: "Which exact relation in this work changes the claim carried from the prior station?",
+        companion_ids: ["monet", "socrates"],
+        station_history: [
+          {
+            station_id: "station-1",
+            artwork_id: "aic-111442",
+            focus_question: "Injected artwork from another scene",
+            visitor_observation: "This should be rejected."
+          },
+          ...Array.from({ length: 6 }, (_, index) => ({
+            station_id: `station-${index + 2}`,
+            artwork_id: "aic-16568",
+            focus_question: `Question ${index + 2}`,
+            visitor_observation: `Observation ${index + 2}`,
+            visitor_question: `Visitor question ${index + 2}`,
+            choice: {
+              value: `choice-${index + 2}`,
+              label: `Choice ${index + 2}`,
+              stance: `Stance ${index + 2}`,
+              evidence_prompt: `Evidence ${index + 2}`
+            },
+            perspectives: [{ companionId: "monet", text: `Perspective ${index + 2}` }],
+            evidence_fact_ids: [
+              "aic-16568:catalog-title",
+              "aic-16568:catalog-artist",
+              "aic-16568:forged-visible-fact",
+              "aic-111442:catalog-title"
+            ],
+            ignored_secret: "do-not-forward"
+          }))
+        ]
+      })
+    });
+    assert.equal(response.status, 200);
+    const context = JSON.parse(upstream.body.input[1].content.replace(/^Museum context JSON:\n/, ""));
+    assert.equal(context.artwork.id, "aic-16568");
+    assert.equal(context.station_id, "water-and-light:station-1");
+    assert.equal(context.scene.prompt, "Which exact relation in this work changes the claim carried from the prior station?");
+    assert.equal(context.station_history.length, 4);
+    assert.deepEqual(context.station_history.map((item) => item.station_id), Array(4).fill("water-and-light:station-1"));
+    assert.ok(context.station_history.every((item) => item.artwork_id === "aic-16568"));
+    assert.ok(context.station_history.every((item) => (
+      JSON.stringify(item.evidence_fact_ids) === JSON.stringify([
+        "aic-16568:catalog-title",
+        "aic-16568:catalog-artist"
+      ])
+    )));
+    assert.doesNotMatch(JSON.stringify(context), /ignored_secret|another scene|do-not-forward/);
+  }, {
+    env: { OPENAI_API_KEY: "test-key" },
+    fetchImpl: async (url, options) => {
+      upstream = { url, body: JSON.parse(options.body) };
+      return new Response(JSON.stringify({ output_text: "{}" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+  });
+});
 
 test("narration endpoint is bounded and reports an explicit no-key fallback", () => withServer(async (base) => {
   const missing = await fetch(`${base}/api/narration`, {
@@ -127,6 +310,7 @@ test("official narration endpoint returns generated speech without exposing cred
     assert.equal(status.narration, true);
     assert.equal(status.narration_provider, "openai");
     assert.equal(status.narration_model, "gpt-4o-mini-tts");
+    assert.equal(status.narration_fallback_provider, null);
 
     const response = await fetch(`${base}/api/narration`, {
       method: "POST",
@@ -145,6 +329,74 @@ test("official narration endpoint returns generated speech without exposing cred
     env: { OPENAI_API_KEY: "test-key" },
     fetchImpl: async (url, options) => {
       upstream = { url, headers: options.headers, body: JSON.parse(options.body) };
+      return new Response(Uint8Array.from([73, 68, 51]), {
+        status: 200,
+        headers: { "Content-Type": "audio/mpeg" }
+      });
+    }
+  });
+});
+
+test("a MiniMax credential enables narration only, not GPT or Realtime", () => {
+  let upstream;
+  return withServer(async (base) => {
+    const status = await (await fetch(`${base}/api/status`)).json();
+    assert.equal(status.configured, false);
+    assert.equal(status.openai, false);
+    assert.equal(status.dialogue, false);
+    assert.equal(status.realtime, false);
+    assert.equal(status.narration, true);
+    assert.equal(status.narration_provider, "minimax");
+    assert.equal(status.narration_model, "speech-2.8-turbo");
+    assert.equal(status.narration_fallback_provider, null);
+
+    const response = await fetch(`${base}/api/narration`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ speaker_id: "socrates", text: "What do you see before you name it?" })
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual([...new Uint8Array(await response.arrayBuffer())], [73, 68, 51]);
+    assert.equal(upstream.url, "https://api.minimax.io/v1/t2a_v2");
+    assert.equal(upstream.body.model, "speech-2.8-turbo");
+    assert.equal(upstream.body.voice_setting.voice_id, "English_Deep-VoicedGentleman");
+  }, {
+    env: { MINIMAX_API_KEY: "minimax-test-key" },
+    fetchImpl: async (url, options) => {
+      upstream = { url, headers: options.headers, body: JSON.parse(options.body) };
+      return new Response(JSON.stringify({
+        data: { audio: "494433", status: 2 },
+        base_resp: { status_code: 0, status_msg: "success" }
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+  });
+});
+
+test("MiniMax is preferred and falls back to official OpenAI TTS", () => {
+  const upstreamUrls = [];
+  return withServer(async (base) => {
+    const status = await (await fetch(`${base}/api/status`)).json();
+    assert.equal(status.configured, true);
+    assert.equal(status.model, "gpt-5.6");
+    assert.equal(status.narration_provider, "minimax");
+    assert.equal(status.narration_fallback_provider, "openai");
+
+    const response = await fetch(`${base}/api/narration`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ speaker_id: "frida", text: "Notice what the frame protects." })
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual([...new Uint8Array(await response.arrayBuffer())], [73, 68, 51]);
+    assert.deepEqual(upstreamUrls, [
+      "https://api.minimax.io/v1/t2a_v2",
+      "https://api.openai.com/v1/audio/speech"
+    ]);
+  }, {
+    env: { OPENAI_API_KEY: "openai-test-key", MINIMAX_API_KEY: "minimax-test-key" },
+    fetchImpl: async (url) => {
+      upstreamUrls.push(url);
+      if (url.includes("api.minimax.io")) return new Response("upstream unavailable", { status: 503 });
       return new Response(Uint8Array.from([73, 68, 51]), {
         status: 200,
         headers: { "Content-Type": "audio/mpeg" }
@@ -392,9 +644,18 @@ test("oversized JSON receives a bounded 413 response", () => withServer(async (b
   assert.deepEqual(await response.json(), { error: "body_too_large" });
 }));
 
-test("public model routes have a bounded per-client request budget", () => withServer(async (base) => {
+test("one complete three-artwork-per-scene journey fits inside bounded provider budgets", () => {
+  const requiredModelCost = 1 + (8 * 3 * 2) + 1 + 1;
+  const requiredNarrationLines = (8 * 3 * 4) + 8 + 4;
+  assert.ok(MODEL_REQUEST_BUDGET >= requiredModelCost);
+  assert.ok(NARRATION_REQUEST_BUDGET >= requiredNarrationLines);
+  assert.ok(MODEL_REQUEST_BUDGET < 100);
+  assert.ok(NARRATION_REQUEST_BUDGET < 200);
+});
+
+test("public model routes enforce the full-journey per-client request budget", () => withServer(async (base) => {
   let response;
-  for (let index = 0; index < 31; index += 1) {
+  for (let index = 0; index <= MODEL_REQUEST_BUDGET; index += 1) {
     response = await fetch(`${base}/api/lesson/plan`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

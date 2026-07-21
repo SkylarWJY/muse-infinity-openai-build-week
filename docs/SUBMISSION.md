@@ -21,15 +21,18 @@ interpretations, and enters the complete ordered exhibition: eight process world
 one separately gated answer world.
 
 GPT-5.6 returns a strict curation contract for the known eight-scene spine. It can write the
-guide's bounded prompt, choices, gesture and effect, but it cannot invent a scene, reorder
-the route or provide coordinates. Deterministic Three.js code loads the corresponding
-full-detail local world asset, moves the embodied guide to the evidence anchor, grounds the
-guide, learner and every selected companion against the scene collider, and releases each
-question only after distance and facing checks pass. The visitor can then select a bounded
-answer or write a short observation in their own words; both become grounded evidence without
-changing the canonical route.
+company's bounded prompts, choices, gestures and effects, but it cannot invent a scene, reorder
+the route or provide coordinates. Deterministic Three.js code loads the corresponding inherited
+full-detail world asset behind a 1672 x 941 readiness-transition poster. Atlas cross-world
+comparisons use the same transition, and the following canonical poster is prefetched once at
+low priority after the current image decodes. Each process world then
+requires the first three of its four artworks. Companion speaker order rotates by station; every
+selected actor has an independent director and staggered route to a separated, collider-grounded
+viewing position. A station opens only after the active speaker reaches and faces that artwork.
+The visitor can then select an evidence stance or write a short observation; completing all
+three stations unlocks one scene reflection without changing the canonical route.
 
-After all eight observations, Summoning exposes the complete evidence ledger. The selected
+After all eight scene reflections, Summoning exposes the complete evidence ledger. The selected
 company convenes at the Roundtable, where GPT-5.6 returns one perspective per selected
 companion plus a provisional title, synthesis, principle and visual prompt grounded in all
 eight scene IDs. The learner then chooses `perception`, `emotion` or `invention`. On the live
@@ -42,13 +45,16 @@ That final claim is deliberately bounded: GPT generates the personalized **conce
 Shimmering Spheres **geometry is a pre-generated spatial realization**. The session does not
 generate a new 3D world live, and there is no manual Van Gogh/Infinity ending chooser.
 
-The complete path also works without credentials. For judging, an official OpenAI Platform
-credential at `api.openai.com` activates GPT-5.6
-curation, provisional synthesis and decision-triggered transformation; missing, late or
-invalid output activates a visibly labeled, schema-validated curated contract. Runtime
-language and judgment use official GPT-5.6 only. Browser speech APIs provide voice I/O without
-adding a reasoning model. World Labs also offers an optional admin-gated auxiliary Forge for
-isolated spatial variations; Tripo is used only in the character-asset production workflow.
+The complete path also works without credentials. A credential at one of two exact disclosed
+origins activates GPT-5.6 curation, station dialogue, provisional synthesis and
+decision-triggered transformation: official OpenAI at `https://api.openai.com`, or the
+authorized OpenAI-compatible gateway at `https://api.baizhiyuan.cloud`. The gateway is
+reasoning-only; Realtime and OpenAI TTS are official-origin-only. Missing, late or invalid output
+activates a visibly labeled, schema-validated curated contract. Browser speech and MiniMax
+provide voice I/O/rendering without adding a reasoning model. World Labs also offers an optional
+admin-gated Forge for isolated spatial variations; Tripo was used offline for character and
+white-dove asset production. The Official Rules permit those authorized third-party services;
+every runtime language and judgment request remains GPT-5.6.
 
 ## Build Week development record
 
@@ -56,14 +62,16 @@ The core MUSE concept, nine prepared worlds, colliders, scene imagery, thumbnail
 historical-character GLBs and portraits are pre-Submission Period materials controlled by the
 entrant or lawfully sourced under the recorded terms. Submission Period development added the
 strict ten-beat/8+1 state machine,
-GPT-5.6 Structured Outputs and two-stage synthesis, all-selected-companion movement, grounded
-artwork correspondence, cinematic transitions, official OpenAI Realtime/TTS voice,
-deterministic procedural music and ambient life, responsive presentation and verification.
+GPT-5.6 Structured Outputs and two-stage synthesis, three-station process tours, independently
+directed selected-companion movement, grounded artwork correspondence, high-resolution
+readiness transitions, conditional OpenAI Realtime plus MiniMax/OpenAI narration, deterministic
+procedural music, generated white-dove ambient life, responsive presentation and verification.
 
 This record follows the [OpenAI Build Week Official Rules](https://openai.devpost.com/rules):
-authorized third-party SDKs, APIs and data remain subject to their terms; existing projects
-identify Submission Period work; demo music must be authorized; and the README identifies the
-Codex and GPT-5.6 contribution.
+under `Project Requirements > Third Party Integrations`, third-party SDKs, APIs and data are
+allowed when the entrant is authorized under their terms; existing projects identify Submission
+Period work; demo music must be authorized; and the README identifies the Codex and GPT-5.6
+contribution.
 
 Source-control evidence is recorded in commits `62a7f59`, `9ab9062`, `7602267` and `55fdeed`.
 The majority core-functionality Codex evidence session is
@@ -72,18 +80,22 @@ The majority core-functionality Codex evidence session is
 
 ## Technical implementation
 
-- A modular GPT-5.6 runtime with an official OpenAI judging configuration.
+- A modular GPT-5.6 runtime with exact allowlists for the official OpenAI origin and disclosed
+  authorized compatible gateway; the latter is reasoning-only.
 - A strict ten-beat state machine and independent 8+1 exhibition manifest.
 - An eight-stop GPT-5.6 Structured Output contract that cannot change scene order or
   coordinates, plus an honest no-key fallback with the same shape.
-- A free-form observation path, capped at 80 characters and held behind the same spatial
-  correspondence gate as bounded answers.
-- Official OpenAI Realtime/TTS synthetic narration and browser speech fallback;
-  recognized text reuses official GPT-5.6 dialogue or the labeled curated local fallback.
+- Three required artwork stations per process scene, each with three evidence-bearing stances
+  and a short free observation path behind the same spatial correspondence gate. One reflection
+  per scene enters the existing eight-scene digest.
+- Official-origin OpenAI Realtime for live conversation, MiniMax role-cast narration with
+  official-origin OpenAI TTS fallback, and browser speech fallback; recognized text reuses
+  GPT-5.6 dialogue or the labeled curated local fallback, while MiniMax performs no reasoning.
 - An optional two-credential, admin-gated World Labs Forge for isolated spatial variations,
   kept outside the canonical nine-world journey and all language reasoning.
-- Physical follow behavior for the complete selected company: one active guide plus up to two
-  collider-grounded companions, with an unduplicated Roundtable staging roster.
+- Independent station behavior for the complete selected company: rotating speaker order,
+  staggered departures and separated collider-grounded listening positions, with an
+  unduplicated Roundtable staging roster.
 - A provisional Roundtable schema followed by a separate decision-triggered GPT-5.6 strict
   transformed-concept request for `perception`, `emotion` or `invention`.
 - Official Spark quality RAD hierarchies built from the full 2.40M-4.32M source SPZs for
@@ -93,6 +105,11 @@ The majority core-functionality Codex evidence session is
   750K target, `NoToneMapping`, quality tiers and explicit world disposal.
 - A source-asset acceptance gate: procedural scenery cannot create process evidence, and a
   failed answer-world load preserves the manifesto for retry instead of committing entry.
+- A full-viewport transition veil using the inherited 1672 x 941 scene poster; it remains over
+  normal loading until the high-fidelity world and cast are ready, Atlas cross-world changes
+  reuse it, and the next poster is prefetched at low priority. A presentation-quality failure
+  retains the matching poster background, blocks evidence and exposes retry instead of flashing
+  the coarse canvas.
 - Bounded character/texture/GLB fallback loads plus tracked Spark initialization, pager-fetch,
   worker and terminal-disposal lifecycles.
 - Byte-range and immutable-cache serving for large local spatial assets.
@@ -101,16 +118,23 @@ The majority core-functionality Codex evidence session is
 - Shader-driven historical-character limb deformation, root movement and guide-state
   integration behind the same interface as the procedural fallback.
 - Speed-coupled historical-character gait plus a visible listening-to-reflection transition.
-- Real-frame follower verification covers both root travel and changing shader-limb phases.
-- Deterministic, theme-specific ambient life in all nine worlds using code-native articulated
-  geometry and bounded point fields, with no added third-party model or dependency.
+- Real-frame companion verification covers root travel, staggered station launches and changing
+  shader-limb phases.
+- Deterministic, theme-specific ambient life in all nine worlds, including a locally deployed
+  high-detail white-dove PBR GLB sourced through Tripo-hosted GPT Image 2 and Tripo v3.1. The
+  unskinned, clipless dove visibly flaps through dedicated PBR vertex-shader wing deformation
+  while authored paths provide its flight; a concrete procedural fallback is failure-only.
 - A regenerated GPT Image 2-designed learner reconstructed with Tripo v3.1 and shipped with a
   semantic 41-joint biped skin plus baked wait/walk clips; dense offline QA keeps runtime skin
   weights immutable.
 - Deterministic scene correspondence gates for distance and evidence-facing direction.
-- Summoning over eight observations and a final-concept schema requiring all eight scene IDs
+- Summoning over eight scene reflections and a final-concept schema requiring all eight scene IDs
   plus exactly the selected companion perspectives.
 - Desktop/mobile canvas, asset, state-flow, Range-serving and provider-boundary verification.
+
+World Labs Marble Record exports MP4 capture, not an animated GLB. The submission therefore
+uses the inherited poster-to-live-world transition and does not claim a Marble-generated
+transition GLB.
 
 ## Under-three-minute demo script
 
@@ -133,20 +157,21 @@ State that GPT writes bounded inquiry content but cannot reorder or skip these w
 
 ### 0:38-1:35: Eight real worlds, one embodied method
 
-Show one full correspondence cycle in the Water and Light scene: the guide walks, collider
-grounding follows the surface, all three selected companions remain physically present, the
-guide faces the evidence, and responses unlock only when distance/facing synchronize. Record
-one visitor-written observation instead of a preset answer. Then use short cuts from the same
-normal-path recording to show the other seven initialized worlds and one answer in each.
-Keep the route counter visible so the video demonstrates `1/8` through `8/8`; cuts remove wait
-time, not states.
+Open with the high-resolution Water and Light transition poster and show it crossfade only after
+the live RAD world is ready. Show one complete three-artwork cycle: the speaking companion
+rotates, departs first, and the other two independently take separated listening positions;
+collider grounding follows each actor; responses unlock only when the active speaker reaches and
+faces the work. Record one visitor-written station observation, complete all three stations, then
+show the world reflection. Use short cuts from the same normal-path recording for the other seven
+initialized worlds. Keep the route counter visible so the video demonstrates `1/8` through
+`8/8`; cuts remove repeated walking/loading time, not required states.
 
 Call out the source-detail formats during the montage: paged quality RAD hierarchies derived
 from 2.40M-4.32M SPZs, then the 8K Yellow Infinity texture mesh.
 
 ### 1:35-2:05: Evidence becomes a Roundtable
 
-Open Summoning and show all eight observations. Convene the selected company. Show the
+Open Summoning and show all eight scene reflections. Convene the selected company. Show the
 result label (`GPT-5.6 LIVE` or `CURATED DEMO`), the selected companion perspectives and the
 ordered eight-scene evidence list behind the provisional world title and synthesis.
 
@@ -160,7 +185,7 @@ ninth world remains locked until these steps complete; it does not appear in Atl
 ### 2:30-2:47: Enter the answer
 
 Enter Fantasy Realm of Shimmering Spheres and move inside it. Say: "GPT personalized this
-concept from the eight observations. The prepared 8K spatial form is not geometry generated
+concept from the eight reflections. The prepared 8K spatial form is not geometry generated
 during the live session."
 
 ### 2:47-2:58: Technical close
@@ -172,8 +197,7 @@ synthesizes attention; deterministic space proves where the learner and guide ac
 
 - `window.__MUSE_METRICS__.archivedWorld` reports each initialized canonical world ID.
 - `window.__MUSE_METRICS__.archivedCompanion` reports the active guide asset.
-- `window.__MUSE_METRICS__.archivedCompanions` reports every live member of the
-  selected company, including the two follow actors when three are selected.
+- `window.__MUSE_METRICS__.archivedCompanions` reports every live member of the selected company.
 - `window.__MUSE_METRICS__.ambient` reports the active scene, thematic kinds, instance count
   and whether its deterministic motion has advanced.
 - Scene sync exposes guide distance and facing correspondence.
@@ -185,24 +209,29 @@ synthesizes attention; deterministic space proves where the learner and guide ac
 - Server tests prove byte-range responses for large world assets.
 - The learner tests prove a real 41-joint skin, valid regional weights, named wait/walk
   animations and zero hard edge explosions across dense animation sampling.
-- The provider audit verifies the official OpenAI origin and the checked-in GPT model allowlist.
-- Contract tests prove free observations enter the digest and the chosen contradiction locks
-  the second strict transformation result.
-- The no-key E2E path traverses all eight scenes with the selected company before the gated
-  answer world, and injects failed process/final world loads to prove both retry gates.
+- The provider audit verifies both exact allowed origins, GPT-5.6 model allowlists and the
+  reasoning-only gateway boundary for Realtime/OpenAI TTS.
+- Contract tests prove three required station records precede each scene reflection, free
+  observations enter the digest and the chosen contradiction locks the second strict
+  transformation result.
+- The required no-key E2E run must traverse all eight scenes with the selected company before
+  the gated answer world and inject failed process/final world loads to exercise both retry
+  gates.
 
 ## Devpost checklist
 
 - [x] Public repository: <https://github.com/baizhiyuan/muse>
 - [ ] Working deployment URL added.
 - [ ] Education category selected.
-- [ ] Public demo video is under three minutes and retains evidence from all eight worlds.
+- [ ] Public demo video is under three minutes and retains three-station evidence plus the
+  reflection from all eight process worlds.
 - [ ] Video labels live GPT-5.6 and curated fallback accurately.
 - [ ] Video distinguishes GPT concept generation from the prepared final geometry.
 - [ ] README setup tested from a clean install.
 - [x] `/feedback` session ID included: `019f7e53-4039-7cc1-9162-01906bec47b7`.
 - [x] Canonical bundled assets have byte counts and SHA-256 hashes.
-- [ ] Official `api.openai.com` Platform key is configured for the judging deployment.
+- [ ] An untracked credential and one exact allowed GPT-5.6 origin are configured for judging;
+  use official `api.openai.com` if Realtime/OpenAI TTS will be demonstrated.
 - [ ] Third-party notices and asset manifest are included with the submission.
 - [ ] Confirm no secrets are committed.
 
@@ -210,10 +239,10 @@ synthesizes attention; deterministic space proves where the learner and guide ac
 
 - Grand Conservatory threshold and complete eight-scene route rail.
 - Selection surface with all eight companion identities.
-- At least one uncut all-selected-companion walking/facing/gesture/answer correspondence
-  cycle, including one visitor-written observation.
+- At least one complete three-artwork cycle with rotating independent companion movement,
+  including one visitor-written observation and the scene reflection.
 - Initialized world status from each of the eight process worlds.
-- Summoning ledger containing eight ordered observations.
+- Summoning ledger containing eight ordered scene reflections.
 - Roundtable containing exactly the selected company and provisional grounded synthesis.
 - Decision, second GPT-5.6 transformation provenance, materially revised concept and
   Manifesto gates.

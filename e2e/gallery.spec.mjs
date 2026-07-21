@@ -28,6 +28,8 @@ test("all nine deterministic layouts place four readable artworks on inherited c
   await page.evaluate(() => {
     const { engine } = window.__MUSE_APP__;
     engine.ready = false;
+    engine.worldLayer.loadArchive = async () => false;
+    document.querySelector("#app").removeAttribute("data-world-presentation");
     document.querySelector("#entry-panel").hidden = true;
     document.querySelector("#dialogue").hidden = true;
     document.querySelector(".mission-rail").hidden = true;

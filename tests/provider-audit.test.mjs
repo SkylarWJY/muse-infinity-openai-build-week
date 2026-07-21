@@ -17,17 +17,14 @@ const AUDIT_SURFACES = [
   "docs"
 ];
 
-test("core GPT runtime is fixed to the official OpenAI Platform", () => {
+test("core GPT runtime is restricted to allowlisted GPT-5.6 provider paths", () => {
   const files = collect(AUDIT_SURFACES.map((entry) => path.join(ROOT, entry)));
   const source = files.map((file) => fs.readFileSync(file, "utf8")).join("\n");
   for (const forbidden of [
     "Anthropic",
     "Gemini",
-    "MiniMax",
-    "speech-2\\.8",
     "LLM_BASE_URL",
     "LLM_API_KEY",
-    "api\\.baizhiyuan\\.cloud",
     "MUSE_GPT_GATEWAY_API_KEY",
     "inherited-gpt",
     "request-configured",
@@ -35,6 +32,8 @@ test("core GPT runtime is fixed to the official OpenAI Platform", () => {
   ]) assert.doesNotMatch(source, new RegExp(forbidden, "i"));
   assert.match(source, /gpt-5\.6/);
   assert.match(source, /api\.openai\.com/);
+  assert.match(source, /ALLOWED_OPENAI_BASE_URLS/);
+  assert.match(source, /ALLOWED_REASONING_MODELS/);
   assert.match(source, /OPENAI_API_KEY/);
   assert.match(source, /\/v1\/responses/);
   assert.match(source, /\/v1\/realtime\/calls/);
@@ -42,6 +41,21 @@ test("core GPT runtime is fixed to the official OpenAI Platform", () => {
   assert.match(source, /realtimeConfigured/);
   assert.match(source, /WorldLabsService/);
   assert.match(source, /world_forge/);
+});
+
+test("MiniMax is isolated to speech rendering and cannot provide language reasoning", () => {
+  const source = fs.readFileSync(path.join(ROOT, "services/minimax.js"), "utf8");
+  assert.match(source, /\/v1\/t2a_v2/);
+  assert.match(source, /speech-2\.8-turbo/);
+  assert.match(source, /createNarration/);
+  for (const forbidden of [
+    "createLesson",
+    "createDialogue",
+    "createSalon",
+    "createTransformation",
+    "/v1/responses",
+    "OPENAI_MODEL"
+  ]) assert.doesNotMatch(source, new RegExp(forbidden, "i"));
 });
 
 function collect(entries) {

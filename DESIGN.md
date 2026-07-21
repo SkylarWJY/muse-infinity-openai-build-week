@@ -7,10 +7,11 @@ spatial environment is the primary surface. Interface, GPT output and character 
 exist to direct attention inside a sequence of worlds.
 
 One life question moves through ten narrative beats, eight process worlds and one gated answer
-world. The learner and guide move through each high-fidelity space;
+world. The learner and independently directed selected companions move through each
+high-fidelity space;
 dialogue waits for physical arrival and facing; colliders keep bodies on the visible ground;
-the other selected companions physically follow the learner/guide formation; and the
-Roundtable is grounded in the observations made across the whole walk.
+the station speaker rotates while the other actors take separated listening positions; and the
+Roundtable is grounded in three artwork stations plus one reflection from every process world.
 
 ## Product invariants
 
@@ -18,19 +19,23 @@ Roundtable is grounded in the observations made across the whole walk.
   gated answer scene. Bright Gallery is not part of this structure.
 - The first eight scene IDs and their order are deterministic and cannot be changed by model
   output, Atlas navigation or an observation choice.
-- The answer world is excluded from Atlas and cannot load before all eight observations,
+- The answer world is excluded from Atlas and cannot load before all eight scene reflections,
   Summoning, Roundtable, Decision, Transformation and Manifesto are complete.
 - At least one and no more than three of the eight historical companions are chosen
   before curation.
-- Every selected companion remains embodied during world exploration: the first selected
-  companion is the active guide and up to two others follow in formation. The same selected
-  roster appears at the Roundtable without duplicate persistent/staged actors.
-- Observation precedes interpretation. Dialogue cannot claim spatial correspondence until
-  the guide reaches and faces the declared evidence point. A visitor may then choose a
-  bounded response or record their own short observation.
-- GPT-5.6 is the only language/reasoning model, and those requests use the official OpenAI
-  API. Browser speech services provide voice I/O only. Optional World Labs Forge generates
-  isolated spatial variations outside the canonical journey and performs no language reasoning.
+- Every process scene contains three required artwork stations. Only after all three station
+  evidence records exist does one scene reflection enter the eight-scene digest.
+- Every selected companion remains embodied during world exploration. Speaker order rotates
+  by station; each actor owns an independent director, staggered departure and grounded stage
+  position. The same roster appears at the Roundtable without duplicate persistent/staged actors.
+- Observation precedes interpretation. Dialogue cannot claim spatial correspondence until the
+  active speaker reaches and faces the declared artwork. A visitor may then choose a bounded
+  evidence stance or record a short observation.
+- GPT-5.6 is the only language/reasoning model. Those requests use either the exact official
+  OpenAI origin or the exact disclosed authorized compatible gateway; the latter is
+  reasoning-only. Browser speech services and MiniMax provide voice rendering only. Optional
+  World Labs Forge generates isolated spatial variations outside the canonical journey and
+  performs no language reasoning.
 - GPT personalizes the final concept. The final geometry is a prepared, pre-generated
   Shimmering Spheres world and must never be labeled live-generated geometry.
 - No-key mode completes the same gates and scene order with explicit curated provenance.
@@ -46,8 +51,8 @@ into generic `walk`, `salon` or `rewrite` stages.
 | 2 | `life_question` | Capture a non-empty question before company can be selected. |
 | 3 | `companion_selection` | Select one to three known companion IDs; begin curation explicitly. |
 | 4 | `ai_curation` | Validate a strict eight-stop GPT/fallback contract; accept it before walking. |
-| 5 | `world_exploration` | Visit and answer all eight process scenes in canonical order. |
-| 6 | `summoning` | Surface the complete eight-observation ledger and selected company. |
+| 5 | `world_exploration` | Complete three artwork stations and one reflection in each of eight process scenes, in canonical order. |
+| 6 | `summoning` | Surface the complete eight-reflection ledger and selected company. |
 | 7 | `roundtable` | Produce one perspective per selected companion and a provisional grounded concept. |
 | 8 | `decision` | Choose the unresolved axis: `perception`, `emotion` or `invention`. |
 | 9 | `world_transformation` | Send the provisional concept and chosen axis through a second strict GPT/fallback transformation; accept the validated replacement. |
@@ -105,6 +110,25 @@ All tiers retain adaptive quality LOD. The desktop high target restores the expe
 detail budget instead of imposing a 130K hard cap. Splats and unlit mesh
 materials use `NoToneMapping`; 8K mesh textures use available anisotropic filtering.
 
+### Readiness transition
+
+The live canvas is not used as a loading indicator. At boot, every canonical world change and
+every Atlas cross-world comparison, a fixed readiness veil covers the canvas and presents the
+matching inherited 1672 x 941 scene PNG. The image is decoded with a bounded fallback, uses a
+slow scale-down and 760 ms opacity crossfade, and makes the rest of the application inert while
+the requested world initializes. Once the current poster decodes, the next canonical poster is
+requested once at low priority. The veil begins leaving only after the real RAD/GLB is
+presentation-ready and companion setup has settled. This prevents coarse procedural world and
+character placeholders from flashing during the successful preload path. If the world misses
+the quality gate, the same poster becomes the world background, the canvas remains hidden and
+the current process or manifesto is retained for retry. Reduced-motion mode retains the
+readiness gate but removes the decorative movement and long fade.
+
+The current design intentionally favors this inherited MUSE transition language over new
+generated media. World Labs Marble **Record** exports MP4 capture, not an animated GLB, so no
+loopable transition GLB is attributed to Marble. A future MP4 transition would need separate
+composition, performance and rights validation before replacing the poster veil.
+
 ### Delivery and grounding
 
 The static server advertises `Accept-Ranges: bytes`, returns valid `206` / `Content-Range`
@@ -123,7 +147,9 @@ surface classification or general physics.
 ### Artwork correspondence
 
 Each of the nine scenes owns four deterministic Art Institute of Chicago works and four
-authored placements in `src/config/artworkPlacements.js`. Placement QA loads each real JPEG
+authored placements in `src/config/artworkPlacements.js`. The first three artworks in each
+process scene are required stations; the fourth remains present without blocking completion.
+Placement QA loads each real JPEG
 dimension and scene collider, checks the full frame sightline, bounds, separation,
 grounded guide anchor and first-guide route, and requires any hidden supports to have a real
 near-vertical backing wall behind the frame center and all four corners within 0.10 m. The
@@ -146,8 +172,9 @@ Open gardens and the two answer-scale spaces retain honest freestanding displays
 collider contains no reachable wall. Increasing the wall tolerance to make those frames look
 mounted is prohibited because it would hide supports while leaving a visible 0.3-0.48 m gap.
 
-Procedural architecture and an articulated fallback avatar appear during loading or failure.
-They are hidden only after the requested world asset reports successful initialization.
+Procedural architecture and articulated fallback avatars exist for bounded load failure, but
+the readiness veil prevents them from flashing during a successful normal preload. They are
+retired only after the requested world asset reports successful initialization.
 For process worlds, that initialization is an evidence gate: procedural scenery may preserve
 orientation, but it cannot unlock a question or create a visit. The retry surface retains the
 current walking stop. For world 9, the manifesto is preserved and `finalWorldEntered` remains
@@ -172,12 +199,13 @@ Qi Baishi and Yayoi Kusama. Their browser GLBs are optimized static Tripo meshes
 no skeleton or animation clips. The runtime
 therefore uses bounded shader-region deformation plus spatial root motion.
 
-Selection is also a spatial commitment. With one to three selected companions, the first is
-the correspondence guide and the remaining one or two occupy left/right follow slots behind
-the learner. Each follower updates its root position, heading, walk/idle deformation and
-locally continuous collider-derived ground height as the learner moves. Formation candidates
-require paired foot support and a continuous path from the actor's current terrain layer. At
-the Roundtable the persistent party
+Selection is also a spatial commitment. While the visitor freely walks, selected companions
+may occupy collider-grounded formation slots. During a station tour, however, they stop being
+followers: the station index rotates the lead speaker, each selected actor owns a separate
+`GuideDirector`, and departures are staggered so the speaker arrives first. Collider-validated
+party staging places the lead at the evidence center and listeners in separated side/retreat
+positions. Each actor updates its own root position, heading, walk/idle deformation and locally
+continuous ground height. At the Roundtable the persistent party
 is temporarily hidden while the same roster is staged, so selection does not create visible
 duplicates.
 
@@ -197,11 +225,15 @@ this improves readable timing without changing the asset capability claim.
 
 ### Ambient life
 
-`src/config/ambientLife.js` owns deterministic, authored
-activity volumes for all nine scenes. `AmbientLife` uses low-poly articulated wings/tails for
-distant birds, butterflies, dragonflies and koi, plus efficient point fields for the abstract
-scene-8 dots and final fireflies. It contains no downloaded creature model, runtime generation,
-external loader or random path source.
+`src/config/ambientLife.js` owns deterministic, authored activity volumes for all nine scenes.
+Threshold, Sunset and Petal load the checked-in high-detail white rock-dove PBR GLB generated
+through Tripo's hosted GPT Image 2 source-image task and Tripo v3.1 reconstruction. The selected
+asset has no skin or baked clip (`skins: 0`, `animations: 0`), but a dedicated PBR vertex-shader
+deformation visibly bends its two wing regions on every flight cycle. Deterministic root paths,
+yaw, pitch and bank provide the larger flight path without a false skeletal-animation claim. A
+concrete procedural white-dove fallback is used only on detailed-asset load failure. Other
+distant birds, butterflies, dragonflies and koi use code-native articulated geometry; scene-8
+dots and final fireflies use efficient point fields.
 
 Counts stay between two and four physical creatures per world; the two point-only worlds use
 24 motifs in one field. Every switch clears the previous world's geometry and material
@@ -216,15 +248,18 @@ from the active world manifest, moves to the anchor and turns toward the evidenc
 The prompt opens only after correspondence reports distance <= 0.6 m and facing error <= 20
 degrees. Model output never supplies arbitrary world coordinates.
 
-After that gate, the visitor may select a bounded observation or write up to 80 characters in
-their own words. Both paths create one grounded visit record and continue to the same
-canonical next world; a free observation cannot bypass correspondence or rewrite route order.
+After that gate, the visitor may select one of three evidence-bearing stances or write a short
+observation in their own words. The scene tour records the focused artwork, rotating speaker
+order and companion perspectives. After three required station records, one bounded scene
+reflection continues to the same canonical next world. Neither a free observation nor a station
+choice can bypass correspondence, skip the other required artworks or rewrite route order.
 Atlas is inspect-only and never writes a visit record.
 
 ## Final concept semantics
 
 The Roundtable input is a capped digest containing the selected companion IDs and exactly
-eight ordered visit records. Its GPT-5.6 strict result is provisional and contains:
+eight ordered scene-reflection visit records. Its GPT-5.6 strict result is provisional and
+contains:
 
 ```text
 world_title
@@ -254,20 +289,31 @@ world was generated live".
 ## Model and provider boundaries
 
 - GPT-5.6 Responses API: strict lesson, provisional-concept and transformed-concept Structured
-  Outputs. The decision transformation is a second concept request, not a client-side label
-  change.
-- OpenAI Realtime: official voice transport and spoken-response model for the microphone
-  experience; text interaction remains available when Realtime is not configured.
-- OpenAI `gpt-4o-mini-tts`: official synthetic narration for visible guide and companion text.
+  Outputs plus artwork dialogue. The decision transformation is a second concept request, not
+  a client-side label change. The only accepted origins are `https://api.openai.com` and the
+  disclosed authorized compatible gateway `https://api.baizhiyuan.cloud`; the only accepted
+  reasoning models are `gpt-5.6` and `gpt-5.6-sol`.
+- OpenAI Realtime: official-origin-only voice transport and spoken-response model for the
+  microphone experience; it is disabled for the reasoning-only compatible gateway. Text
+  interaction remains available when Realtime is not configured.
+- MiniMax `speech-2.8-turbo`: primary role-cast narration for visible guide and companion text;
+  it receives no questions, evidence, prompts or reasoning tasks.
+- OpenAI `gpt-4o-mini-tts`: official-origin-only server-side narration fallback when MiniMax is
+  unavailable.
 - Browser `SpeechRecognition` and `SpeechSynthesis`: speech-only fallbacks. Recognized text
   reuses the GPT-5.6 dialogue path or its labeled curated local fallback.
-- GPT Image 2: source-image generation for the learner asset pipeline.
+- GPT Image 2: source-image generation for the learner and white-dove asset pipelines; the dove
+  used Tripo's hosted `gpt_image_2` task after the configured compatible image gateway returned
+  no output.
 - World Labs: source of prepared spatial assets plus an optional two-credential, admin-gated
   Forge endpoint for isolated spatial variations. Forge is outside the canonical journey and
   receives no visitor question, evidence or conversation data.
-- Tripo: character-asset production only; there is no Tripo runtime API.
-- All runtime language and judgment requests use GPT-5.6 at the official OpenAI origin. No
-  alternate reasoning-model family is supported.
+- Tripo: offline character and white-dove asset production only; there is no Tripo runtime API.
+- All runtime language and judgment requests use GPT-5.6 through one of the two exact
+  allowlisted origins. No alternate reasoning-model family is supported. The competition
+  [Project Requirements](https://openai.devpost.com/rules) permit third-party SDKs, APIs and
+  data when the entrant is authorized under their terms; provider roles remain disclosed and
+  separated.
 
 All Responses API calls use `store: false`, a hashed `safety_identifier`, a strict schema,
 bounded timeout and a single billable POST attempt. Deterministic code owns scene order,
@@ -284,6 +330,9 @@ coordinates, movement, rendering, validation and fallback labels.
 - Companion portraits are identity controls, not decorative stock imagery.
 - The desktop mission rail displays all eight process chapters in a stable scroll region.
 - The final answer is shown only in the gated Manifesto/entry surface, never as an Atlas card.
+- A full-viewport 1672 x 941 scene poster and readiness veil cover successful world preloads
+  and Atlas cross-world changes; coarse fallbacks must not flash before the high-fidelity scene
+  is ready, and quality-gate failure retains the poster rather than revealing them.
 - On mobile, route and dialogue become bounded sheets above the joystick/follow control zone;
   there is no horizontal document overflow at 390 x 844.
 
@@ -297,8 +346,9 @@ viewport-width font scaling.
   chosen-axis transformation and final gate with the same validated contracts.
 - Realtime unavailable: use browser speech I/O when supported; recognized text still uses the
   GPT-5.6 dialogue path or curated local fallback, and visible text remains available.
-- Process RAD/SPZ/GLB decode or WebGL failure: retain procedural spatial fallback for
-  orientation, block evidence, and expose a world retry without advancing the stop.
+- Process RAD/SPZ/GLB decode, quality-gate or WebGL failure: keep the matching high-resolution
+  poster as the world background, hide the coarse canvas, block evidence, and expose a world
+  retry without advancing the stop.
 - Final GLB failure: preserve the published manifesto and keep final-world entry uncommitted
   until the prepared 8K realization loads successfully.
 - Retired Spark worlds: stop pager driving, track initialization/fetch/worker work through one
@@ -317,3 +367,4 @@ viewport-width font scaling.
 - Production multiplayer persistence.
 - Claiming that the prepared worlds or character GLBs are generated during a live visitor
   session.
+- Claiming Marble Record produces an animated GLB; its recorded export is MP4 media.

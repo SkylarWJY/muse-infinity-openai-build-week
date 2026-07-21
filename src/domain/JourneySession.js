@@ -25,6 +25,7 @@ export const DEFAULT_COMPANIONS = DEFAULT_COMPANION_IDS;
 
 const COMPANION_IDS = new Set(HISTORICAL_COMPANIONS.map((item) => item.id));
 const AXES = new Set(PHILOSOPHY_AXES);
+const PROCESS_SCENE_ID_SET = new Set(PROCESS_SCENE_IDS);
 
 export class JourneySession {
   constructor() {
@@ -83,16 +84,16 @@ export class JourneySession {
 
   recordSceneVisit(sceneId) {
     this.#requireStage("world_exploration", "scene_visit_requires_world_exploration");
-    const expected = PROCESS_SCENE_IDS[this.visitedSceneIds.length];
-    if (!expected) throw new Error("all_process_scenes_already_recorded");
-    if (sceneId !== expected) throw new Error(`scene_out_of_order:${expected}`);
+    if (!PROCESS_SCENE_ID_SET.has(sceneId)) throw new Error(`unknown_process_scene:${sceneId}`);
+    if (this.visitedSceneIds.includes(sceneId)) throw new Error(`scene_already_recorded:${sceneId}`);
     this.visitedSceneIds.push(sceneId);
+    this.visitedSceneIds.sort((left, right) => PROCESS_SCENE_IDS.indexOf(left) - PROCESS_SCENE_IDS.indexOf(right));
     return this.visitedSceneIds.length;
   }
 
   beginSummoning() {
     this.#requireStage("world_exploration", "summoning_requires_world_exploration");
-    if (!sameOrder(this.visitedSceneIds, PROCESS_SCENE_IDS)) throw new Error("complete_eight_scenes_before_summoning");
+    if (!hasAllProcessScenes(this.visitedSceneIds)) throw new Error("complete_eight_scenes_before_summoning");
     this.stage = "summoning";
     return this.stage;
   }
@@ -172,6 +173,7 @@ function clean(value, maxLength) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
-function sameOrder(left, right) {
-  return left.length === right.length && right.every((id, index) => left[index] === id);
+function hasAllProcessScenes(sceneIds) {
+  const completed = new Set(sceneIds);
+  return completed.size === PROCESS_SCENE_IDS.length && PROCESS_SCENE_IDS.every((id) => completed.has(id));
 }

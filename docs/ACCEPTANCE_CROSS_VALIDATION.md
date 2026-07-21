@@ -22,7 +22,7 @@ observation from a verified implementation cause. It covers:
 | Scene 8 was a flat image | Refuted by the deployed asset: it is a 598,495-triangle GLB with an 8192 x 8192 texture. | Kept the full mesh and increased camera distance; no false realtime-reflection claim is made. |
 | Scene 6 looked soft | Visually credible, but not caused by selecting the old 500K derivative. The runtime already uses a quality RAD derived from the 4.32M source. | Desktop high now targets 4.32M splats. The inherited reconstruction remains the limiting source. |
 | Footer chapter and final dialogue labels stayed stale | Some DOM state was stale even when hidden; the reported visible failure was not consistently reproduced. | Stage labels and final dialogue state are explicitly reset and covered at desktop, mobile and 1280 x 600. |
-| Suggested-answer click should call Ask | Interaction mismatch rather than a failed model request: answers record evidence; Ask is a separate free inquiry. | Copy and E2E assertions distinguish evidence recording from free GPT inquiry. |
+| Suggested-answer click should call Ask | Interaction mismatch rather than a failed model request: station choices record evidence; Ask is a separate free GPT inquiry. | Every process world now requires three artwork stations. Each station keeps a distinct Ask form, three detailed evidence stances and a written-observation path before the scene reflection. |
 
 ## Artwork-wall report
 
@@ -87,9 +87,10 @@ an asset problem was too broad:
 - The learner telemetry label now distinguishes its v3.1 mesh from the accepted v1 rig. The
   report's `biped-v2` description contradicted the canonical generation manifest.
 
-The journey E2E holds the real movement key and waits on `requestAnimationFrame`; it requires
-both selected followers to change world position, enter walking state and change limb phase.
-It no longer advances player or party internals from test code.
+The station-tour contract no longer treats two companions as permanent followers. Each selected
+actor has an independent director; speaker order rotates with the artwork index, launches are
+staggered and listener targets are spatially separated. The movement tests exercise speaker
+rotation, target separation and launch delay without advancing actor internals from test code.
 
 These changes improve correspondence without changing the provenance claim. Historical
 figures remain bounded shader-deformed static meshes, not newly rigged characters, IK, mocap
@@ -104,27 +105,34 @@ GLB loader was not accepted because it would call the loader for particle-only e
 an invalid `THREE.SkeletonUtils` access, omitted stale/late disposal, required CSP/server
 changes and relied on unverified external asset licences.
 
-The bounded implementation uses deterministic code-native geometry instead: articulated
-wings or tails for small distant life and a single efficient particle field for abstract dots
-or fireflies. It adds no dependency, generated model or third-party asset. Themes remain
-scene-specific and restrained:
+The report correctly asked for concrete, theme-specific animals rather than generic primitives.
+The bounded implementation now combines deterministic code-native life with one locally shipped,
+high-detail white rock-dove PBR GLB. Tripo's hosted GPT Image 2 task produced the source image;
+Tripo v3.1 produced the 12,098-vertex, 19,598-triangle mesh. The pre-rig check returned
+`rig_type: others`, so an incompatible biped/avian animation was not fabricated. The selected
+GLB has no skin or baked animation clip, but its deployed PBR materials receive an independent
+vertex-shader deformation that visibly flaps the detailed mesh's wing regions. Deterministic
+root paths, heading, pitch and bank provide the larger flight path without a false skeletal-rig
+claim. A species-specific articulated white-dove fallback appears only on detailed-asset load
+failure. Themes remain scene-specific and restrained:
 
 | Scene | Ambient cast |
 | --- | --- |
-| Threshold Conservatory | 2 butterflies, 1 distant garden bird |
+| Threshold Conservatory | 2 butterflies, 1 high-detail white dove |
 | Court of Light | 2 butterflies |
 | Garden of Water and Light | 3 koi, 1 dragonfly in an authored water-garden volume |
-| Sunset Frame Gallery | 2 distant gulls |
+| Sunset Frame Gallery | 2 high-detail white doves |
 | Studio of the Burning Sky | 3 crow silhouettes in a bounded distant flyby |
-| Petal Transition Hall | 2 dragonflies, 1 distant bird |
+| Petal Transition Hall | 2 dragonflies, 1 high-detail white dove |
 | Courtyard of Living Memory | 1 tropical bird, 2 butterflies |
 | Infinite Repetition Chamber | 24 abstract moving dots, no realistic animal |
 | Your Dream World | 24 low-intensity fireflies, no extra bird |
 
 Point fields carry one conservative authored bounding sphere for their complete activity
 volume, so moving dots and fireflies cannot disappear from stale first-frame frustum bounds.
-Resource keys remain unique even for repeated specs, and world-switch tests require every
-geometry and material to dispose exactly once.
+Resource keys remain unique even for repeated specs. The dove loader deep-clones disposable
+mesh/material/texture resources per instance, rejects stale scene tokens and disposes late
+timeout resolutions; the procedural fallback remains visible if the asset does not settle.
 
 The water-garden invariant applies to complete rendered geometry, not only path roots. A
 0-120 second Box3 sweep now verifies all three koi bodies and tails remain below the measured
@@ -135,30 +143,42 @@ The labels describe an atmosphere, not the authorship of all four works in a sce
 particular, the Van Gogh environment is an interior gallery and does not contain *Wheatfield
 with Crows*, so its silhouettes remain a distant motif rather than a literal outdoor flock.
 
-## Final verification evidence
+## Preload-presentation follow-up
 
-- `npm test`: 167/167 tests pass, including real-collider artwork, navigation, animation,
-  ambient-life lifecycle, official provider, audio ordering and late-load disposal suites.
-- `npm run audit:providers`: 1/1 passes. Runtime, environment template and public documentation
-  reject alternate model providers and legacy gateways; language, Realtime and narration use
-  only fixed official OpenAI endpoints and model constants.
-- `npm run check` and `git diff --check`: pass.
-- `npm run test:e2e`: 3/3 Chromium journeys pass on port 4175. The suite covers audio, all 36
-  artworks across nine inherited worlds and the complete ten-stage 8+1 route. A second
-  cross-window run also passed 3/3 after the same interaction changes.
-- `npm audit --audit-level=high`: zero vulnerabilities.
-- The latest structured visual verdict is 94/100, `pass`, with desktop/mobile canvas variance,
-  layout and final-camera composition checked against real captures.
-- After the final PM2 restart, only `127.0.0.1:4175` listens. `/api/status` reports the fixed
-  official OpenAI boundary and an honest no-key fallback; port 4176 has no listener and the
-  `muse` error log is empty.
+The reported rough world/character silhouettes are valid fallback geometry, but they should not
+be the normal first impression. Boot and every world activation now place an inert full-viewport
+veil over the canvas, decode the matching inherited 1672 x 941 scene poster, and hold it while
+the real RAD/GLB world and selected cast initialize. A slow image push and 760 ms crossfade reveal
+the high-fidelity live world only after readiness. Reduced-motion users retain the readiness gate
+without the decorative motion. Atlas cross-world comparisons reuse that veil. After the current
+poster decodes, the next canonical poster is requested once at low priority rather than competing
+with the active world load. If a scene misses its presentation-quality gate, the matching poster
+remains as the world background, the coarse canvas stays hidden, evidence remains blocked and the
+retry or preserved-manifesto workflow remains available.
 
-No billable OpenAI request was made during automated verification. The local environment does
-not currently contain a valid official `OPENAI_API_KEY`, so the judging machine must configure
-one to demonstrate live GPT-5.6, Realtime and `gpt-4o-mini-tts`; without it, the complete local
-8+1 experience remains available and is explicitly labeled as curated fallback.
+World Labs Marble **Record** exports MP4 capture rather than animated GLB. The current fix
+therefore reuses the inherited MUSE poster transition instead of claiming a Marble-generated
+loopable GLB. Any future MP4 use remains a separate visual/performance/rights evaluation.
 
-## Verification boundary
+This provider boundary is also consistent with the [OpenAI Build Week Official
+Rules](https://openai.devpost.com/rules): `Project Requirements > Third Party Integrations`
+allows third-party SDKs, APIs and data when the entrant is authorized under their applicable
+terms. MUSE keeps those roles disclosed while GPT-5.6 owns runtime language and judgment.
+
+## Final verification boundary
+
+The final release run must capture fresh results rather than relying on the superseded counts in
+earlier feedback. The required commands are `npm run check`, `npm test`,
+`npm run audit:providers`, `npm run test:e2e`, `npm audit --audit-level=high` and
+`git diff --check`. Browser evidence must cover desktop/mobile transition readiness, all three
+stations in at least one scene, independent companion staging, the generated dove, the full
+eight-reflection flow and the gated ninth world. Deployment evidence must separately verify that
+PM2 owns only port 4175 and report `/api/status` without implying Realtime or OpenAI TTS when the
+reasoning-only compatible gateway is configured.
+
+Automated provider tests mock billable services. Judging deployments must provide their own
+untracked credentials; without them, the complete local 8+1 experience remains available and is
+explicitly labeled as curated fallback.
 
 The automated checks prove deterministic geometry and state contracts. Browser screenshots
 remain necessary for composition, legibility, motion and asset-loading confirmation.

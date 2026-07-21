@@ -2,17 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import * as THREE from "three";
-import { AMBIENT_LIFE_BY_SCENE, AMBIENT_SCENE_IDS, ambientLifeForScene } from "../src/config/ambientLife.js";
+import { AMBIENT_LIFE_BY_SCENE, AMBIENT_SCENE_IDS, WHITE_DOVE_ASSET, ambientLifeForScene } from "../src/config/ambientLife.js";
 import { AmbientLife, sampleAmbientPath } from "../src/render/AmbientLife.js";
 import { ARCHIVED_WORLDS } from "../src/config/legacyAssets.js";
 
 const EXPECTED = Object.freeze({
-  "threshold-conservatory": Object.freeze({ butterfly: 2, bird: 1 }),
+  "threshold-conservatory": Object.freeze({ butterfly: 2, "white-dove": 1 }),
   "court-of-light": Object.freeze({ butterfly: 2 }),
   "water-and-light": Object.freeze({ koi: 3, dragonfly: 1 }),
-  "sunset-frames": Object.freeze({ gull: 2 }),
+  "sunset-frames": Object.freeze({ "white-dove": 2 }),
   "burning-sky": Object.freeze({ crow: 3 }),
-  "petal-transition": Object.freeze({ dragonfly: 2, bird: 1 }),
+  "petal-transition": Object.freeze({ dragonfly: 2, "white-dove": 1 }),
   "living-memory": Object.freeze({ "tropical-bird": 1, butterfly: 2 }),
   "infinite-repetition": Object.freeze({ dots: 24 }),
   "personal-dream-world": Object.freeze({ firefly: 24 })
@@ -31,13 +31,31 @@ test("all nine canonical scenes declare the restrained ambient cast", () => {
     for (const spec of specs) {
       assert.equal(Object.isFrozen(spec), true, `${sceneId}:${spec.kind}`);
       assert.equal(Object.isFrozen(spec.volume), true, `${sceneId}:${spec.kind}:volume`);
-      assert.equal(Object.hasOwn(spec, "asset"), false, `${sceneId}:${spec.kind}`);
+      if (spec.kind === "white-dove") assert.equal(spec.asset, WHITE_DOVE_ASSET, `${sceneId}:${spec.kind}`);
+      else assert.equal(Object.hasOwn(spec, "asset"), false, `${sceneId}:${spec.kind}`);
     }
   }
 
   assert.deepEqual(ambientLifeForScene("missing-scene"), []);
   assert.deepEqual(ambientLifeForScene("infinite-repetition").map((spec) => spec.kind), ["dots"]);
   assert.deepEqual(ambientLifeForScene("personal-dream-world").map((spec) => spec.kind), ["firefly"]);
+});
+
+test("the authored white dove is a valid local web GLB", () => {
+  assert.equal(WHITE_DOVE_ASSET, "/assets/creatures/white-dove.glb");
+  const file = new URL(`..${WHITE_DOVE_ASSET}`, import.meta.url);
+  const buffer = fs.readFileSync(file);
+  assert.equal(buffer.toString("ascii", 0, 4), "glTF");
+  assert.equal(buffer.readUInt32LE(4), 2);
+  assert.equal(buffer.readUInt32LE(8), buffer.length);
+
+  const jsonLength = buffer.readUInt32LE(12);
+  const gltf = JSON.parse(buffer.toString("utf8", 20, 20 + jsonLength).replace(/\0+$/, "").trim());
+  assert.equal(gltf.meshes.length, 1);
+  assert.equal(gltf.materials.length, 1);
+  assert.equal(gltf.textures.length, 3);
+  assert.deepEqual(gltf.skins || [], []);
+  assert.deepEqual(gltf.animations || [], []);
 });
 
 test("authored activity volumes are finite and contained by their world bounds", () => {
@@ -66,7 +84,7 @@ test("authored activity volumes are finite and contained by their world bounds",
 
 test("complete koi geometry remains below the measured pond surface", () => {
   const water = worldFor("water-and-light");
-  const life = new AmbientLife(new THREE.Scene());
+  const life = createLife();
   life.setWorld(water.sceneId, { bounds: water.profile.bounds });
   const koi = life.entities.filter((entity) => entity.spec.kind === "koi");
   assert.equal(koi.length, 3);
@@ -94,8 +112,8 @@ test("path sampling is deterministic, bounded and frame-rate independent", () =>
   }
 
   const world = worldFor("threshold-conservatory");
-  const direct = new AmbientLife(new THREE.Scene());
-  const stepped = new AmbientLife(new THREE.Scene());
+  const direct = createLife();
+  const stepped = createLife();
   direct.setWorld(world.sceneId, { bounds: world.profile.bounds });
   stepped.setWorld(world.sceneId, { bounds: world.profile.bounds });
   direct.update(100);
@@ -111,7 +129,7 @@ test("path sampling is deterministic, bounded and frame-rate independent", () =>
 
 test("articulated creatures move, face their tangent and flap wings or tails", () => {
   const scene = new THREE.Scene();
-  const life = new AmbientLife(scene);
+  const life = createLife(scene);
   const threshold = worldFor("threshold-conservatory");
   life.setWorld(threshold.sceneId, { bounds: threshold.profile.bounds });
   const butterfly = life.entities.find((entity) => entity.spec.kind === "butterfly");
@@ -143,7 +161,7 @@ test("articulated creatures move, face their tangent and flap wings or tails", (
 
 test("dots and fireflies use one efficient point field per scene", () => {
   const scene = new THREE.Scene();
-  const life = new AmbientLife(scene);
+  const life = createLife(scene);
   const infinity = worldFor("infinite-repetition");
   const initial = life.setWorld(infinity.sceneId, { bounds: infinity.profile.bounds });
   assert.deepEqual(initial, {
@@ -182,7 +200,7 @@ test("dots and fireflies use one efficient point field per scene", () => {
 
 test("duplicate point-field specs retain and dispose every resource", () => {
   const scene = new THREE.Scene();
-  const life = new AmbientLife(scene);
+  const life = createLife(scene);
   const world = worldFor("personal-dream-world");
   const spec = ambientLifeForScene(world.sceneId)[0];
   life.setWorld("duplicate-fields", { specs: [spec, { ...spec }], bounds: world.profile.bounds });
@@ -200,7 +218,7 @@ test("duplicate point-field specs retain and dispose every resource", () => {
 
 test("world switches dispose each shared resource exactly once", () => {
   const scene = new THREE.Scene();
-  const life = new AmbientLife(scene);
+  const life = createLife(scene);
   const threshold = worldFor("threshold-conservatory");
   life.setWorld(threshold.sceneId, { bounds: threshold.profile.bounds });
   const firstResources = trackedResources(life.group);
@@ -235,7 +253,7 @@ test("world switches dispose each shared resource exactly once", () => {
 });
 
 test("every scene remains finite under hostile elapsed input", () => {
-  const life = new AmbientLife(new THREE.Scene());
+  const life = createLife();
   for (const world of ARCHIVED_WORLDS) {
     life.setWorld(world.sceneId, { bounds: world.profile.bounds });
     for (const elapsed of [Number.NaN, Number.POSITIVE_INFINITY, -100, 0, 1e12]) life.update(elapsed);
@@ -250,14 +268,210 @@ test("every scene remains finite under hostile elapsed input", () => {
   life.dispose();
 });
 
-test("ambient implementation has no network, external model or nondeterministic random path", () => {
+test("white-dove asset clones are independent and deterministic flight motion survives replacement", async () => {
+  const pending = deferred();
+  const loader = queuedLoader(pending);
+  const life = new AmbientLife(new THREE.Scene(), { loader, loadTimeoutMs: 1_000 });
+  const world = worldFor("sunset-frames");
+  life.setWorld(world.sceneId, { bounds: world.profile.bounds });
+  const doves = life.entities.filter((entity) => entity.spec.kind === "white-dove");
+  assert.equal(doves.length, 2);
+  assert.deepEqual(loader.calls, [WHITE_DOVE_ASSET]);
+  assert.ok(doves.every((entity) => entity.root.userData.fallback === true));
+
+  const source = disposableDoveGltf("source-template");
+  pending.resolve(source.gltf);
+  await life.whenReady();
+  assert.ok([...source.disposeCounts.values()].every((count) => count === 1));
+  assert.ok(doves.every((entity) => entity.root.userData.fallback === false));
+  assert.ok(doves.every((entity) => entity.loadedModel?.parent === entity.flightVisual));
+  assert.ok(doves.every((entity) => entity.loadedMotion?.active === true));
+  assert.ok(doves.every((entity) => entity.loadedMotion?.mode === "shader-wing-deformation"));
+  assert.ok(doves.every((entity) => entity.root.userData.articulation === "shader-wing-deformation"));
+  assert.equal(life.metrics().articulatedCount, 2);
+
+  const first = trackedModelResources(doves[0].loadedModel);
+  const second = trackedModelResources(doves[1].loadedModel);
+  assert.notEqual(first.geometry, second.geometry);
+  assert.notEqual(first.material, second.material);
+  assert.notEqual(first.texture, second.texture);
+  assert.notEqual(doves[0].loadedMotion.uniforms[0], doves[1].loadedMotion.uniforms[0]);
+  assert.equal(first.material.isMeshStandardMaterial, true);
+  assert.equal(first.material.map, first.texture);
+  assert.equal(first.material.userData.museWingMotion, "muse-white-dove-wing-v1");
+  assert.equal(source.mesh.material.userData.museWingMotion, undefined,
+    "the disposable GLB template remains undecorated");
+
+  const shader = {
+    uniforms: {},
+    vertexShader: "#include <beginnormal_vertex>\n#include <begin_vertex>"
+  };
+  first.material.onBeforeCompile(shader, {});
+  assert.equal(shader.uniforms.uMuseDoveWingFlap, doves[0].loadedMotion.uniforms[0]);
+  assert.match(shader.vertexShader, /MUSE_DOVE_AXIS = vec3\(0\.0, 1\.0, 0\.0\)/);
+  assert.match(shader.vertexShader, /MUSE_DOVE_SIDE_AXIS = vec3\(0\.0, 0\.0, 1\.0\)/);
+  assert.match(shader.vertexShader, /smoothstep\(MUSE_DOVE_CORE_SPAN/);
+  assert.match(shader.vertexShader, /museRotateAroundAxis\(objectNormal/);
+  assert.match(shader.vertexShader, /transformed = MUSE_DOVE_CENTER/);
+
+  life.update(40);
+  const startPitch = doves[0].flightVisual.rotation.x;
+  const startBank = doves[0].flightVisual.rotation.z;
+  const startFlap = doves[0].loadedMotion.uniforms[0].value;
+  const untouchedPositions = [...first.geometry.attributes.position.array];
+  life.update(40.6);
+  assert.notEqual(doves[0].flightVisual.rotation.x, startPitch);
+  assert.notEqual(doves[0].flightVisual.rotation.z, startBank);
+  assert.notEqual(doves[0].loadedMotion.uniforms[0].value, startFlap);
+  assert.ok(Math.abs(doves[0].loadedMotion.uniforms[0].value) <= 0.22);
+  assert.deepEqual([...first.geometry.attributes.position.array], untouchedPositions,
+    "the shader motion leaves owned CPU geometry and PBR attributes intact");
+
+  const owned = doves.flatMap((entity) => trackedResources(entity.loadedModel));
+  const motions = doves.map((entity) => entity.loadedMotion);
+  const motionUniforms = motions.map((motion) => motion.uniforms[0]);
+  const counts = new Map(owned.map((resource) => [resource, 0]));
+  for (const resource of owned) resource.addEventListener("dispose", () => counts.set(resource, counts.get(resource) + 1));
+  life.clear();
+  assert.ok(owned.every((resource) => counts.get(resource) === 1));
+  assert.ok(motions.every((motion) => motion.active === false && motion.uniforms.length === 0));
+  assert.ok(motionUniforms.every((uniform) => uniform.value === 0));
+  life.dispose();
+});
+
+test("a late white-dove load cannot contaminate a newer world", async () => {
+  const stale = deferred();
+  const current = deferred();
+  const loader = queuedLoader(stale, current);
+  const life = new AmbientLife(new THREE.Scene(), { loader, loadTimeoutMs: 1_000 });
+
+  const threshold = worldFor("threshold-conservatory");
+  life.setWorld(threshold.sceneId, { bounds: threshold.profile.bounds });
+  const sunset = worldFor("sunset-frames");
+  life.setWorld(sunset.sceneId, { bounds: sunset.profile.bounds });
+  assert.deepEqual(loader.calls, [WHITE_DOVE_ASSET, WHITE_DOVE_ASSET]);
+
+  const currentSource = disposableDoveGltf("current-template");
+  current.resolve(currentSource.gltf);
+  await flushMicrotasks();
+  const staleSource = disposableDoveGltf("stale-template");
+  stale.resolve(staleSource.gltf);
+  await life.whenReady();
+
+  assert.equal(life.sceneId, "sunset-frames");
+  assert.equal(life.entities.length, 2);
+  assert.ok(life.entities.every((entity) => entity.loadedModel?.getObjectByName("current-template")));
+  assert.ok(life.entities.every((entity) => !entity.loadedModel?.getObjectByName("stale-template")));
+  assert.ok(life.entities.every((entity) => entity.loadedMotion?.active === true));
+  assert.equal(life.metrics().articulatedCount, 2);
+  assert.ok([...currentSource.disposeCounts.values()].every((count) => count === 1));
+  assert.ok([...staleSource.disposeCounts.values()].every((count) => count === 1));
+  life.dispose();
+});
+
+test("white-dove load failure keeps the articulated procedural fallback", async () => {
+  const loader = { calls: [], loadAsync(asset) { this.calls.push(asset); return Promise.reject(new Error("offline")); } };
+  const life = new AmbientLife(new THREE.Scene(), { loader, loadTimeoutMs: 1_000 });
+  const world = worldFor("threshold-conservatory");
+  life.setWorld(world.sceneId, { bounds: world.profile.bounds });
+  await life.whenReady();
+
+  const dove = life.entities.find((entity) => entity.spec.kind === "white-dove");
+  assert.deepEqual(loader.calls, [WHITE_DOVE_ASSET]);
+  assert.equal(dove.loadedModel, null);
+  assert.equal(dove.root.userData.fallback, true);
+  assert.equal(dove.fallbackRoot.userData.model, "procedural-white-dove");
+  assert.equal(life.metrics().articulatedCount, 3);
+  const startWing = dove.wingLeft.rotation.z;
+  life.update(60);
+  life.update(60.4);
+  assert.notEqual(dove.wingLeft.rotation.z, startWing);
+  life.dispose();
+});
+
+test("a timed-out white-dove load disposes its late GLB without replacing the fallback", async () => {
+  const pending = deferred();
+  const loader = queuedLoader(pending);
+  const life = new AmbientLife(new THREE.Scene(), { loader, loadTimeoutMs: 5 });
+  const world = worldFor("threshold-conservatory");
+  life.setWorld(world.sceneId, { bounds: world.profile.bounds });
+  await life.whenReady();
+
+  const dove = life.entities.find((entity) => entity.spec.kind === "white-dove");
+  assert.equal(dove.root.userData.assetStatus, "fallback");
+  assert.equal(dove.root.userData.fallback, true);
+  const late = disposableDoveGltf("late-template");
+  pending.resolve(late.gltf);
+  await flushMicrotasks();
+  assert.ok([...late.disposeCounts.values()].every((count) => count === 1));
+  assert.equal(dove.loadedModel, null);
+  life.dispose();
+});
+
+test("ambient implementation keeps local asset loading and deterministic paths", () => {
   const configSource = fs.readFileSync(new URL("../src/config/ambientLife.js", import.meta.url), "utf8");
   const rendererSource = fs.readFileSync(new URL("../src/render/AmbientLife.js", import.meta.url), "utf8");
   const source = `${configSource}\n${rendererSource}`;
   assert.doesNotMatch(source, /Math\.random/);
-  assert.doesNotMatch(source, /GLTFLoader|loadAsync|fetch\s*\(/);
-  assert.doesNotMatch(configSource, /https?:|\/assets\/|\.gl(?:b|tf)/i);
+  assert.doesNotMatch(source, /fetch\s*\(/);
+  assert.match(rendererSource, /GLTFLoader|loadAsync/);
+  assert.doesNotMatch(configSource, /https?:/i);
+  assert.doesNotMatch(configSource, /life\("(?:bird|gull)"/);
 });
+
+function createLife(scene = new THREE.Scene()) {
+  return new AmbientLife(scene, {
+    loader: { loadAsync: async () => { throw new Error("test_asset_unavailable"); } },
+    loadTimeoutMs: 1_000
+  });
+}
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((onResolve, onReject) => {
+    resolve = onResolve;
+    reject = onReject;
+  });
+  return { promise, resolve, reject };
+}
+
+function queuedLoader(...requests) {
+  return {
+    calls: [],
+    loadAsync(asset) {
+      this.calls.push(asset);
+      const request = requests.shift();
+      if (!request) return Promise.reject(new Error("unexpected_asset_load"));
+      return request.promise;
+    }
+  };
+}
+
+function disposableDoveGltf(name) {
+  const texture = new THREE.Texture();
+  const material = new THREE.MeshStandardMaterial({ map: texture, normalMap: texture });
+  const geometry = new THREE.BoxGeometry(0.2, 0.5, 1);
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = name;
+  const scene = new THREE.Group();
+  scene.add(mesh);
+  const resources = [texture, material, geometry];
+  const disposeCounts = new Map(resources.map((resource) => [resource, 0]));
+  for (const resource of resources) resource.addEventListener("dispose", () => disposeCounts.set(resource, disposeCounts.get(resource) + 1));
+  return { gltf: { scene, animations: [] }, disposeCounts, mesh };
+}
+
+function trackedModelResources(root) {
+  const mesh = root.getObjectByProperty("isMesh", true);
+  return { geometry: mesh.geometry, material: mesh.material, texture: mesh.material.map };
+}
+
+async function flushMicrotasks() {
+  await Promise.resolve();
+  await Promise.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
+}
 
 function worldFor(sceneId) {
   const world = ARCHIVED_WORLDS.find((item) => item.sceneId === sceneId);

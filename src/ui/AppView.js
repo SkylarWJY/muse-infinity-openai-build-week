@@ -54,6 +54,18 @@ export class AppView {
     this.answers = byId("answers");
     this.continueButton = byId("continue-button");
     this.routeList = byId("route-list");
+    this.questionProgressQuestion = byId("question-progress-question");
+    this.questionProgressValue = byId("question-progress-value");
+    this.questionProgressCopy = byId("question-progress-copy");
+    this.worldProgressValue = byId("world-progress-value");
+    this.questionProgressMeter = byId("question-progress-meter");
+    this.questionProgressFill = byId("question-progress-fill");
+    this.companionConversation = byId("companion-conversation");
+    this.companionConversationPortrait = byId("companion-conversation-portrait");
+    this.companionConversationSpeaker = byId("companion-conversation-speaker");
+    this.companionConversationLine = byId("companion-conversation-line");
+    this.companionConversationProgress = byId("companion-conversation-progress");
+    this.companionConversationNext = byId("companion-conversation-next");
     this.drawer = byId("drawer");
     this.drawerKicker = byId("drawer-kicker");
     this.drawerTitle = byId("drawer-title");
@@ -66,7 +78,9 @@ export class AppView {
     this.toastElement = byId("toast");
     this.worldTransition = byId("world-transition");
     this.worldTransitionImage = byId("world-transition-image");
+    this.worldTransitionKicker = byId("world-transition-kicker");
     this.worldTransitionTitle = byId("world-transition-title");
+    this.worldTransitionStatus = byId("world-transition-status");
     this.currentSalon = null;
     this.conceptProvider = { live: false, model: "curated-demo" };
     this.providerStatus = { configured: false, live: false, openai: false, gateway: "official", model: "GPT-5.6" };
@@ -75,8 +89,17 @@ export class AppView {
     this.worldTransitionTimer = 0;
     this.worldTransitionToken = 0;
     this.worldTransitionStartedAt = 0;
+    this.worldTransitionImageReady = Promise.resolve(true);
+    this.prefetchedTransitionImages = new Map();
+    this.transitionInertSnapshot = null;
     this.pendingTransitionToast = "";
     this.lastPresentedStage = null;
+    this.drawerReturnFocus = null;
+    this.questionProgressState = null;
+    this.conversationTurns = [];
+    this.conversationIndex = -1;
+    this.conversationCompleteLabel = "Continue the exploration";
+    this.endingCompanions = [];
   }
 
   bind(callbacks = {}) {
@@ -148,10 +171,26 @@ export class AppView {
       }
     });
     this.continueButton.addEventListener("click", () => call("onContinue"));
+    this.companionConversation.addEventListener("click", (event) => {
+      const control = event.target.closest("[data-conversation-action]");
+      if (!control) return;
+      const currentTurn = this.conversationTurns[this.conversationIndex] || null;
+      if (control.dataset.conversationAction === "skip") {
+        const payload = { turn: currentTurn, index: this.conversationIndex, total: this.conversationTurns.length };
+        this.hideCompanionConversation();
+        call("onSkipArtwork", payload);
+        return;
+      }
+      const result = this.advanceCompanionConversation();
+      call("onConversationNext", { previousTurn: currentTurn, ...result });
+    });
     document.addEventListener("click", (event) => {
       const drawerButton = event.target.closest("[data-drawer]");
       const actionButton = event.target.closest("[data-action]");
-      if (drawerButton) call("onDrawer", drawerButton.dataset.drawer);
+      if (drawerButton) {
+        drawerButton.closest("details")?.removeAttribute("open");
+        call("onDrawer", drawerButton.dataset.drawer);
+      }
       if (actionButton) call("onAction", actionButton.dataset.action);
     });
     this.drawerBody.addEventListener("click", (event) => {
@@ -163,9 +202,10 @@ export class AppView {
   showThreshold() {
     this.presentEntry("threshold", [
       element("p", { className: "eyebrow" }, "00 / THRESHOLD"),
-      element("h1", {}, "A question can become a place."),
-      element("p", { className: "entry-copy threshold-copy" }, "Cross into nine connected worlds. The first eight gather evidence; the ninth exists only after you form an answer."),
-      element("button", { type: "button", className: "entry-primary", dataset: { entryAction: "cross-threshold" } }, "Cross the threshold →"),
+      element("h1", {}, "MUSE∞"),
+      element("p", { className: "threshold-offer" }, "An immersive museum built around one question"),
+      element("p", { className: "entry-copy threshold-copy" }, "Enter with a question. Walk beside artists and thinkers. Let eight worlds change how you see it."),
+      element("button", { type: "button", className: "entry-primary", dataset: { entryAction: "cross-threshold" } }, "Enter the museum →"),
       entryMeta()
     ]);
     this.renderRoute(null, [], null);
@@ -174,23 +214,24 @@ export class AppView {
 
   showLifeQuestion(value = "") {
     const presets = element("div", { className: "goal-presets", id: "goal-presets" });
-    for (const goal of ["How composition moves my attention", "How color creates emotion", "How a space tells a story"]) {
+    for (const goal of ["What makes a life meaningful?", "How do I live with uncertainty?", "What should I keep, and what should I let go?"]) {
       presets.append(element("button", { type: "button", dataset: { goal } }, goal));
     }
     const form = element("form", { id: "goal-form" });
     form.append(
       element("label", { className: "sr-only", htmlFor: "goal-input" }, "Life question"),
-      element("input", { id: "goal-input", name: "goal", maxLength: 120, autoComplete: "off", placeholder: "Name the question you will carry", value }),
+      element("input", { id: "goal-input", name: "goal", maxLength: 120, autoComplete: "off", placeholder: "What makes a life meaningful?", value }),
       element("button", { type: "submit" }, "Choose your company →")
     );
     this.presentEntry("life-question", [
       element("p", { className: "eyebrow" }, "01 / LIFE QUESTION"),
-      element("h1", {}, "What do you want to learn to notice?"),
-      element("p", { className: "entry-copy" }, "Your question will remain visible as eight worlds test it from different positions."),
+      element("h1", {}, "What question are you carrying?"),
+      element("p", { className: "entry-copy" }, "Choose a question or write your own. It will remain visible while each world and companion tests it from a different position."),
       presets,
       form,
       entryMeta()
     ]);
+    if (value) this.setQuestionProgress({ question: value, explored: 0, total: EXHIBITION_SPINE.length, worldsExplored: 0, worldsTotal: EXHIBITION_SPINE.length });
     this.chapterLabel.textContent = "LIFE QUESTION / 01";
     requestAnimationFrame(() => form.querySelector("input")?.focus());
   }
@@ -219,12 +260,21 @@ export class AppView {
     };
     this.updateModelBadge();
     this.updateProviderLabel();
+    const question = plan?.question || plan?.goal || this.questionProgressState?.question || "The question you are carrying";
+    this.setQuestionProgress({
+      question,
+      explored: 0,
+      total: EXHIBITION_SPINE.length,
+      worldsExplored: 0,
+      worldsTotal: EXHIBITION_SPINE.length
+    });
     this.renderRoute(plan, [], plan.start_stop_id);
     this.showWalking(plan.start_stop_id);
   }
 
   showCompany(selectedIds) {
     const selected = new Set(selectedIds);
+    this.endingCompanions = COMPANIONS.filter((companion) => selected.has(companion.id));
     const intro = element("div", { className: "entry-intro" });
     intro.append(
       element("p", { className: "eyebrow" }, "02 / CHOOSE YOUR COMPANY"),
@@ -260,6 +310,14 @@ export class AppView {
   }
 
   showCuration(question, companions = []) {
+    this.endingCompanions = companions.slice(0, 3);
+    this.setQuestionProgress({
+      question,
+      explored: 0,
+      total: EXHIBITION_SPINE.length,
+      worldsExplored: 0,
+      worldsTotal: EXHIBITION_SPINE.length
+    });
     const route = element("ol", { className: "curation-route", "aria-label": "Eight-scene exhibition route" });
     for (const [index, sceneItem] of EXHIBITION_SPINE.entries()) {
       const item = element("li");
@@ -305,6 +363,28 @@ export class AppView {
     this.guideState.textContent = "WALKING";
     this.stopTitle.textContent = `Approaching ${sceneStop.title}`;
     this.guideLine.textContent = "Your company is moving to the selected evidence point.";
+    delete this.dialogue.dataset.stationIndex;
+    delete this.dialogue.dataset.stationCount;
+    delete this.dialogue.dataset.stationId;
+    delete this.dialogue.dataset.artworkId;
+    this.inquiryThread.hidden = true;
+    this.inquiryThread.replaceChildren();
+    this.answers.replaceChildren();
+    this.continueButton.hidden = true;
+  }
+
+  showStationWalking(stop, station, artwork, stationIndex, stationCount) {
+    const sceneStop = scene(stop.stop_id);
+    this.entry.hidden = true;
+    this.dialogue.hidden = false;
+    this.app.dataset.narrativeStage = "world-exploration";
+    this.dialogue.dataset.stationIndex = String(stationIndex);
+    this.dialogue.dataset.stationCount = String(stationCount);
+    this.dialogue.dataset.stationId = station.station_id;
+    this.dialogue.dataset.artworkId = artwork.id;
+    this.guideState.textContent = "WALKING";
+    this.stopTitle.textContent = `${sceneStop.title} · work ${stationIndex + 1} of ${stationCount}`;
+    this.guideLine.textContent = `Your company is moving independently toward ${artwork.title} by ${artwork.artist}.`;
     this.inquiryThread.hidden = true;
     this.inquiryThread.replaceChildren();
     this.answers.replaceChildren();
@@ -312,6 +392,7 @@ export class AppView {
   }
 
   showArchiveRequired(sceneItem) {
+    this.setWorldPresentation(sceneItem, false);
     this.presentEntry("archive-required", [
       element("p", { className: "eyebrow" }, `${sceneItem.chapter} / SCENE UNAVAILABLE`),
       element("h1", {}, sceneItem.title),
@@ -323,17 +404,15 @@ export class AppView {
 
   showQuestion(stop) {
     const sceneStop = scene(stop.stop_id);
+    this.dialogue.dataset.stationIndex = "reflection";
+    this.dialogue.dataset.stationCount = String(stop.stations?.length || 3);
+    delete this.dialogue.dataset.stationId;
+    delete this.dialogue.dataset.artworkId;
     this.guideState.textContent = "ASKING";
-    this.stopTitle.textContent = `${sceneStop.title} · ${sceneStop.artist}`;
+    this.stopTitle.textContent = `${sceneStop.title} · world reflection`;
     this.guideLine.textContent = `${stop.guide_line} ${stop.prompt}`;
-    this.inquiryThread.hidden = false;
+    this.inquiryThread.hidden = true;
     this.inquiryThread.replaceChildren();
-    const inquiryForm = element("form", { className: "inquiry-form" });
-    inquiryForm.append(
-      element("label", { className: "sr-only", htmlFor: "inquiry-input" }, "Question for the company"),
-      element("input", { id: "inquiry-input", name: "question", maxLength: 600, autoComplete: "off", placeholder: "Ask about this work" }),
-      element("button", { type: "submit" }, "Ask")
-    );
     const observationForm = element("form", { className: "observation-form" });
     observationForm.append(
       element("label", { className: "sr-only", htmlFor: "observation-input" }, "Your observation"),
@@ -341,10 +420,38 @@ export class AppView {
       element("button", { type: "submit" }, "Record")
     );
     this.answers.replaceChildren(
-      inquiryForm,
       ...stop.choices.map((choice) => element("button", { type: "button", dataset: { answer: choice.value } }, choice.label)),
       observationForm
     );
+    this.continueButton.hidden = true;
+  }
+
+  showStationQuestion(stop, station, artwork, stationIndex, stationCount) {
+    const sceneStop = scene(stop.stop_id);
+    this.dialogue.dataset.stationIndex = String(stationIndex);
+    this.dialogue.dataset.stationCount = String(stationCount);
+    this.dialogue.dataset.stationId = station.station_id;
+    this.dialogue.dataset.artworkId = artwork.id;
+    this.guideState.textContent = "ASKING";
+    this.stopTitle.textContent = `${sceneStop.title} · ${artwork.title}`;
+    this.guideLine.textContent = station.focus_question;
+    this.inquiryThread.hidden = false;
+    this.inquiryThread.replaceChildren();
+
+    const inquiryForm = element("form", { className: "inquiry-form" });
+    inquiryForm.append(
+      element("label", { className: "sr-only", htmlFor: "inquiry-input" }, "Question for the company"),
+      element("input", { id: "inquiry-input", name: "question", maxLength: 600, autoComplete: "off", placeholder: "Ask about this work" }),
+      element("button", { type: "submit" }, "Ask")
+    );
+    const choices = station.choices.map((choice) => richStationChoice(choice));
+    const observationForm = element("form", { className: "observation-form" });
+    observationForm.append(
+      element("label", { className: "sr-only", htmlFor: "observation-input" }, "Your observation"),
+      element("input", { id: "observation-input", name: "observation", maxLength: 240, autoComplete: "off", placeholder: "Record specific evidence you can point to" }),
+      element("button", { type: "submit" }, "Record")
+    );
+    this.answers.replaceChildren(inquiryForm, ...choices, observationForm);
     this.continueButton.hidden = true;
   }
 
@@ -356,9 +463,31 @@ export class AppView {
     this.continueButton.hidden = false;
   }
 
+  showStationFeedback(choice, opensSceneReflection = false, { observationRecorded = false, perspectives = [] } = {}) {
+    this.guideState.textContent = "REFLECTING";
+    this.guideLine.textContent = observationRecorded
+      ? `${choice.stance} Your observation is recorded in your own words. Next test: ${choice.evidence_prompt}`
+      : `${choice.stance} Inquiry path recorded. Test it against the work: ${choice.evidence_prompt}`;
+    for (const item of perspectives) {
+      const companion = findCompanion(item.companionId || item.speakerId);
+      const turn = element("div", {
+        className: "inquiry-turn company-turn station-perspective",
+        dataset: { stationPerspective: "true", speakerId: companion?.id || item.companionId || item.speakerId || "companion" }
+      });
+      turn.append(
+        element("b", {}, `${companion?.fullName || item.speaker || item.companionId || item.speakerId || "COMPANION"} · CURATED COMPANY`),
+        element("p", {}, item.text || "")
+      );
+      this.inquiryThread.append(turn);
+    }
+    this.inquiryThread.scrollTop = this.inquiryThread.scrollHeight;
+    this.answers.replaceChildren();
+    this.continueButton.textContent = opensSceneReflection ? "Reflect on this world →" : "Next artwork →";
+    this.continueButton.hidden = false;
+  }
+
   showInquiryPending(question) {
-    const form = this.answers.querySelector(".inquiry-form");
-    for (const control of form?.elements || []) control.disabled = true;
+    this.setInquiryBusy(true);
     const turn = element("div", { className: "inquiry-turn visitor-turn" });
     turn.append(element("b", {}, "YOU"), element("p", {}, question));
     const pending = element("div", { className: "inquiry-pending", dataset: { inquiryPending: "true" } }, "READING THE WORK…");
@@ -378,7 +507,7 @@ export class AppView {
       this.inquiryThread.append(turn);
     }
     const form = this.answers.querySelector(".inquiry-form");
-    for (const control of form?.elements || []) control.disabled = false;
+    this.setInquiryBusy(false);
     if (form?.elements.question) form.elements.question.value = "";
     this.inquiryThread.scrollTop = this.inquiryThread.scrollHeight;
   }
@@ -388,8 +517,14 @@ export class AppView {
     const turn = element("div", { className: "inquiry-turn inquiry-error" });
     turn.append(element("b", {}, "CONNECTION"), element("p", {}, message));
     this.inquiryThread.append(turn);
-    const form = this.answers.querySelector(".inquiry-form");
-    for (const control of form?.elements || []) control.disabled = false;
+    this.setInquiryBusy(false);
+  }
+
+  setInquiryBusy(busy) {
+    this.dialogue.setAttribute("aria-busy", String(Boolean(busy)));
+    for (const control of this.answers.querySelectorAll("button, input, textarea, select")) {
+      control.disabled = Boolean(busy);
+    }
   }
 
   appendVoiceTranscript({ role, id, delta = "", text, final, mode, provider }) {
@@ -450,6 +585,87 @@ export class AppView {
     button.title = speaking
       ? "Synthetic guide narration speaking"
       : "Mute original score and synthetic guide narration";
+  }
+
+  setQuestionProgress({ question, explored = 0, total = EXHIBITION_SPINE.length, worldsExplored = 0, worldsTotal = EXHIBITION_SPINE.length } = {}) {
+    const safeTotal = positiveCount(total);
+    const safeExplored = clampCount(explored, safeTotal);
+    const safeWorldsTotal = positiveCount(worldsTotal);
+    const safeWorldsExplored = clampCount(worldsExplored, safeWorldsTotal);
+    const percent = safeTotal ? Math.round((safeExplored / safeTotal) * 100) : 0;
+    const safeQuestion = String(question || this.questionProgressState?.question || "The question you are carrying").trim();
+    const state = {
+      question: safeQuestion,
+      explored: safeExplored,
+      total: safeTotal,
+      worldsExplored: safeWorldsExplored,
+      worldsTotal: safeWorldsTotal,
+      percent
+    };
+    this.questionProgressState = state;
+    this.questionProgressQuestion.textContent = safeQuestion;
+    this.questionProgressValue.textContent = `${percent}%`;
+    this.questionProgressCopy.textContent = safeTotal
+      ? `${safeExplored} of ${safeTotal} question moments explored`
+      : "Your exploration is ready to begin.";
+    this.worldProgressValue.textContent = `${safeWorldsExplored} / ${safeWorldsTotal} WORLDS`;
+    this.questionProgressMeter.setAttribute("aria-valuenow", String(safeExplored));
+    this.questionProgressMeter.setAttribute("aria-valuemax", String(safeTotal));
+    this.questionProgressFill.style.width = `${percent}%`;
+    return state;
+  }
+
+  showCompanionConversation(turns, { onCompleteLabel = "Continue the exploration" } = {}) {
+    this.conversationTurns = normalizeConversationTurns(turns);
+    this.conversationIndex = this.conversationTurns.length ? 0 : -1;
+    this.conversationCompleteLabel = String(onCompleteLabel || "Continue the exploration");
+    if (!this.conversationTurns.length) {
+      this.hideCompanionConversation();
+      return { turn: null, index: -1, total: 0, complete: true };
+    }
+    this.companionConversation.hidden = false;
+    this.app.dataset.companionConversation = "true";
+    return this.renderCompanionConversationTurn();
+  }
+
+  advanceCompanionConversation() {
+    const total = this.conversationTurns.length;
+    if (!total || this.conversationIndex >= total - 1) {
+      this.hideCompanionConversation();
+      return { turn: null, index: total, total, complete: true };
+    }
+    this.conversationIndex += 1;
+    return this.renderCompanionConversationTurn();
+  }
+
+  renderCompanionConversationTurn() {
+    const turn = this.conversationTurns[this.conversationIndex] || null;
+    const total = this.conversationTurns.length;
+    if (!turn) return { turn: null, index: this.conversationIndex, total, complete: true };
+    const companion = findCompanion(turn.speakerId);
+    const name = turn.speaker || turn.name || companion?.fullName || companion?.name || "MUSE";
+    const portrait = turn.portrait || companion?.portrait || "";
+    this.companionConversationSpeaker.textContent = name;
+    this.companionConversationLine.textContent = turn.text;
+    this.companionConversationProgress.textContent = `${this.conversationIndex + 1} / ${total}`;
+    this.companionConversationNext.textContent = this.conversationIndex === total - 1 ? this.conversationCompleteLabel : "Next voice";
+    if (portrait) {
+      this.companionConversationPortrait.src = portrait;
+      this.companionConversationPortrait.alt = name;
+      this.companionConversationPortrait.hidden = false;
+    } else {
+      this.companionConversationPortrait.removeAttribute("src");
+      this.companionConversationPortrait.alt = "";
+      this.companionConversationPortrait.hidden = true;
+    }
+    return { turn, index: this.conversationIndex, total, complete: false };
+  }
+
+  hideCompanionConversation() {
+    this.companionConversation.hidden = true;
+    delete this.app.dataset.companionConversation;
+    this.conversationTurns = [];
+    this.conversationIndex = -1;
   }
 
   showRecap(recap, digest) {
@@ -623,6 +839,24 @@ export class AppView {
     this.guideLine.textContent = FINAL_SCENE.question;
     this.inquiryThread.replaceChildren();
     this.answers.replaceChildren();
+    this.setQuestionProgress({
+      question: this.questionProgressState?.question,
+      explored: this.questionProgressState?.total || EXHIBITION_SPINE.length,
+      total: this.questionProgressState?.total || EXHIBITION_SPINE.length,
+      worldsExplored: EXHIBITION_SPINE.length,
+      worldsTotal: EXHIBITION_SPINE.length
+    });
+    const endingCompany = this.endingCompanions.length
+      ? this.endingCompanions
+      : (salon?.perspectives || []).map((item) => findCompanion(item.character_id || item.speakerId)).filter(Boolean).slice(0, 3);
+    const lookback = element("div", { className: "ending-lookback" });
+    const company = element("div", { className: "ending-company", "aria-label": "Your full company" });
+    for (const companion of endingCompany) company.append(portraitChip(companion));
+    lookback.append(
+      company,
+      element("p", {}, "Your whole company turns back toward the worlds you crossed together."),
+      element("strong", {}, "QUESTION EXPLORATION COMPLETE · 8 / 8 WORLDS")
+    );
     this.presentEntry("final-answer", [
       element("button", { type: "button", className: "final-dismiss", dataset: { entryAction: "dismiss-final" }, "aria-label": "Close answer plaque" }, "×"),
       element("p", { className: "eyebrow" }, FINAL_SCENE.chapter),
@@ -630,6 +864,7 @@ export class AppView {
       element("h1", {}, title),
       element("p", { className: "final-world-name" }, world?.name || "Fantasy Realm of Shimmering Spheres"),
       element("p", { className: "entry-copy" }, "Your GPT concept now inhabits the Shimmering Spheres realization. Move through it as the answer to the eight worlds behind you."),
+      lookback,
       element("blockquote", { className: "return-question" }, FINAL_SCENE.question),
       element("p", { className: "archive-note" }, `Personalized concept: ${source} · Spatial form: 09 / ANSWER`)
     ]);
@@ -649,6 +884,18 @@ export class AppView {
       this.speakerPortrait.alt = "";
       this.speakerPortrait.hidden = true;
     }
+  }
+
+  setWorldPresentation(sceneItem = {}, ready = true) {
+    if (ready) {
+      delete this.app.dataset.worldPresentation;
+      this.app.style.removeProperty("--world-poster");
+      return;
+    }
+    const source = String(sceneItem.image || sceneItem.thumbnail || "")
+      .replace(/[^A-Za-z0-9_./-]/gu, "");
+    this.app.dataset.worldPresentation = "poster";
+    this.app.style.setProperty("--world-poster", source ? `url("${source}")` : "none");
   }
 
   renderRoute(plan, visited = [], currentId) {
@@ -671,6 +918,14 @@ export class AppView {
       );
       return li;
     }));
+    const progress = this.questionProgressState || {};
+    this.setQuestionProgress({
+      question: progress.question || plan?.question || plan?.goal,
+      explored: Math.max(progress.explored || 0, visitedIds.size),
+      total: progress.total || EXHIBITION_SPINE.length,
+      worldsExplored: visitedIds.size,
+      worldsTotal: EXHIBITION_SPINE.length
+    });
     if (currentIndex >= 0) this.chapterLabel.textContent = `WORLD EXPLORATION · ${String(currentIndex + 1).padStart(2, "0")} / 08`;
     else if (!plan) this.chapterLabel.textContent = "THRESHOLD / 00";
   }
@@ -693,17 +948,21 @@ export class AppView {
       evidence: () => this.renderEvidence(context)
     };
     if (!renderers[type]) return;
+    if (this.drawer.hidden) this.drawerReturnFocus = document.activeElement;
     this.app.dataset.drawerOpen = type;
     this.dialogue.setAttribute("aria-hidden", "true");
     this.drawer.hidden = false;
     this.drawer.dataset.type = type;
     renderers[type]();
+    this.drawer.querySelector('[data-action="close-drawer"]')?.focus();
   }
 
   closeDrawer() {
     this.drawer.hidden = true;
     delete this.app.dataset.drawerOpen;
     this.dialogue.removeAttribute("aria-hidden");
+    if (this.drawerReturnFocus?.isConnected) this.drawerReturnFocus.focus();
+    this.drawerReturnFocus = null;
   }
 
   renderAtlas(context) {
@@ -712,6 +971,7 @@ export class AppView {
     const visitedIds = normalizeIds(context.visited || context.visitedSceneIds || context.session?.visited || []);
     const complete = Boolean(context.canConveneSalon || context.lessonComplete || visitedIds.size >= EXHIBITION_SPINE.length);
     const answerOpen = Boolean(context.finalWorldEntered);
+    const tourLocked = Boolean(context.tourLocked);
     const grid = element("div", { className: "drawer-grid atlas-grid" });
     for (const [index, world] of PROCESS_WORLDS.entries()) {
       const sceneItem = EXHIBITION_SPINE.find((item) => item.worldId === world.id);
@@ -721,7 +981,7 @@ export class AppView {
       const button = element("button", {
         type: "button",
         className: `command atlas-world${active ? " selected" : ""}${visited ? " visited" : ""}`,
-        disabled: answerOpen || context.busy || !unlocked,
+        disabled: answerOpen || tourLocked || context.busy || !unlocked,
         dataset: { drawerAction: "world", value: world.id }
       });
       button.append(
@@ -729,7 +989,7 @@ export class AppView {
         element("span", { className: "atlas-copy" })
       );
       button.querySelector(".atlas-copy").append(
-        element("small", {}, `${sceneItem?.chapter || String(index + 1).padStart(2, "0")} · ${answerOpen ? "ANSWER OPEN" : context.busy ? "LOADING" : visited ? "VISITED" : active ? "CURRENT" : unlocked ? "AVAILABLE" : "LOCKED"}`),
+        element("small", {}, `${sceneItem?.chapter || String(index + 1).padStart(2, "0")} · ${answerOpen ? "ANSWER OPEN" : tourLocked ? "FINISH CURRENT SCENE" : context.busy ? "LOADING" : visited ? "VISITED" : active ? "CURRENT" : unlocked ? "AVAILABLE" : "LOCKED"}`),
         element("b", {}, sceneItem?.title || world.name),
         element("span", {}, sceneItem?.artist || world.subtitle)
       );
@@ -738,7 +998,9 @@ export class AppView {
     this.drawerBody.replaceChildren(
       element("p", { className: "drawer-note" }, answerOpen
         ? "09 / ANSWER is open. The eight process worlds remain visible here as a locked evidence record."
-        : "Eight worlds hold the process evidence. 09 / ANSWER remains outside the Atlas until the manifesto opens it."),
+        : tourLocked
+          ? "Finish the current three-work inquiry and scene reflection before comparing worlds in the Atlas."
+          : "Eight worlds hold the process evidence. 09 / ANSWER remains outside the Atlas until the manifesto opens it."),
       grid
     );
   }
@@ -815,7 +1077,7 @@ export class AppView {
     this.drawerTitle.textContent = "Evidence";
     const live = context.provider?.live === true;
     const narrationProvider = context.status?.narration
-      ? `OPENAI · ${String(context.status.narration_model || "gpt-4o-mini-tts").toUpperCase()}`
+      ? `${String(context.status.narration_provider || "openai").toUpperCase()} · ${String(context.status.narration_model || "gpt-4o-mini-tts").toUpperCase()}`
       : "BROWSER SPEECH FALLBACK";
     const rows = [
       ["Reasoning model", live ? liveProviderName(context.provider) : "GPT contract · curated fallback"],
@@ -847,7 +1109,7 @@ export class AppView {
 
   toast(message) {
     const safeMessage = String(message || "");
-    if (!this.worldTransition.hidden) {
+    if (this.worldTransition.classList.contains("is-visible")) {
       this.pendingTransitionToast = safeMessage;
       return;
     }
@@ -857,18 +1119,36 @@ export class AppView {
     this.toastTimer = setTimeout(() => { this.toastElement.hidden = true; }, 3000);
   }
 
-  beginWorldTransition(sceneItem = {}) {
+  beginWorldTransition(sceneItem = {}, { boot = false } = {}) {
     const token = ++this.worldTransitionToken;
     clearTimeout(this.worldTransitionTimer);
     clearTimeout(this.toastTimer);
     this.toastElement.hidden = true;
     this.pendingTransitionToast = "";
     this.worldTransitionStartedAt = performance.now();
-    this.worldTransitionImage.src = sceneItem.thumbnail || sceneItem.image || "";
+    const primaryImage = sceneItem.image || sceneItem.thumbnail || "";
+    const fallbackImage = sceneItem.thumbnail && sceneItem.thumbnail !== primaryImage ? sceneItem.thumbnail : "";
+    this.worldTransition.classList.remove("is-image-ready");
+    this.worldTransitionImageReady = prepareTransitionImage(this.worldTransitionImage, primaryImage, fallbackImage)
+      .then((ready) => {
+        if (token === this.worldTransitionToken && ready) {
+          this.worldTransition.classList.add("is-image-ready");
+          this.prefetchNextTransitionImage(sceneItem);
+        }
+        return ready;
+      });
+    const order = Number(sceneItem.order);
+    this.worldTransitionKicker.textContent = boot
+      ? "MUSE · PROLOGUE"
+      : Number.isInteger(order) ? `WORLD ${String(order).padStart(2, "0")} / 09` : "ENTERING WORLD";
     this.worldTransitionTitle.textContent = sceneItem.title || sceneItem.name || "MUSE";
+    this.worldTransitionStatus.textContent = boot
+      ? "AWAKENING THE ARCHIVE"
+      : sceneItem.isFinal ? "THE ANSWER TAKES FORM" : "ASSEMBLING THE LIVING WORLD";
     this.worldTransition.hidden = false;
     this.worldTransition.setAttribute("aria-busy", "true");
     this.worldTransition.classList.remove("is-visible", "is-leaving");
+    this.setTransitionInert(true);
     void this.worldTransition.offsetWidth;
     this.worldTransition.classList.add("is-visible");
     return token;
@@ -877,28 +1157,62 @@ export class AppView {
   finishWorldTransition(token) {
     if (token !== this.worldTransitionToken) return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const minimumHold = reducedMotion ? 80 : 650;
-    const fadeDuration = reducedMotion ? 0 : 650;
-    const elapsed = performance.now() - this.worldTransitionStartedAt;
-    const wait = Math.max(0, minimumHold - elapsed);
+    const minimumHold = reducedMotion ? 80 : 900;
+    const fadeDuration = reducedMotion ? 0 : 760;
     clearTimeout(this.worldTransitionTimer);
-    this.worldTransitionTimer = window.setTimeout(() => {
+    Promise.race([
+      this.worldTransitionImageReady,
+      new Promise((resolve) => window.setTimeout(() => resolve(false), 6_000))
+    ]).then(() => {
       if (token !== this.worldTransitionToken) return;
-      this.worldTransition.classList.add("is-leaving");
-      this.worldTransition.classList.remove("is-visible");
+      const elapsed = performance.now() - this.worldTransitionStartedAt;
+      const wait = Math.max(0, minimumHold - elapsed);
       this.worldTransitionTimer = window.setTimeout(() => {
         if (token !== this.worldTransitionToken) return;
-        this.worldTransition.hidden = true;
+        this.worldTransition.classList.add("is-leaving");
+        this.worldTransition.classList.remove("is-visible");
         this.worldTransition.setAttribute("aria-busy", "false");
-        this.worldTransition.classList.remove("is-leaving");
+        this.setTransitionInert(false);
         const pendingToast = this.pendingTransitionToast;
         this.pendingTransitionToast = "";
         if (pendingToast) this.toast(pendingToast);
-      }, fadeDuration);
-    }, wait);
+        this.worldTransitionTimer = window.setTimeout(() => {
+          if (token !== this.worldTransitionToken) return;
+          this.worldTransition.hidden = true;
+          this.worldTransition.classList.remove("is-leaving", "is-image-ready");
+        }, fadeDuration);
+      }, wait);
+    });
+  }
+
+  setTransitionInert(enabled) {
+    if (enabled && !this.transitionInertSnapshot) {
+      this.transitionInertSnapshot = [...this.app.children]
+        .filter((element) => element !== this.worldTransition)
+        .map((element) => [element, element.inert]);
+      for (const [element] of this.transitionInertSnapshot) element.inert = true;
+      return;
+    }
+    if (!enabled && this.transitionInertSnapshot) {
+      for (const [element, previous] of this.transitionInertSnapshot) element.inert = previous;
+      this.transitionInertSnapshot = null;
+    }
+  }
+
+  prefetchNextTransitionImage(sceneItem = {}) {
+    const sequence = [...EXHIBITION_SPINE, FINAL_SCENE];
+    const currentIndex = sequence.findIndex((item) => item.id === sceneItem.id);
+    const source = sequence[currentIndex + 1]?.image;
+    if (!source || this.prefetchedTransitionImages.has(source)) return;
+    const image = new Image();
+    image.decoding = "async";
+    image.fetchPriority = "low";
+    image.src = source;
+    this.prefetchedTransitionImages.set(source, image);
   }
 
   presentEntry(stage, children) {
+    this.hideCompanionConversation();
     const stageChanged = this.lastPresentedStage !== stage;
     this.entry.dataset.stage = stage;
     this.entry.hidden = false;
@@ -980,6 +1294,28 @@ function normalizeIds(values) {
   return new Set(source.map((item) => typeof item === "string" ? item : item?.stop_id || item?.id).filter(Boolean));
 }
 
+function normalizeConversationTurns(turns) {
+  return (Array.isArray(turns) ? turns : []).map((turn) => {
+    if (typeof turn === "string") return { speakerId: "muse", speaker: "MUSE", text: turn.trim(), portrait: "" };
+    return {
+      speakerId: String(turn?.speakerId || turn?.speaker_id || turn?.companionId || turn?.character_id || "muse"),
+      speaker: String(turn?.speaker || turn?.name || turn?.fullName || "").trim(),
+      name: String(turn?.name || "").trim(),
+      text: String(turn?.text || turn?.line || turn?.content || "").trim(),
+      portrait: String(turn?.portrait || "")
+    };
+  }).filter((turn) => turn.text);
+}
+
+function positiveCount(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.round(number)) : 0;
+}
+
+function clampCount(value, total) {
+  return Math.min(positiveCount(value), total);
+}
+
 function readDetail(value) {
   return String(value || "evidence").replaceAll("-", " ");
 }
@@ -1009,6 +1345,55 @@ function element(tag, props = {}, text) {
   }
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function richStationChoice(choice) {
+  const button = element("button", {
+    type: "button",
+    className: "station-choice",
+    dataset: { answer: choice.value },
+    ariaLabel: `${choice.label}. ${choice.stance}. Evidence: ${choice.evidence_prompt}`
+  });
+  const label = element("strong", { className: "station-choice-label" }, choice.label);
+  const stance = element("span", { className: "station-choice-stance" }, choice.stance);
+  const evidence = element("small", { className: "station-choice-evidence" }, `Evidence · ${choice.evidence_prompt}`);
+  button.append(label, stance, evidence);
+  return button;
+}
+
+function prepareTransitionImage(image, primarySource, fallbackSource = "") {
+  if (!primarySource) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    let settled = false;
+    let source = primarySource;
+    let timeout = 0;
+    const cleanup = () => {
+      image.removeEventListener("load", loaded);
+      image.removeEventListener("error", failed);
+      window.clearTimeout(timeout);
+    };
+    const finish = async () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      try { await image.decode?.(); } catch { /* natural dimensions remain the final readiness check */ }
+      resolve(image.complete && image.naturalWidth > 0);
+    };
+    const loaded = () => { void finish(); };
+    const failed = () => {
+      if (fallbackSource && source !== fallbackSource) {
+        source = fallbackSource;
+        image.src = fallbackSource;
+        return;
+      }
+      void finish();
+    };
+    image.addEventListener("load", loaded);
+    image.addEventListener("error", failed);
+    timeout = window.setTimeout(() => { void finish(); }, 6_000);
+    image.src = source;
+    if (image.complete && image.naturalWidth > 0) queueMicrotask(() => { void finish(); });
+  });
 }
 
 function input(id, type, placeholder, value = "") {

@@ -5,6 +5,8 @@ import { VoiceSession, realtimeContextInstructions } from "../src/services/voice
 test("voice session sends museum context with the SDP and streams Realtime events", async () => {
   const states = [];
   const transcripts = [];
+  const utterances = [];
+  const assistantReplies = [];
   const track = { stopped: false, stop() { this.stopped = true; } };
   const stream = { getTracks: () => [track] };
   const channel = fakeChannel();
@@ -21,6 +23,8 @@ test("voice session sends museum context with the SDP and streams Realtime event
     context: () => context,
     onState: (state) => states.push(state),
     onTranscript: (event) => transcripts.push(event),
+    onUtterance: (event) => utterances.push(event),
+    onAssistantReply: (event) => assistantReplies.push(event),
     peerConnectionFactory: () => pc,
     audioFactory: () => ({ autoplay: false, srcObject: null, pause() {} }),
     getUserMedia: async () => stream,
@@ -51,9 +55,11 @@ test("voice session sends museum context with the SDP and streams Realtime event
   assert.deepEqual(transcripts.at(-1), { role: "assistant", id: "assistant-1", delta: "Look at the reflection.", final: false, mode: "realtime" });
   channel.message({ type: "response.output_audio_transcript.done", item_id: "assistant-1", transcript: "Look at the reflection." });
   assert.deepEqual(transcripts.at(-1), { role: "assistant", id: "assistant-1", text: "Look at the reflection.", final: true, mode: "realtime" });
+  assert.deepEqual(assistantReplies, [{ text: "Look at the reflection.", mode: "realtime" }]);
   channel.message({ type: "conversation.item.input_audio_transcription.delta", item_id: "user-1", delta: "What changes?" });
   channel.message({ type: "conversation.item.input_audio_transcription.completed", item_id: "user-1", transcript: "What changes?" });
   assert.deepEqual(transcripts.at(-1), { role: "user", id: "user-1", text: "What changes?", final: true, mode: "realtime" });
+  assert.deepEqual(utterances, [{ text: "What changes?", mode: "realtime" }]);
 
   voice.stop();
   assert.equal(track.stopped, true);
@@ -154,6 +160,9 @@ test("browser voice fallback turns free speech into grounded dialogue and spoken
     cancel() { this.cancelled = true; }
   };
   let request;
+  const dialogueResults = [];
+  const utterances = [];
+  const assistantReplies = [];
   const voice = new VoiceSession({
     context: (question) => ({ question, scene_id: "water-and-light", artwork_id: "aic-16568" }),
     dialogue: async (context) => {
@@ -168,6 +177,9 @@ test("browser voice fallback turns free speech into grounded dialogue and spoken
     },
     onState: (state) => states.push(state),
     onTranscript: (event) => transcripts.push(event),
+    onDialogueResult: (event) => dialogueResults.push(event),
+    onUtterance: (event) => utterances.push(event),
+    onAssistantReply: (event) => assistantReplies.push(event),
     recognitionFactory: () => recognition,
     speechSynthesis: synthesis,
     utteranceFactory: (text) => ({ text, lang: "", onend: null, onerror: null })
@@ -203,6 +215,15 @@ test("browser voice fallback turns free speech into grounded dialogue and spoken
     model_source: "openai-api"
   });
   assert.equal(transcripts.at(-1).source, "live-dialogue");
+  assert.equal(dialogueResults.length, 1);
+  assert.equal(dialogueResults[0].question, "What changes in the water?");
+  assert.equal(dialogueResults[0].mode, "browser");
+  assert.equal(dialogueResults[0].result.perspectives[0].speakerId, "monet");
+  assert.deepEqual(utterances, [{ text: "What changes in the water?", mode: "browser" }]);
+  assert.deepEqual(assistantReplies, [{
+    text: "Claude Monet: The reflection changes with your position.",
+    mode: "browser"
+  }]);
   assert.equal(states.at(-1), "listening");
   assert.ok(recognition.startCalls >= 2);
 
@@ -265,6 +286,29 @@ test("browser voice drops an in-flight answer when the museum context changes", 
   assert.equal(transcripts.filter((event) => event.role === "assistant").length, 0);
   assert.equal(synthesis.spoken.length, 0);
   assert.equal(voice.state, "listening");
+  voice.stop();
+});
+
+test("a stale browser voice rejection cannot end the replacement context", async () => {
+  const recognition = fakeRecognition();
+  const events = [];
+  let rejectDialogue;
+  const voice = new VoiceSession({
+    dialogue: () => new Promise((_resolve, reject) => { rejectDialogue = reject; }),
+    recognitionFactory: () => recognition,
+    onEvent: (event) => events.push(event)
+  });
+
+  voice.start({ realtime: false });
+  recognition.result("Question from the previous work", true);
+  await new Promise((resolve) => setImmediate(resolve));
+  voice.updateContext();
+  rejectDialogue(new Error("late_failure"));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(voice.state, "listening");
+  assert.equal(voice.mode, "browser");
+  assert.deepEqual(events, []);
   voice.stop();
 });
 

@@ -5,6 +5,7 @@ import { isIP } from "node:net";
 import path from "node:path";
 import { loadEnvFile } from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { MINIMAX_NARRATION_MODEL, MiniMaxService } from "./services/minimax.js";
 import { NARRATION_MODEL, OpenAIService } from "./services/openai.js";
 import { RoomService } from "./services/rooms.js";
 import { WorldLabsService } from "./services/worldLabs.js";
@@ -14,6 +15,8 @@ import { artworksForScene } from "./src/config/sceneCollections.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const BODY_LIMIT = 160_000;
+export const MODEL_REQUEST_BUDGET = 72;
+export const NARRATION_REQUEST_BUDGET = 160;
 const STATIC_ROOTS = new Map([
   ["/src/", path.join(ROOT, "src")],
   ["/shared/", path.join(ROOT, "shared")],
@@ -41,20 +44,23 @@ const MIME = new Map([
 export function createMuseServer({ env = process.env, fetchImpl = fetch, roomService, staticReadStreamFactory = createReadStream } = {}) {
   const openai = new OpenAIService({
     apiKey: env.OPENAI_API_KEY,
+    baseUrl: env.OPENAI_BASE_URL,
+    model: env.OPENAI_MODEL,
     fetchImpl,
     safetySalt: env.SAFETY_ID_SALT || "muse-build-week"
   });
+  const minimax = new MiniMaxService({ apiKey: env.MINIMAX_API_KEY, fetchImpl });
   const worlds = new WorldLabsService({ apiKey: env.WORLDLABS_API_KEY, adminToken: env.INTEGRATION_ADMIN_TOKEN, fetchImpl });
   const rooms = roomService || new RoomService();
-  const modelBudget = new RequestBudget({ limit: 30, windowMs: 10 * 60 * 1000 });
-  const speechBudget = new RequestBudget({ limit: 60, windowMs: 10 * 60 * 1000 });
+  const modelBudget = new RequestBudget({ limit: MODEL_REQUEST_BUDGET, windowMs: 10 * 60 * 1000 });
+  const speechBudget = new RequestBudget({ limit: NARRATION_REQUEST_BUDGET, windowMs: 10 * 60 * 1000 });
 
   return http.createServer(async (req, res) => {
     setHeaders(res);
     if (req.method === "OPTIONS") return sendEmpty(res, 204);
     try {
       const url = new URL(req.url || "/", "http://localhost");
-      if (url.pathname.startsWith("/api/")) return await handleApi({ req, res, url, openai, worlds, rooms, modelBudget, speechBudget });
+      if (url.pathname.startsWith("/api/")) return await handleApi({ req, res, url, openai, minimax, worlds, rooms, modelBudget, speechBudget });
       if (req.method !== "GET" && req.method !== "HEAD") return sendJson(res, 405, { error: "method_not_allowed" });
       return await serveStatic(req, res, url.pathname, staticReadStreamFactory);
     } catch (error) {
@@ -66,9 +72,9 @@ export function createMuseServer({ env = process.env, fetchImpl = fetch, roomSer
   });
 }
 
-async function handleApi({ req, res, url, openai, worlds, rooms, modelBudget, speechBudget }) {
+async function handleApi({ req, res, url, openai, minimax, worlds, rooms, modelBudget, speechBudget }) {
   if (req.method === "GET" && url.pathname === "/api/status") {
-    const narrationProvider = openai.narrationConfigured ? "openai" : null;
+    const narrationProvider = minimax.configured ? "minimax" : (openai.narrationConfigured ? "openai" : null);
     return sendJson(res, 200, {
       configured: openai.configured,
       openai: openai.configured,
@@ -80,7 +86,10 @@ async function handleApi({ req, res, url, openai, worlds, rooms, modelBudget, sp
       realtime_model: openai.realtimeConfigured ? openai.realtimeModel : null,
       narration: Boolean(narrationProvider),
       narration_provider: narrationProvider,
-      narration_model: narrationProvider ? NARRATION_MODEL : null,
+      narration_model: narrationProvider === "minimax"
+        ? MINIMAX_NARRATION_MODEL
+        : (narrationProvider === "openai" ? NARRATION_MODEL : null),
+      narration_fallback_provider: narrationProvider === "minimax" && openai.narrationConfigured ? "openai" : null,
       world_forge: worlds.configured,
       rooms: true
     });
@@ -96,15 +105,18 @@ async function handleApi({ req, res, url, openai, worlds, rooms, modelBudget, sp
   if (req.method === "POST" && url.pathname === "/api/lesson/recap") {
     const body = await readJson(req);
     const digest = createSessionDigest(body);
+    const observedStations = digest.station_evidence.filter((item) => item.visitor_observation).length;
+    const inquiryStations = digest.station_evidence.filter((item) => item.inquiry).length;
     return sendJson(res, 200, {
       live: false,
       model: "curated-demo",
       data: {
         title: "Your learning map",
         summary: digest.visits.length
-          ? `You tested ${digest.visits.length} observations against visible details. Your route changed because attention became a choice.`
+          ? `You carried ${digest.visits.length} scene reflections through ${digest.station_evidence.length} artwork stations, including ${observedStations} firsthand observations and ${inquiryStations} inquiry paths.`
           : "Begin with one visible detail, then test what it changes in your interpretation.",
-        evidence: digest.visits
+        evidence: digest.visits,
+        station_evidence: digest.station_evidence
       }
     });
   }
@@ -150,10 +162,19 @@ async function handleApi({ req, res, url, openai, worlds, rooms, modelBudget, sp
     };
     res.once("close", abortUpstream);
     try {
-      const audio = await openai.createNarration({
+      const request = {
         speakerId: body.speaker_id,
         text: body.text
-      }, body.session_id || req.headers["x-session-id"], { signal: controller.signal });
+      };
+      const sessionId = body.session_id || req.headers["x-session-id"];
+      let audio;
+      try {
+        audio = await (minimax.configured ? minimax : openai)
+          .createNarration(request, sessionId, { signal: controller.signal });
+      } catch (error) {
+        if (!minimax.configured || !openai.narrationConfigured || controller.signal.aborted) throw error;
+        audio = await openai.createNarration(request, sessionId, { signal: controller.signal });
+      }
       return sendBinary(res, 200, audio.bytes, {
         "Cache-Control": "no-store",
         "Content-Type": audio.contentType
@@ -199,15 +220,74 @@ function trustedDialogueContext(input = {}) {
   const artworks = artworksForScene(scene.id);
   const requestedArtwork = normalizeText(source.artwork_id || source.artworkId || source.artwork?.id, 100);
   const artwork = artworks.find((item) => item.id === requestedArtwork) || artworks[0] || null;
+  const artworkIds = new Set(artworks.map((item) => item.id));
+  const artworkIndex = artworks.findIndex((item) => item.id === artwork?.id);
+  const canonicalStationId = artworkIndex >= 0 && artworkIndex < 3
+    ? `${scene.id}:station-${artworkIndex + 1}`
+    : "";
+  const stationId = canonicalStationId;
+  const focusQuestion = normalizeText(
+    source.focus_question || source.focusQuestion || source.station?.focus_question || source.scene?.prompt,
+    280
+  );
+  const rawStationHistory = Array.isArray(source.station_history)
+    ? source.station_history
+    : Array.isArray(source.scene_station_history)
+      ? source.scene_station_history
+      : Array.isArray(source.stationHistory)
+        ? source.stationHistory
+        : [];
+  const stationHistory = rawStationHistory.map((value) => {
+    const station = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    const stationArtworkId = normalizeText(station.artwork_id || station.artworkId, 100);
+    if (!artworkIds.has(stationArtworkId)) return null;
+    const stationArtworkIndex = artworks.findIndex((item) => item.id === stationArtworkId);
+    const stationId = stationArtworkIndex >= 0 && stationArtworkIndex < 3
+      ? `${scene.id}:station-${stationArtworkIndex + 1}`
+      : "";
+    if (!stationId) return null;
+    const allowedFactIds = new Set(["title", "artist", "date"].map((kind) => `${stationArtworkId}:catalog-${kind}`));
+    const choiceSource = station.choice && typeof station.choice === "object" && !Array.isArray(station.choice)
+      ? station.choice
+      : {};
+    const perspectives = Array.isArray(station.perspectives)
+      ? station.perspectives.slice(0, 3).map((item) => ({
+        companion_id: normalizeText(item?.companion_id || item?.companionId || item?.speaker_id || item?.speakerId, 48),
+        text: normalizeText(item?.text || item?.summary || item?.interpretation, 240)
+      })).filter((item) => item.companion_id || item.text)
+      : [];
+    return {
+      station_id: stationId,
+      artwork_id: stationArtworkId,
+      focus_question: normalizeText(station.focus_question || station.focusQuestion, 240),
+      visitor_observation: normalizeText(station.visitor_observation || station.visitorObservation || station.observation, 240),
+      visitor_question: normalizeText(station.visitor_question || station.visitorQuestion, 240),
+      choice: {
+        value: normalizeText(choiceSource.value, 48),
+        label: normalizeText(choiceSource.label, 120),
+        stance: normalizeText(choiceSource.stance, 240),
+        evidence_prompt: normalizeText(choiceSource.evidence_prompt || choiceSource.evidencePrompt, 240)
+      },
+      evidence_fact_ids: Array.isArray(station.evidence_fact_ids || station.evidenceFactIds)
+        ? [...new Set(station.evidence_fact_ids || station.evidenceFactIds)]
+          .filter((id) => allowedFactIds.has(id))
+          .slice(0, 8)
+        : [],
+      perspectives
+    };
+  }).filter(Boolean).slice(-4);
   return {
     question: normalizeText(source.question, 600),
+    carrying_question: normalizeText(source.carrying_question || source.carryingQuestion, 160),
+    station_id: stationId,
+    focus_question: focusQuestion || scene.question,
     scene: {
       id: scene.id,
       title: scene.title,
       artist: scene.artist,
       chapter: scene.chapter,
       guide_id: scene.guideId,
-      prompt: scene.question,
+      prompt: focusQuestion || scene.question,
       detail: scene.detail
     },
     artwork: artwork ? {
@@ -225,7 +305,8 @@ function trustedDialogueContext(input = {}) {
       ? source.recent_evidence
       : Array.isArray(source.recentEvidence)
         ? source.recentEvidence
-        : []
+        : [],
+    station_history: stationHistory
   };
 }
 

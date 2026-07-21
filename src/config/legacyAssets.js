@@ -85,7 +85,7 @@ const CANONICAL_WORLDS = [
     sourceSplats: 4_320_000,
     worldScale: 1.7,
     palette: palette(0xeadfc4, 0x9b9c70, 0xe5d6ad, 0xd8965d),
-    profile: profile(-9.5, 15.5, 3, -75.29, 68.24, 1.12, 82.68, 2.68, 400)
+    profile: profile(-7.3838, 16.9279, 1.256, -75.29, 68.24, 1.12, 82.68, 2.68, 400)
   },
   {
     id: "mexican-courtyard-bedroom-fantasy",

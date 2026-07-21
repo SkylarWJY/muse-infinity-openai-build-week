@@ -5,6 +5,9 @@ export class VoiceSession {
     onState = () => {},
     onEvent = () => {},
     onTranscript = () => {},
+    onDialogueResult = () => {},
+    onUtterance = () => {},
+    onAssistantReply = () => {},
     dialogue = null,
     fetchImpl = (...args) => fetch(...args),
     peerConnectionFactory = () => new RTCPeerConnection(),
@@ -25,6 +28,9 @@ export class VoiceSession {
     this.onState = onState;
     this.onEvent = onEvent;
     this.onTranscript = onTranscript;
+    this.onDialogueResult = onDialogueResult;
+    this.onUtterance = onUtterance;
+    this.onAssistantReply = onAssistantReply;
     this.dialogue = dialogue;
     this.fetch = fetchImpl;
     this.peerConnectionFactory = peerConnectionFactory;
@@ -142,6 +148,7 @@ export class VoiceSession {
       const id = `browser-user-${this.browserTurn + 1}`;
       this.onTranscript({ role: "user", id, text, final: result.isFinal === true, mode: "browser" });
       if (!result.isFinal) continue;
+      this.notifyDialogueObserver(this.onUtterance, { text, mode: "browser" });
       this.browserTurn += 1;
       this.browserBusy = true;
       try { this.recognition?.stop?.(); } catch { /* recognition may already be ending */ }
@@ -177,6 +184,12 @@ export class VoiceSession {
         provider,
         source: provider.live ? "live-dialogue" : "curated-local"
       });
+      this.notifyDialogueObserver(this.onAssistantReply, { text: spokenText, mode: "browser" });
+      try {
+        this.onDialogueResult({ question, result, mode: "browser" });
+      } catch {
+        // The spoken exchange remains usable if an optional museum-state observer fails.
+      }
       const utterance = this.utteranceFactory?.(spokenText);
       if (!utterance || !this.speechSynthesis?.speak) {
         this.finishBrowserTurn(generation);
@@ -188,7 +201,7 @@ export class VoiceSession {
       this.setState("speaking");
       this.speechSynthesis.speak(utterance);
     } catch (error) {
-      if (generation !== this.generation) return;
+      if (generation !== this.generation || contextRevision !== this.contextRevision) return;
       this.failBrowserVoice(error?.message || "voice_unavailable");
     }
   }
@@ -271,6 +284,18 @@ export class VoiceSession {
     const text = String(event.transcript || event.text || this.transcripts.get(key) || "");
     this.transcripts.delete(key);
     this.onTranscript({ role, id, text, final: true, mode: "realtime" });
+    if (text.trim()) {
+      const observer = role === "user" ? this.onUtterance : this.onAssistantReply;
+      this.notifyDialogueObserver(observer, { text, mode: "realtime" });
+    }
+  }
+
+  notifyDialogueObserver(observer, payload) {
+    try {
+      observer?.(payload);
+    } catch {
+      // Evidence capture must never interrupt an otherwise usable voice exchange.
+    }
   }
 
   failBrowserVoice(error = "voice_unavailable") {

@@ -17,40 +17,61 @@ project dependencies and sources.
 
 ## Background music
 
-This repository does not bundle or play any third-party background-music recording. Its
-four-profile score is Submission Period source code in `src/services/sound-experience.js`:
-deterministic Web Audio oscillators generate the pitches in the browser without recording
-samples or reference audio. The code is covered by this repository's MIT license; there is no
-separate music file, performer or recording asset to license.
+MUSE includes three public-domain instrumental recordings inherited from MUSE Infinity. They
+play only after a visitor gesture and duck beneath narration. The runtime does not alter or
+claim ownership of the recordings.
 
-The official rules require authorization for third-party content and prohibit copyrighted music
-in the demo video without permission.
-Any future recorded or generated soundtrack asset must therefore record the exact asset hash,
-source, performer or generator, rights holder, license or commercial-use grant, and the terms
-snapshot relied on. For generated music, also retain the provider and model version, account
-tier, task ID, full prompt, generation date and whether any reference audio was uploaded. AI
-generation alone is not evidence that an output is unique or cleared for use; prompts must not
-request imitation of an identifiable artist or existing recording.
+- `assets/audio/promenade.ogg` — Modest Mussorgsky, *Pictures at an Exhibition* — Promenade
+  (allegro giusto). Public-domain recording. Source:
+  <https://commons.wikimedia.org/wiki/File:Modest_Mussorgsky_-_pictures_at_an_exhibition_-_promenade_-_allegro_giusto,_nel_modo_russico_senza_allegrezza,_ma.ogg>
+- `assets/audio/clair-de-lune.opus` — Claude Debussy, *Clair de lune* (piano solo).
+  Public-domain recording. Source:
+  <https://commons.wikimedia.org/wiki/File:Clair_de_Lune_by_Claude_Debussy_(1905,_piano_solo).opus>
+- `assets/audio/gymnopedie.ogg` — Erik Satie, *Gymnopédie No. 1* (performed by Robin
+  Alciatore). Public-domain recording. Source:
+  <https://commons.wikimedia.org/wiki/File:Erik_Satie_-_gymnopedies_-_la_1_ere._lent_et_douloureux.ogg>
+
+Exact byte hashes are asserted in `tests/music-provenance.test.mjs`. A very quiet original Web
+Audio texture remains underneath the recordings; it uses no samples or reference audio.
 
 ## OpenAI model services
 
-The judging configuration requests OpenAI GPT-5.6 Responses, OpenAI Realtime and
-`gpt-4o-mini-tts` narration directly from `api.openai.com`. TTS renders already-visible lines
-as speech; it is not used for language reasoning. Supported browsers may use
+MUSE requests GPT-5.6 Responses through one of two exact disclosed origins: official OpenAI at
+`https://api.openai.com`, or the authorized OpenAI-compatible gateway at
+`https://api.baizhiyuan.cloud`. The compatible gateway is used for GPT-5.6 reasoning only.
+OpenAI Realtime and `gpt-4o-mini-tts` narration are enabled only with the official origin. TTS
+renders already-visible lines as speech; it is not used for language reasoning. Supported
+browsers may use
 `SpeechRecognition` and `SpeechSynthesis` as speech-only fallbacks. Recognized text still uses
-the official GPT-5.6 dialogue path or its labeled curated local fallback. Runtime reasoning
-model selection is fixed to the checked-in GPT constants.
+the configured GPT-5.6 dialogue path or its labeled curated local fallback. Runtime reasoning
+model and origin selection are fixed to checked-in exact allowlists.
 
-Use of the official OpenAI API is governed by the terms associated with the operator's OpenAI
+Use of either service is governed by the terms associated with the operator's authorized
 account. API credentials remain server-side and are not bundled as software or committed to
-the repository.
+the repository. The competition permits authorized third-party services; this notice separates
+their roles rather than implying an OpenAI-only product boundary.
+
+## MiniMax speech service
+
+When `MINIMAX_API_KEY` is configured, MUSE uses the documented MiniMax T2A v2 endpoint with
+`speech-2.8-turbo` for the primary nine-character narration cast. MiniMax receives only an
+allowlisted speaker identifier and the bounded line already visible in the interface. It does
+not receive the visitor's question, observations, scene evidence, lesson prompt or final concept,
+and it performs no language reasoning for MUSE. The integration uses generic system voices, not
+voice cloning or a claim to reproduce any historical person's real voice.
+
+The response is decoded as a bounded MP3 for immediate playback, is not written to repository or
+application storage, and its browser object URL is revoked after playback. The implementation
+follows the [MiniMax T2A HTTP documentation](https://platform.minimax.io/docs/api-reference/speech-t2a-http)
+and is operated subject to the [MiniMax Open Platform Terms](https://platform.minimax.io/protocol/terms-of-service).
 
 ## World Labs scene assets
 
 The nine canonical spaces, their colliders, thumbnails and interpretive scene images are
-prepared MUSE assets. Scenes 1-7 deploy Spark quality RAD derivatives built from World Labs
-SPZ sources; scene 8 deploys an 8K texture mesh with its SPZ as a fallback; scene 9 deploys an
-8K texture mesh.
+prepared assets inherited from `muse-infinity`. Scenes 1-7 deploy Spark quality RAD derivatives
+built from World Labs SPZ sources; scene 8 deploys an 8K texture mesh with its SPZ as a
+fallback; scene 9 deploys an 8K texture mesh. Nine inherited 1672 x 941 scene PNGs are used as
+readiness-transition posters while those real world assets initialize.
 Exact filenames, derivations, bytes and hashes are recorded in `docs/PROVENANCE.md`.
 
 The older `bright-gallery.spz`, `van-gogh-gallery.spz` and `infinity-room.spz` derivatives
@@ -62,6 +83,10 @@ spatial prompt, and returns an isolated generation operation; it is outside the 
 journey and receives no visitor question, evidence or conversation data. World Labs does not
 provide language reasoning. Generated asset use remains subject to the terms of the authorized
 account; the repository's MIT license does not replace those terms.
+
+World Labs Marble's **Record** workflow exports MP4 capture, not an animated GLB. MUSE does not
+claim a Marble-generated transition GLB and does not ship a Marble MP4. The current transition
+uses the inherited high-resolution scene posters and the checked-in local RAD/GLB worlds.
 
 ## Tripo character assets
 
@@ -81,13 +106,21 @@ The fictional learner is a separate Submission Period asset:
 - `assets/characters/learner.glb`, designed with GPT Image 2 through Tripo's image task, then
   reconstructed, PBR-textured, rigged and animated by Tripo.
 
-Tripo is an asset-production tool only; this repository has no Tripo runtime API. The learner's
-generation manifest is checked in. The historical figures are interpretive representations and
-do not claim endorsement, quotation or authentic reconstruction.
+The white-dove ambient asset is another Submission Period production output:
+
+- `assets/creatures/white-dove.glb`, sourced with Tripo's hosted GPT Image 2 task and rebuilt as
+  a detailed PBR model with Tripo v3.1. Its full task, prompt, credit, post-process and hash
+  record is `assets/generated/ambient-avian-v1/manifest.json`.
+
+Tripo is an asset-production tool only; this repository has no Tripo runtime API. The learner
+and dove generation manifests are checked in. The dove is a static mesh without a skin or
+animation clip; runtime path motion is not described as provider-generated skeletal animation.
+The historical figures are interpretive representations and do not claim endorsement,
+quotation or authentic reconstruction.
 
 Tripo output rights depend on the generating account tier under Tripo's current terms. Confirm
 the applicable account and output rights before commercial redistribution; the repository's
-MIT license does not relicense this GLB or its GPT Image 2 source views.
+MIT license does not relicense these GLBs or their GPT Image 2 source views.
 
 ## Companion portrait images
 
@@ -137,14 +170,15 @@ The older `assets/art/water-lilies.jpg`, `assets/art/bedroom.jpg` and
 works also represented in the 36-work collection. They are not additional unique works.
 
 No cloned voice, recorded narration, stock interface illustration or alternate reasoning-model
-runtime is bundled. Optional OpenAI TTS narration maps characters to generic system voices and
-never claims to be a historical person. MP3 responses are used for immediate playback,
+runtime is bundled. MiniMax and optional OpenAI TTS narration map characters to generic system
+voices and never claim to be a historical person. MP3 responses are used for immediate playback,
 are not written into the repository or application storage, and their browser object URLs are
 revoked after playback. If remote speech is unavailable, browser `SpeechSynthesis` reads the
 same visible text.
 
-Dynamic text dialogue requests `gpt-5.6` through the official OpenAI API. The independent Voice
-control prefers OpenAI Realtime WebRTC with the built-in `marin` voice. Where supported, its
+Dynamic text dialogue requests GPT-5.6 through the configured exact-allowlist origin. With the
+official origin, the independent Voice control can use OpenAI Realtime WebRTC with the built-in
+`marin` voice; the authorized compatible gateway remains reasoning-only. Where supported, its
 browser fallback uses `SpeechRecognition` for input, the same GPT-5.6 or curated local dialogue
 path for the response, and `SpeechSynthesis` for output. Text interaction remains available
 when microphone permission or speech services are unavailable; no fallback adds another

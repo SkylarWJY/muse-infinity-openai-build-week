@@ -2,7 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three";
 import { getWorld, stopsForWorld } from "../src/config/legacyAssets.js";
-import { WorldLayer, hasPendingSparkWork, hasRenderableSplatFrame, retireSparkArchive } from "../src/render/WorldLayer.js";
+import {
+  WorldLayer,
+  hasPendingSparkWork,
+  hasPresentationReadySplatFrame,
+  hasRenderableSplatFrame,
+  presentationSplatThreshold,
+  retireSparkArchive,
+  waitForSplatFrame
+} from "../src/render/WorldLayer.js";
 
 test("paged RAD readiness uses pager splats instead of the non-paged LOD map", () => {
   const splat = { paged: { numSplats: 241_870 } };
@@ -10,6 +18,35 @@ test("paged RAD readiness uses pager splats instead of the non-paged LOD map", (
   assert.equal(hasRenderableSplatFrame(spark, splat), true);
   spark.activeSplats = 0;
   assert.equal(hasRenderableSplatFrame(spark, splat), false);
+});
+
+test("presentation readiness rejects an early sparse RAD frame without hard-locking quality tiers", () => {
+  const splat = { paged: { numSplats: 241_870 } };
+  const spark = { activeSplats: 46_010, lodInstances: new Map() };
+  assert.equal(hasRenderableSplatFrame(spark, splat), true);
+  assert.equal(hasPresentationReadySplatFrame(spark, splat, 129_600), false);
+  spark.activeSplats = 135_000;
+  assert.equal(hasPresentationReadySplatFrame(spark, splat, 129_600), true);
+  assert.equal(presentationSplatThreshold({ lodSplatCount: 4_320_000 }), 129_600);
+  assert.equal(presentationSplatThreshold({ lodSplatCount: 750_000 }), 40_000);
+  assert.equal(presentationSplatThreshold({ lodSplatCount: 9_000_000 }), 135_000);
+});
+
+test("presentation readiness fails honestly when a RAD remains sparse for its whole budget", async () => {
+  const splat = { paged: { numSplats: 240_000 } };
+  const spark = { activeSplats: 48_000, lodInstances: new Map() };
+  await assert.rejects(
+    waitForSplatFrame(spark, splat, 40, () => false, { minimumActiveSplats: 129_600 }),
+    /splat_presentation_timeout/
+  );
+});
+
+test("presentation readiness samples a RAD that reaches the quality gate at the deadline", async () => {
+  const splat = { paged: { numSplats: 586_063 } };
+  const spark = { activeSplats: 0, lodInstances: new Map() };
+  setTimeout(() => { spark.activeSplats = 437_883; }, 5);
+
+  await waitForSplatFrame(spark, splat, 10, () => false, { minimumActiveSplats: 129_600 });
 });
 
 test("large meshes and small colliders keep separate bounded load budgets", async () => {
@@ -83,6 +120,8 @@ test("a stalled artwork settles to the spatial fallback and its late texture is 
   const startedAt = Date.now();
   assert.equal(await layer.build(world), false);
   assert.ok(Date.now() - startedAt < 250);
+  assert.equal(layer.scenery.visible, true);
+  assert.equal(layer.artworkGroup.visible, true);
   assert.equal(layer.artworkGroup.children.length, 4);
   assert.equal(layer.artworks.values().next().value.picture.material.map, null);
 

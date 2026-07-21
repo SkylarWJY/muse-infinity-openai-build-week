@@ -1,17 +1,26 @@
 import * as THREE from "three";
-import { ambientLifeForScene } from "../config/ambientLife.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { WHITE_DOVE_ASSET, ambientLifeForScene } from "../config/ambientLife.js";
+import { withTimeout } from "./withTimeout.js";
 
 const POINT_KINDS = new Set(["dots", "firefly"]);
-const AVIAN_KINDS = new Set(["bird", "gull", "crow", "tropical-bird"]);
+const AVIAN_KINDS = new Set(["white-dove", "crow", "tropical-bird"]);
 const MODES = new Set(["drift", "orbit", "flyby", "float"]);
 const TAU = Math.PI * 2;
 const PATH_EPSILON = 1 / 120;
 const POSITION_EPSILON_SQ = 1e-10;
+const ASSET_LOAD_TIMEOUT_MS = 15_000;
+const DOVE_LOCAL_WINGSPAN = 2;
+const DOVE_LOADED_FLAP_SCALE = 0.38;
+const DOVE_WING_SHADER_KEY = "muse-white-dove-wing-v1";
 
 export class AmbientLife {
-  constructor(scene) {
+  constructor(scene, { loader = new GLTFLoader(), loadTimeoutMs = ASSET_LOAD_TIMEOUT_MS } = {}) {
     if (!scene?.add || !scene?.remove) throw new TypeError("ambient_scene_required");
+    if (!loader?.loadAsync) throw new TypeError("ambient_loader_required");
     this.scene = scene;
+    this.loader = loader;
+    this.loadTimeoutMs = loadTimeoutMs;
     this.group = new THREE.Group();
     this.group.name = "ambient-life";
     this.scene.add(this.group);
@@ -24,6 +33,8 @@ export class AmbientLife {
     this.epoch = null;
     this.lastElapsed = 0;
     this.hasMoved = false;
+    this.loadToken = 0;
+    this.pendingLoads = new Set();
     this.disposed = false;
   }
 
@@ -39,6 +50,13 @@ export class AmbientLife {
       else for (let index = 0; index < spec.count; index += 1) this.buildEntity(spec, index);
     }
     this.placeAtLocalTime(0, false);
+    const doves = this.entities.filter((entity) => entity.spec.kind === "white-dove");
+    if (doves.length) this.queueWhiteDoveLoad(doves, this.loadToken, this.sceneId);
+    return this.metrics();
+  }
+
+  async whenReady() {
+    while (this.pendingLoads.size) await Promise.all([...this.pendingLoads]);
     return this.metrics();
   }
 
@@ -62,13 +80,21 @@ export class AmbientLife {
       sceneId: this.sceneId,
       count: this.entities.length + pointCount,
       kinds,
-      articulatedCount: this.entities.length,
+      articulatedCount: this.entities.filter(hasActiveArticulation).length,
       pointCount,
       moving: this.hasMoved
     };
   }
 
   clear() {
+    this.loadToken += 1;
+    for (const entity of this.entities) {
+      if (!entity.loadedModel) continue;
+      entity.flightVisual?.remove(entity.loadedModel);
+      disposeWhiteDoveModel(entity.loadedModel, entity.loadedMotion);
+      entity.loadedModel = null;
+      entity.loadedMotion = null;
+    }
     this.group.clear();
     for (const geometry of this.geometries.values()) geometry.dispose();
     for (const material of this.materials.values()) material.dispose();
@@ -91,7 +117,9 @@ export class AmbientLife {
   }
 
   buildEntity(spec, index) {
-    const entity = AVIAN_KINDS.has(spec.kind)
+    const entity = spec.kind === "white-dove"
+      ? this.buildWhiteDove(spec)
+      : AVIAN_KINDS.has(spec.kind)
       ? this.buildAvian(spec)
       : spec.kind === "butterfly"
         ? this.buildButterfly(spec)
@@ -106,12 +134,78 @@ export class AmbientLife {
     entity.root.name = `ambient-${spec.kind}-${index + 1}`;
     entity.root.userData.ambientKind = spec.kind;
     entity.root.userData.ambientIndex = index;
+    if (spec.asset) entity.root.userData.asset = spec.asset;
+    if (spec.kind === "white-dove") {
+      entity.root.userData.fallback = true;
+      entity.root.userData.assetStatus = "loading";
+    }
     entity.root.scale.setScalar(spec.scale);
     entity.previous = new THREE.Vector3();
     entity.sample = {};
     entity.nextSample = {};
     this.group.add(entity.root);
     this.entities.push(entity);
+  }
+
+  buildWhiteDove(spec) {
+    const root = new THREE.Group();
+    const flightVisual = new THREE.Group();
+    const fallbackRoot = new THREE.Group();
+    fallbackRoot.userData.model = "procedural-white-dove";
+
+    const feather = this.material("mesh:white-dove:feather", () => standardMaterial(spec.color));
+    const flightFeather = this.material("mesh:white-dove:flight-feather", () => standardMaterial(0xd9dde0));
+    const eyeMaterial = this.material("mesh:white-dove:eye", () => standardMaterial(0x171819));
+    const beakMaterial = this.material("mesh:white-dove:beak", () => standardMaterial(0xd8c9b8));
+    const feetMaterial = this.material("mesh:white-dove:feet", () => standardMaterial(0xb94d4d));
+
+    const body = new THREE.Mesh(this.geometry("white-dove-body", () => new THREE.SphereGeometry(0.28, 12, 8)), feather);
+    body.scale.set(0.72, 0.62, 1.22);
+    const head = new THREE.Mesh(this.geometry("white-dove-head", () => new THREE.SphereGeometry(0.16, 10, 7)), feather);
+    head.position.set(0, 0.06, 0.39);
+    const beak = new THREE.Mesh(this.geometry("white-dove-beak", () => new THREE.ConeGeometry(0.055, 0.2, 6)), beakMaterial);
+    beak.position.set(0, 0.035, 0.58);
+    beak.rotation.x = Math.PI / 2;
+
+    const eyeGeometry = this.geometry("white-dove-eye", () => new THREE.SphereGeometry(0.025, 7, 5));
+    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEye.position.set(-0.135, 0.1, 0.455);
+    rightEye.position.set(0.135, 0.1, 0.455);
+
+    const wingLeft = new THREE.Group();
+    const wingRight = new THREE.Group();
+    wingLeft.position.x = -0.16;
+    wingRight.position.x = 0.16;
+    const wingGeometry = this.geometry("avian-wing", wingGeometryFactory);
+    const leftWingMesh = new THREE.Mesh(wingGeometry, flightFeather);
+    const rightWingMesh = new THREE.Mesh(wingGeometry, flightFeather);
+    leftWingMesh.scale.x = -1;
+    wingLeft.add(leftWingMesh);
+    wingRight.add(rightWingMesh);
+
+    const footGeometry = this.geometry("white-dove-foot", () => new THREE.SphereGeometry(0.045, 7, 5));
+    const leftFoot = new THREE.Mesh(footGeometry, feetMaterial);
+    const rightFoot = new THREE.Mesh(footGeometry, feetMaterial);
+    leftFoot.position.set(-0.08, -0.19, -0.03);
+    rightFoot.position.set(0.08, -0.19, -0.03);
+    leftFoot.scale.set(0.72, 1.4, 0.72);
+    rightFoot.scale.copy(leftFoot.scale);
+
+    fallbackRoot.add(body, head, beak, leftEye, rightEye, wingLeft, wingRight, leftFoot, rightFoot);
+    flightVisual.add(fallbackRoot);
+    root.add(flightVisual);
+    return {
+      root,
+      flightVisual,
+      fallbackRoot,
+      loadedModel: null,
+      loadedMotion: null,
+      wingLeft,
+      wingRight,
+      flapRate: 5.4,
+      flapAmount: 0.52
+    };
   }
 
   buildAvian(spec) {
@@ -218,6 +312,52 @@ export class AmbientLife {
     this.pointFields.push({ spec, points, positions, previous: new Float32Array(positions.length) });
   }
 
+  queueWhiteDoveLoad(entities, token, sceneId) {
+    let pending;
+    pending = this.loadWhiteDoveModels(entities, token, sceneId)
+      .catch(() => {})
+      .finally(() => this.pendingLoads.delete(pending));
+    this.pendingLoads.add(pending);
+  }
+
+  async loadWhiteDoveModels(entities, token, sceneId) {
+    let template = null;
+    let prepared = [];
+    try {
+      const gltf = await withTimeout(
+        this.loader.loadAsync(WHITE_DOVE_ASSET),
+        this.loadTimeoutMs,
+        "ambient_white_dove_timeout",
+        { onLateResolve: (lateGltf) => disposeAssetTree(lateGltf?.scene) }
+      );
+      template = gltf?.scene;
+      if (!template) throw new Error("ambient_white_dove_scene_required");
+      if (this.disposed || token !== this.loadToken || sceneId !== this.sceneId) return;
+
+      for (const _entity of entities) prepared.push(prepareWhiteDoveModel(template));
+      if (this.disposed || token !== this.loadToken || sceneId !== this.sceneId) return;
+      for (let index = 0; index < entities.length; index += 1) {
+        const entity = entities[index];
+        const { model, motion } = prepared[index];
+        entity.flightVisual.remove(entity.fallbackRoot);
+        entity.flightVisual.add(model);
+        entity.loadedModel = model;
+        entity.loadedMotion = motion;
+        entity.root.userData.fallback = false;
+        entity.root.userData.assetStatus = "ready";
+        entity.root.userData.articulation = motion.mode;
+      }
+      prepared = [];
+    } catch {
+      if (!this.disposed && token === this.loadToken && sceneId === this.sceneId) {
+        for (const entity of entities) entity.root.userData.assetStatus = "fallback";
+      }
+    } finally {
+      for (const entry of prepared) disposeWhiteDoveModel(entry.model, entry.motion);
+      disposeAssetTree(template);
+    }
+  }
+
   placeAtLocalTime(localTime, detectMovement) {
     let movement = false;
     for (const entity of this.entities) {
@@ -236,6 +376,14 @@ export class AmbientLife {
       if (entity.wingLeft) entity.wingLeft.rotation.z = flap;
       if (entity.wingRight) entity.wingRight.rotation.z = -flap;
       if (entity.tail) entity.tail.rotation.y = flap;
+      if (entity.loadedMotion) updateWhiteDoveMotion(entity.loadedMotion, flap * DOVE_LOADED_FLAP_SCALE);
+      if (entity.flightVisual) {
+        const horizontal = Math.hypot(dx, dz);
+        const pathPitch = horizontal > 1e-8 ? -Math.atan2(entity.nextSample.y - entity.sample.y, horizontal) : 0;
+        entity.flightVisual.rotation.x = THREE.MathUtils.clamp(pathPitch, -0.18, 0.18)
+          + Math.sin(localTime * entity.flapRate * 0.46 + phase) * 0.032;
+        entity.flightVisual.rotation.z = Math.cos(localTime * entity.flapRate * 0.54 + phase) * 0.048;
+      }
       if (detectMovement && entity.root.position.distanceToSquared(entity.previous) > POSITION_EPSILON_SQ) movement = true;
     }
 
@@ -265,6 +413,210 @@ export class AmbientLife {
     if (!this.materials.has(key)) this.materials.set(key, create());
     return this.materials.get(key);
   }
+}
+
+function prepareWhiteDoveModel(template) {
+  const model = cloneAssetTree(template);
+  model.name = "white-dove-model";
+  model.rotation.y = -Math.PI / 2;
+  model.updateMatrixWorld(true);
+  let bounds = new THREE.Box3().setFromObject(model);
+  const size = bounds.getSize(new THREE.Vector3());
+  const span = Math.max(size.x, size.z);
+  if (!Number.isFinite(span) || span <= 0 || !Number.isFinite(size.y) || size.y <= 0) {
+    disposeAssetTree(model);
+    throw new Error("ambient_white_dove_bounds_invalid");
+  }
+  model.scale.setScalar(DOVE_LOCAL_WINGSPAN / span);
+  model.updateMatrixWorld(true);
+  bounds = new THREE.Box3().setFromObject(model);
+  model.position.sub(bounds.getCenter(new THREE.Vector3()));
+  model.traverse((object) => {
+    if (!object.isMesh) return;
+    object.castShadow = false;
+    object.receiveShadow = false;
+    object.frustumCulled = false;
+  });
+  const motion = installWhiteDoveMotion(model);
+  if (!motion.active) {
+    disposeAssetTree(model);
+    throw new Error("ambient_white_dove_articulation_required");
+  }
+  model.userData.articulation = motion.mode;
+  return { model, motion };
+}
+
+function installWhiteDoveMotion(model) {
+  const uniforms = [];
+  const decoratedMaterials = new Set();
+  model.traverse((object) => {
+    if (!object.isMesh || !object.geometry?.attributes?.position) return;
+    const rig = inferWhiteDoveWingRig(object.geometry);
+    if (!rig) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of materials) {
+      if (!material || decoratedMaterials.has(material)) continue;
+      const flapUniform = { value: 0 };
+      decorateWhiteDoveMaterial(material, rig, flapUniform);
+      decoratedMaterials.add(material);
+      uniforms.push(flapUniform);
+    }
+  });
+  return {
+    active: uniforms.length > 0,
+    mode: "shader-wing-deformation",
+    uniforms
+  };
+}
+
+function inferWhiteDoveWingRig(geometry) {
+  if (!geometry.boundingBox) geometry.computeBoundingBox();
+  const bounds = geometry.boundingBox;
+  if (!bounds || bounds.isEmpty()) return null;
+  const size = bounds.getSize(new THREE.Vector3());
+  if (![size.x, size.y, size.z].every((value) => Number.isFinite(value) && value > 0)) return null;
+  const dimensions = size.toArray();
+  const sortedAxes = [0, 1, 2].sort((left, right) => dimensions[right] - dimensions[left]);
+  const [wingSpanIndex, bodyAxisIndex] = sortedAxes;
+  if (dimensions[wingSpanIndex] < dimensions[bodyAxisIndex] * 1.3) return null;
+  const axis = new THREE.Vector3().setComponent(bodyAxisIndex, 1);
+  const sideAxis = new THREE.Vector3().setComponent(wingSpanIndex, 1);
+  const outerSpan = dimensions[wingSpanIndex] * 0.5;
+  return {
+    axis,
+    sideAxis,
+    center: bounds.getCenter(new THREE.Vector3()),
+    coreSpan: outerSpan * 0.22,
+    outerSpan
+  };
+}
+
+function decorateWhiteDoveMaterial(material, rig, flapUniform) {
+  const previousCompile = material.onBeforeCompile;
+  const previousCacheKey = material.customProgramCacheKey?.bind(material);
+  const shaderPreamble = whiteDoveShaderPreamble(rig);
+  material.onBeforeCompile = function onBeforeCompile(shader, renderer) {
+    previousCompile?.call(this, shader, renderer);
+    shader.uniforms.uMuseDoveWingFlap = flapUniform;
+    shader.vertexShader = `${shaderPreamble}\n${shader.vertexShader}`
+      .replace(
+        "#include <beginnormal_vertex>",
+        `#include <beginnormal_vertex>\nfloat museDoveNormalAngle = museDoveWingAngle(position);\nobjectNormal = museRotateAroundAxis(objectNormal, MUSE_DOVE_AXIS, museDoveNormalAngle);\n#ifdef USE_TANGENT\nobjectTangent = museRotateAroundAxis(objectTangent, MUSE_DOVE_AXIS, museDoveNormalAngle);\n#endif`
+      )
+      .replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>\nvec3 museDoveOffset = transformed - MUSE_DOVE_CENTER;\ntransformed = MUSE_DOVE_CENTER + museRotateAroundAxis(museDoveOffset, MUSE_DOVE_AXIS, museDoveWingAngle(position));`
+      );
+  };
+  material.customProgramCacheKey = () => `${previousCacheKey?.() || ""}|${DOVE_WING_SHADER_KEY}`;
+  material.userData.museWingMotion = DOVE_WING_SHADER_KEY;
+  material.needsUpdate = true;
+}
+
+function whiteDoveShaderPreamble(rig) {
+  return `
+uniform float uMuseDoveWingFlap;
+const vec3 MUSE_DOVE_AXIS = ${glslVector(rig.axis)};
+const vec3 MUSE_DOVE_SIDE_AXIS = ${glslVector(rig.sideAxis)};
+const vec3 MUSE_DOVE_CENTER = ${glslVector(rig.center)};
+const float MUSE_DOVE_CORE_SPAN = ${glslFloat(rig.coreSpan)};
+const float MUSE_DOVE_OUTER_SPAN = ${glslFloat(rig.outerSpan)};
+vec3 museRotateAroundAxis(vec3 value, vec3 axis, float angle) {
+  float sine = sin(angle);
+  float cosine = cos(angle);
+  return value * cosine + cross(axis, value) * sine + axis * dot(axis, value) * (1.0 - cosine);
+}
+float museDoveWingAngle(vec3 localPosition) {
+  vec3 offset = localPosition - MUSE_DOVE_CENTER;
+  float signedWingDistance = dot(offset, MUSE_DOVE_SIDE_AXIS);
+  float wingWeight = smoothstep(MUSE_DOVE_CORE_SPAN, MUSE_DOVE_OUTER_SPAN, abs(signedWingDistance));
+  float side = signedWingDistance < 0.0 ? -1.0 : 1.0;
+  return uMuseDoveWingFlap * side * wingWeight;
+}`.trim();
+}
+
+function updateWhiteDoveMotion(motion, flap) {
+  if (!motion?.active) return;
+  const safeFlap = Number.isFinite(flap) ? THREE.MathUtils.clamp(flap, -0.22, 0.22) : 0;
+  for (const uniform of motion.uniforms) uniform.value = safeFlap;
+}
+
+function disposeWhiteDoveModel(model, motion) {
+  if (motion) {
+    motion.active = false;
+    for (const uniform of motion.uniforms) uniform.value = 0;
+    motion.uniforms.length = 0;
+  }
+  disposeAssetTree(model);
+}
+
+function hasActiveArticulation(entity) {
+  if (entity.loadedModel) return entity.loadedMotion?.active === true;
+  return Boolean(entity.wingLeft || entity.wingRight || entity.tail);
+}
+
+function glslVector(vector) {
+  return `vec3(${vector.toArray().map(glslFloat).join(", ")})`;
+}
+
+function glslFloat(value) {
+  const fixed = Number(value).toFixed(8).replace(/0+$/, "").replace(/\.$/, ".0");
+  return fixed.includes(".") ? fixed : `${fixed}.0`;
+}
+
+function cloneAssetTree(source) {
+  const root = source.clone(true);
+  const geometries = new Map();
+  const materials = new Map();
+  const textures = new Map();
+  root.traverse((object) => {
+    if (object.geometry) {
+      if (!geometries.has(object.geometry)) geometries.set(object.geometry, object.geometry.clone());
+      object.geometry = geometries.get(object.geometry);
+    }
+    if (!object.material) return;
+    const sourceMaterials = Array.isArray(object.material) ? object.material : [object.material];
+    const cloned = sourceMaterials.map((material) => {
+      if (!materials.has(material)) materials.set(material, cloneMaterial(material, textures));
+      return materials.get(material);
+    });
+    object.material = Array.isArray(object.material) ? cloned : cloned[0];
+  });
+  return root;
+}
+
+function cloneMaterial(source, textures) {
+  const material = source.clone();
+  for (const [key, value] of Object.entries(material)) {
+    if (!value?.isTexture) continue;
+    if (!textures.has(value)) {
+      const texture = value.clone();
+      texture.needsUpdate = true;
+      textures.set(value, texture);
+    }
+    material[key] = textures.get(value);
+  }
+  material.needsUpdate = true;
+  return material;
+}
+
+function disposeAssetTree(root) {
+  if (!root?.traverse) return;
+  const geometries = new Set();
+  const materials = new Set();
+  const textures = new Set();
+  root.traverse((object) => {
+    if (object.geometry) geometries.add(object.geometry);
+    const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of objectMaterials) {
+      if (!material || materials.has(material)) continue;
+      materials.add(material);
+      for (const value of Object.values(material)) if (value?.isTexture) textures.add(value);
+    }
+  });
+  for (const geometry of geometries) geometry.dispose();
+  for (const material of materials) material.dispose();
+  for (const texture of textures) texture.dispose();
 }
 
 export function sampleAmbientPath(spec, index, elapsed, target = {}) {
@@ -318,6 +670,7 @@ function validateSpecs(specs, bounds) {
     if (!Number.isSafeInteger(spec.seed)) throw new TypeError("invalid_ambient_seed");
     if (!Number.isFinite(spec.scale) || spec.scale <= 0) throw new RangeError("invalid_ambient_scale");
     if (!Number.isFinite(spec.period) || spec.period <= 0) throw new RangeError("invalid_ambient_period");
+    if (spec.kind === "white-dove" && spec.asset !== WHITE_DOVE_ASSET) throw new Error("invalid_white_dove_asset");
     const { center, extent } = spec.volume || {};
     if (!finiteVector(center) || !finiteVector(extent) || extent.some((value) => value <= 0)) throw new TypeError("invalid_ambient_volume");
     if (bounds && !volumeWithinBounds(spec.volume, bounds)) throw new RangeError(`ambient_volume_outside_bounds:${spec.kind}`);

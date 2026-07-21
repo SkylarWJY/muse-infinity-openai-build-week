@@ -10,35 +10,42 @@ than symlinks.
 The core MUSE concept, nine prepared spatial worlds, colliders, scene images, thumbnails,
 historical-character assets and portraits are pre-Submission Period materials controlled by
 the entrant or lawfully sourced under the terms recorded here. Submission Period work added
-the strict ten-beat/8+1 state machine,
-GPT-5.6 Structured Outputs and two-stage synthesis, embodied party movement, artwork
-correspondence, transitions, official OpenAI Realtime/TTS voice, procedural music, ambient
+the strict ten-beat/8+1 state machine, GPT-5.6 Structured Outputs and two-stage synthesis,
+three required artwork stations per process world, independently directed companion movement,
+collider-tested artwork correspondence, high-resolution readiness transitions, conditional
+OpenAI Realtime plus MiniMax/OpenAI narration, procedural music, generated white-dove ambient
 life, responsive UI and automated verification.
 
 Evidence is recorded in commits `62a7f59`, `9ab9062`, `7602267` and `55fdeed`, and in Codex
 `/feedback` session `019f7e53-4039-7cc1-9162-01906bec47b7`. This concise distinction follows
-the [OpenAI Build Week Official Rules](https://openai.devpost.com/rules), which allow authorized
-third-party SDKs, APIs and data while requiring an existing project to identify work completed
-during the Submission Period.
+the [OpenAI Build Week Official Rules](https://openai.devpost.com/rules): `Project Requirements
+> Third Party Integrations` permits third-party SDKs, APIs and data when the entrant is authorized
+under their applicable terms, while the existing-project rules require work completed during the
+Submission Period to be identified.
 
 ## Runtime and generation boundary
 
-- Runtime language and reasoning requests use GPT-5.6 through the official OpenAI API at
-  `api.openai.com`.
-- Realtime microphone mode uses the official OpenAI Realtime API, including the checked-in GPT
-  Realtime and GPT transcription model constants.
-- Visible guide narration uses official OpenAI `gpt-4o-mini-tts`; browser `SpeechSynthesis` can
-  render the same visible text when the server renderer is unavailable. No path uses a cloned
-  historical voice.
+- Runtime language and reasoning requests use GPT-5.6 through exactly one of two allowlisted
+  origins: official OpenAI at `https://api.openai.com`, or the disclosed authorized
+  OpenAI-compatible gateway at `https://api.baizhiyuan.cloud`. The accepted model IDs are
+  `gpt-5.6` and `gpt-5.6-sol`; no other reasoning-model family is allowed.
+- The compatible gateway is reasoning-only. Realtime microphone mode and OpenAI narration are
+  enabled only with the official origin, including the checked-in GPT Realtime, transcription
+  and TTS constants.
+- Visible guide narration prefers MiniMax `speech-2.8-turbo` for a distinct nine-character cast,
+  falls back to official OpenAI `gpt-4o-mini-tts`, then to browser `SpeechSynthesis`. No path uses
+  a cloned historical voice or sends learning evidence to the TTS provider.
 - Supported browsers can fall back from Realtime to `SpeechRecognition` and
-  `SpeechSynthesis`. Recognized text uses the same official GPT-5.6 dialogue endpoint or its
+  `SpeechSynthesis`. Recognized text uses the configured GPT-5.6 dialogue endpoint or its
   labeled curated local fallback, so browser speech adds no language/reasoning model.
-- GPT Image 2 supplies the learner's source image. Tripo is used only to produce checked-in
-  character assets and has no runtime API in MUSE.
+- GPT Image 2 supplies the learner and white-dove source images. The dove used Tripo's hosted
+  `gpt_image_2` task after the configured compatible image gateway returned HTTP 403 with no
+  output. Tripo only produces checked-in assets and has no runtime API in MUSE.
 - World Labs produced prepared spatial assets. Its separate optional Forge endpoint requires
   both a server API key and an exact admin token, generates only isolated spatial variations,
   receives no visitor question/evidence/conversation data and is outside the canonical journey.
-- The nine spatial environments and character GLBs are prepared local assets. GPT personalizes
+- The nine spatial environments, character GLBs and transition posters are inherited prepared
+  `muse-infinity` assets. GPT personalizes
   the inquiry and final concept but does not generate new 3D geometry during a visitor session.
 
 ## Audio asset boundary
@@ -60,12 +67,16 @@ scene and focused artwork from the local exhibition and AIC collection manifests
 trusting client-supplied titles. It bounds the visitor question and recent evidence,
 canonicalizes one to three selected companions, and asks GPT-5.6 Responses for a strict JSON
 result containing exactly one named perspective and one allowed visual effect per companion.
+The bounded history may include the latest four stations from the active scene, but never
+records from another scene. Each process world requires evidence at its first three artwork
+stations; only the subsequent scene reflection becomes that world's eight-scene digest entry.
 Invalid output or an absent key returns an explicitly non-live local curated response under
 the same shape.
 
 `POST /api/narration` is a speech-rendering path for an already-visible, length-bounded line. It
-uses official OpenAI `gpt-4o-mini-tts` and built-in synthetic voices. The service uses no cloned
-historical voice and performs no language reasoning. The fully buffered
+prefers MiniMax `speech-2.8-turbo` with allowlisted system voices and falls back to official
+OpenAI `gpt-4o-mini-tts`. The services use no cloned historical voice and perform no language
+reasoning. Only the allowlisted speaker ID and visible line are sent. The fully buffered
 MP3 response is returned for immediate browser playback; MUSE writes no narration file or cache
 entry, and the temporary browser object URL is revoked when playback settles. If remote speech
 is unavailable or playback fails, browser `SpeechSynthesis` reads the same visible line.
@@ -80,7 +91,7 @@ voice. There is no cloned historical voice or lip synchronization.
 
 When Realtime is not used, supported browsers use `SpeechRecognition` for microphone input,
 send the recognized text through `POST /api/dialogue`, and use `SpeechSynthesis` for the
-returned perspectives. That dialogue remains official GPT-5.6 when configured or the labeled
+returned perspectives. That dialogue remains configured GPT-5.6 when live or the labeled
 curated local fallback; browser speech is not a second reasoning provider.
 
 Passive guide narration is controlled with Sound and stops at scene or process transitions.
@@ -89,15 +100,27 @@ described above; starting it stops passive narration so the input stream does no
 guide's own speech. Both narration and live conversation lower the procedural score while
 speaking. Browser autoplay policy requires a visitor gesture before Web Audio can begin.
 
-The official Realtime and TTS paths require an untracked OpenAI server credential. Browser
-speech remains available where the browser implements it, while text inquiry remains the
-authoritative accessible path when microphone permission or speech services are unavailable.
+GPT-5.6 requires an untracked credential accepted by the configured exact-allowlist origin.
+Realtime and OpenAI TTS additionally require the official OpenAI origin. Expressive cast
+narration requires an untracked MiniMax credential; official OpenAI TTS is used when available
+and MiniMax is absent or fails. Browser speech remains available where implemented, while text
+inquiry remains the authoritative accessible path when microphone permission or speech services
+are unavailable.
 
 ## Spatial world asset ledger
 
-Counts for scenes 1-7 were read from their World Labs SPZ source headers. The runtime ships
-Spark quality RAD derivatives so it can page the hierarchy instead of blocking on browser-time
-Bhatt LOD construction.
+The canonical scenes and colliders are inherited from `muse-infinity`. Counts for scenes 1-7
+were read from their World Labs SPZ source headers. The runtime ships Spark quality RAD
+derivatives so it can page the hierarchy instead of blocking on browser-time Bhatt LOD
+construction.
+
+World Labs Marble **Record** produces an MP4 capture, not an animated GLB export. No Marble
+transition GLB or MP4 is shipped or claimed here. MUSE instead uses the inherited high-resolution
+scene PNGs as a readiness veil before revealing the corresponding local RAD/GLB world. Atlas
+cross-world comparisons use the same veil, and the next canonical PNG is prefetched once at low
+priority after the current image decodes. If a presentation-quality gate fails, the matching PNG
+remains as the background while the coarse canvas stays hidden and the current workflow remains
+available for retry.
 
 ### Source-detail inputs for scenes 1-7
 
@@ -237,19 +260,47 @@ The deployed hashes in this manifest are authoritative; future package versions 
 produce byte-identical optimized output from the same command shape.
 
 The deployed companion files contain static meshes rather than skins or animation clips.
-Submission Period runtime work added approximate shader-region deformation and
-root translation make the first selected companion guide and up to two other selected
-companions follow in formation, with locally continuous collider-derived ground height and
-paired-foot formation validation. Gait cadence follows root speed, and the director holds
-distinct listening and reflection poses. Roundtable staging uses
+Submission Period runtime work added approximate shader-region deformation and root
+translation. Free walking can use grounded formation slots; artwork tours assign every selected
+companion an independent `GuideDirector`, rotate the lead by station, stagger departures and
+place the other actors at separated collider-grounded listening positions. Gait cadence follows
+root speed, and each director holds distinct listening and reflection poses. Roundtable staging uses
 the same selected roster. The figures are AI interpretations, not authentic likeness
 reconstructions or endorsements by the named people. Yayoi Kusama is a living person; this
 repository does not describe her representation as a public-domain historical likeness.
 
-The nine-scene ambient cast is implemented entirely by `src/config/ambientLife.js` and
-`src/render/AmbientLife.js`. No creature GLB, texture, sample, downloaded pack or generated
-animal asset is part of the repository. This keeps the world files unchanged and avoids adding
-another asset dependency.
+The nine-scene ambient cast is implemented by `src/config/ambientLife.js` and
+`src/render/AmbientLife.js`. Most distant creatures remain code-native articulated geometry or
+bounded point fields. Threshold, Sunset and Petal additionally load the generated white-dove GLB
+recorded below. Runtime clones its mesh/material resources per instance, follows deterministic
+paths with heading/pitch/bank, and applies independent PBR vertex-shader deformation to the
+detailed mesh's wing regions for visible flapping. It disposes late loads and retains a concrete
+procedural white-dove fallback only for detailed-asset failure. The selected GLB has no skin or
+baked animation clip and is not described as skeletal or rigged; its visible articulation is
+runtime-authored shader deformation.
+
+## Submission Period white-dove asset ledger
+
+The white rock dove was produced as one bounded Tripo chain. A direct GPT Image 2 request to the
+configured compatible image gateway returned HTTP 403 and produced no selected output. Tripo's
+hosted `generate_image` task with `model_version: gpt_image_2` produced the accepted reference;
+a Tripo multiview task and `v3.1-20260211` detailed PBR reconstruction produced the mesh. The
+pre-rig check returned `riggable: true` but `rig_type: others`, so no incompatible biped rig or
+animation retarget was attempted. A deterministic local material correction changed neutral
+feather pixels to the requested white plumage while preserving geometry, UVs, normal/ORM maps,
+dark eyes, beak details and coral feet.
+
+| File | Bytes | Detail | SHA-256 |
+| --- | ---: | --- | --- |
+| `assets/creatures/white-dove.glb` | 3,392,208 | 12,098 vertices; 19,598 triangles; 3 PBR textures; 0 skins; 0 animations | `19f40e7dfcc43254b63f37c48bb3363897ddb3f920c3ead6ecc05f2ccf54c23a` |
+| `assets/generated/ambient-avian-v1/reference.png` | 464,933 | Tripo-hosted GPT Image 2 source | `79f8c18e5358935b30d083495a91f1ca91a322d269a56f24f2645a8c99edf3da` |
+| `assets/generated/ambient-avian-v1/final-render.png` | 122,632 | Headless WebGL validation render | `a0287e21aebfb6337474984d78e9e2e2aa308d6cf3fc1e673f4072aed95f990e` |
+
+The complete prompt, task IDs, multiview hashes, credit usage, rejected attempts, material
+correction and QA record are in
+`assets/generated/ambient-avian-v1/manifest.json`. Provider-generated wing animation is not
+claimed. The checked-in GLB remains unskinned and clipless, while the deployed renderer combines
+authored root flight with a dedicated PBR vertex-shader wing deformation.
 
 ## Portrait ledger
 
@@ -312,8 +363,14 @@ real-person likeness.
 
 ## Scene-image asset ledger
 
-These nine MUSE PNGs are interpretive concept/evidence images. They are not historical
-artworks and are not represented as World Labs exports.
+These nine inherited MUSE PNGs are 1672 x 941 interpretive scene images and readiness-transition
+posters. They are not historical artworks and are not represented as World Labs exports. During
+boot, canonical world changes and Atlas cross-world comparisons, the full-viewport veil decodes
+the matching poster, holds while the real world becomes presentation-ready, and crossfades into
+the live canvas so coarse placeholders do not flash on the successful path. The next canonical
+poster is then prefetched once at low priority. A failed presentation-quality gate retains the
+matching poster as the world background, keeps the canvas hidden and preserves the applicable
+retry workflow.
 
 | # | File | Bytes | SHA-256 |
 | ---: | --- | ---: | --- |

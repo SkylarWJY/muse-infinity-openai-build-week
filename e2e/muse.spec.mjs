@@ -6,14 +6,14 @@ const mobile = { width: 390, height: 844 };
 const appUrl = process.env.MUSE_E2E_BASE_URL || "/?quality=high";
 
 const PROCESS = Object.freeze([
-  { sceneId: "threshold-conservatory", worldId: "grand-conservatory-with-lush-gardens", title: "The Threshold Conservatory", speaker: "MIRA" },
-  { sceneId: "court-of-light", worldId: "elegant-floral-palace-interior", title: "The Court of Light", speaker: "FREUD" },
-  { sceneId: "water-and-light", worldId: "enchanted-water-garden-sanctuary", title: "The Garden of Water and Light", speaker: "MONET" },
-  { sceneId: "sunset-frames", worldId: "dreamlike-coastal-villa-gardens", title: "The Sunset Frame Gallery", speaker: "PICASSO" },
-  { sceneId: "burning-sky", worldId: "van-gogh-inspired-gallery-interior", title: "The Studio of the Burning Sky", speaker: "VAN GOGH" },
-  { sceneId: "petal-transition", worldId: "sunlit-palace-gardens", title: "The Petal Transition Hall", speaker: "QI BAISHI" },
-  { sceneId: "living-memory", worldId: "mexican-courtyard-bedroom-fantasy", title: "The Courtyard of Living Memory", speaker: "FRIDA" },
-  { sceneId: "infinite-repetition", worldId: "yellow-polka-dot-infinity-room", title: "The Infinite Repetition Chamber", speaker: "KUSAMA" }
+  { sceneId: "threshold-conservatory", worldId: "grand-conservatory-with-lush-gardens", image: "/assets/scenes/01-entrance-conservatory.png", title: "The Threshold Conservatory", speaker: "MIRA" },
+  { sceneId: "court-of-light", worldId: "elegant-floral-palace-interior", image: "/assets/scenes/02-court-of-light.png", title: "The Court of Light", speaker: "FREUD" },
+  { sceneId: "water-and-light", worldId: "enchanted-water-garden-sanctuary", image: "/assets/scenes/03-monet-water-and-light.png", title: "The Garden of Water and Light", speaker: "MONET" },
+  { sceneId: "sunset-frames", worldId: "dreamlike-coastal-villa-gardens", image: "/assets/scenes/04-sunset-frame-gallery.png", title: "The Sunset Frame Gallery", speaker: "PICASSO" },
+  { sceneId: "burning-sky", worldId: "van-gogh-inspired-gallery-interior", image: "/assets/scenes/05-van-gogh-burning-sky.png", title: "The Studio of the Burning Sky", speaker: "VAN GOGH" },
+  { sceneId: "petal-transition", worldId: "sunlit-palace-gardens", image: "/assets/scenes/06-petal-transition-hall.png", title: "The Petal Transition Hall", speaker: "QI BAISHI" },
+  { sceneId: "living-memory", worldId: "mexican-courtyard-bedroom-fantasy", image: "/assets/scenes/07-frida-living-memory.png", title: "The Courtyard of Living Memory", speaker: "FRIDA" },
+  { sceneId: "infinite-repetition", worldId: "yellow-polka-dot-infinity-room", image: "/assets/scenes/08-kusama-infinite-dots.png", title: "The Infinite Repetition Chamber", speaker: "KUSAMA" }
 ]);
 
 const FINAL = Object.freeze({
@@ -96,6 +96,8 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
   await installStageTrace(page);
 
   await test.step("the threshold renders the real high-fidelity RAD archive", async () => {
+    const bootVeil = await expectHighFidelityTransition(page, PROCESS[0], { kicker: "MUSE · PROLOGUE" });
+    expect(await page.locator("#entry-panel").evaluate((element) => element.inert)).toBe(true);
     await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "threshold");
     await expect(page.locator("#route-list > li")).toHaveCount(8);
     await waitForRealRadWorld(page, PROCESS[0].worldId);
@@ -104,7 +106,8 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
       return engine.player?.ready === true
         && engine.guide?.ready === true
         && engine.partyActors?.length === 2
-        && engine.partyActors.every((actor) => actor.ready === true && actor.group.visible === true);
+        && engine.partyActors.every((actor) => actor.ready === true && actor.group.visible === true)
+        && engine.ambient?.metrics?.().moving === true;
     }, null, { timeout: 90_000 });
 
     const archive = await page.evaluate(() => {
@@ -154,7 +157,7 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
       ambient: {
         sceneId: PROCESS[0].sceneId,
         count: 3,
-        kinds: ["butterfly", "bird"],
+        kinds: ["butterfly", "white-dove"],
         articulatedCount: 3,
         pointCount: 0,
         moving: true
@@ -166,6 +169,10 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     expect(archive.source).toMatch(/\.rad$/);
     expect(archive.pagedLodSplats).toBeGreaterThan(0);
     expect(archive.activeSplats).toBeGreaterThan(0);
+    await setRadLodForHeadless(page, 240_000);
+    await page.waitForFunction(() => window.__MUSE_APP__.state.bootSettled === true);
+    await waitForTransitionExit(bootVeil, 10_000);
+    expect(await page.locator("#entry-panel").evaluate((element) => element.inert)).toBe(false);
     expect(await page.evaluate(() => window.__MUSE_APP__.canOpenDialogue())).toBe(false);
     await page.locator("#voice-tool").click();
     await expect(page.locator("#toast")).toContainText("Reach and face the current artwork");
@@ -174,7 +181,7 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     const pixels = await canvasPixels(page, "artifacts/screenshots/desktop-rad-threshold.png");
     expect(pixels.variance).toBeGreaterThan(180);
     expect(pixels.nonDominantRatio).toBeGreaterThan(0.12);
-    await constrainRadAfterScreenshot(page);
+    await setRadLodForHeadless(page, 120_000);
 
     const before = await playerPosition(page);
     const partyBefore = await partyPositions(page);
@@ -339,25 +346,87 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
         const ambient = window.__MUSE_APP__.engine.ambient?.metrics?.();
         return ambient?.sceneId === sceneId && ambient.count > 0 && ambient.moving === true;
       }, expected.sceneId);
-      expect(await page.evaluate(() => window.__MUSE_APP__.canOpenDialogue())).toBe(true);
-      await expect(page.locator("#stop-title")).toContainText(expected.title);
-      await expect(page.locator("#speaker-name")).toHaveText(expected.speaker);
-      await expect(page.locator("[data-answer]")).toHaveCount(2);
 
       if (index === 1) await verifyCurrentArchiveFailureBlocksEvidence(page, expected, index);
 
-      if (index === 0) {
-        await verifyLiveInquiry(page, dialogueRequests);
-        await page.setViewportSize(mobile);
-        const questionLayout = await mobileLayout(page, "#dialogue");
-        expect(questionLayout.documentOverflow).toBeLessThanOrEqual(0);
-        expect(questionLayout.panelOverflow).toBeLessThanOrEqual(0);
-        expect(questionLayout.panelTouchesMovement).toBe(false);
-        expect(questionLayout.panelTouchesMission).toBe(false);
-        await page.screenshot({ path: "artifacts/screenshots/mobile-first-world-question.png" });
-        await page.setViewportSize(desktop);
+      for (let stationIndex = 0; stationIndex < 3; stationIndex += 1) {
+        if (stationIndex > 0) await arriveAtCurrentStop(page);
+        expect(await page.evaluate(() => window.__MUSE_APP__.canOpenDialogue())).toBe(true);
+        await expect(page.locator("#stop-title")).toContainText(expected.title);
+        await expect(page.locator("#speaker-name")).toHaveText(["MONET", "VAN GOGH", "SOCRATES"][stationIndex]);
+        await expect(page.locator("#dialogue")).toHaveAttribute("data-station-index", String(stationIndex));
+        await expect(page.locator("#dialogue")).toHaveAttribute("data-station-count", "3");
+        await expect(page.locator("[data-answer]")).toHaveCount(3);
+        await expect(page.locator("[data-answer]").first().locator(".station-choice-stance")).not.toBeEmpty();
+        await expect(page.locator("[data-answer]").first().locator(".station-choice-evidence")).toContainText("Evidence");
+
+        if (index === 0 && stationIndex === 0) {
+          await verifyLiveInquiry(page, dialogueRequests);
+          await page.locator("[data-drawer='atlas']").click();
+          await expect(page.locator("#drawer-body")).toContainText("Finish the current three-work inquiry");
+          await expect(page.locator("[data-drawer-action='world']:not([disabled])")).toHaveCount(0);
+          await page.locator("[data-action='close-drawer']").click();
+          await page.setViewportSize(mobile);
+          const questionLayout = await mobileLayout(page, "#dialogue");
+          expect(questionLayout.documentOverflow).toBeLessThanOrEqual(0);
+          expect(questionLayout.panelOverflow).toBeLessThanOrEqual(0);
+          expect(questionLayout.panelTouchesMovement).toBe(false);
+          expect(questionLayout.panelTouchesMission).toBe(false);
+          await page.screenshot({ path: "artifacts/screenshots/mobile-first-world-question.png" });
+          await page.setViewportSize(desktop);
+        }
+
+        await page.locator("[data-answer]").first().click();
+        await page.waitForFunction(({ visitCount, completedStations }) => {
+          const app = window.__MUSE_APP__;
+          return app.sceneTour.phase === "station-reflecting"
+            && app.sceneTour.stationEvidence.length === completedStations
+            && app.session.phase === "walking"
+            && app.session.visited.length === visitCount
+            && app.journey.visitedSceneIds.length === visitCount;
+        }, { visitCount: index, completedStations: stationIndex + 1 });
+        expect(await page.evaluate(() => window.__MUSE_APP__.canOpenDialogue())).toBe(false);
+        await expect(page.locator("#guide-line")).toContainText("Inquiry path recorded");
+        if (!(index === 0 && stationIndex === 0)) {
+          const localPerspectives = page.locator("#inquiry-thread .station-perspective");
+          await expect(localPerspectives).toHaveCount(3);
+          const company = [
+            { id: "monet", name: "Claude Monet" },
+            { id: "van-gogh", name: "Vincent van Gogh" },
+            { id: "socrates", name: "Socrates" }
+          ];
+          const expectedOrder = company.map((_, offset) => company[(stationIndex + offset) % company.length]);
+          expect(await localPerspectives.evaluateAll((items) => items.map((item) => item.dataset.speakerId))).toEqual(
+            expectedOrder.map((speaker) => speaker.id)
+          );
+          for (const [speakerIndex, speaker] of expectedOrder.entries()) {
+            await expect(localPerspectives.nth(speakerIndex)).toBeVisible();
+            await expect(localPerspectives.nth(speakerIndex).locator("b")).toHaveText(`${speaker.name} · CURATED COMPANY`);
+            await expect(localPerspectives.nth(speakerIndex).locator("p")).not.toBeEmpty();
+          }
+        }
+        if (index === 0 && stationIndex === 0) {
+          expect(await page.evaluate(() => window.__MUSE_APP__.state.journeyStationEvidence[0])).toMatchObject({
+            scene_id: PROCESS[0].sceneId,
+            station_order: 1,
+            visitor_observation: "",
+            visitor_question: LIVE_INQUIRY.question,
+            perspectives: LIVE_INQUIRY.perspectives.map((item) => ({ speaker_id: item.speakerId, text: item.text }))
+          });
+        }
+        await page.locator("#continue-button").click();
+        if (stationIndex < 2) {
+          await page.waitForFunction((nextIndex) => window.__MUSE_APP__.sceneTour.phase === "station-walking"
+            && window.__MUSE_APP__.sceneTour.stationIndex === nextIndex, stationIndex + 1);
+          expect(await page.evaluate(() => window.__MUSE_APP__.narrator.snapshot().speaking)).toBe(false);
+        } else {
+          await page.waitForFunction(() => window.__MUSE_APP__.sceneTour.phase === "scene-reflection"
+            && window.__MUSE_APP__.session.phase === "asking");
+        }
       }
 
+      await expect(page.locator("#dialogue")).toHaveAttribute("data-station-index", "reflection");
+      await expect(page.locator("[data-answer]")).toHaveCount(3);
       if (index === 2) {
         await page.locator("#observation-input").fill(FREE_OBSERVATION);
         await page.locator(".observation-form").evaluate((form) => form.requestSubmit());
@@ -371,6 +440,7 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
           && app.journey.visitedSceneIds.length === count;
       }, index + 1);
       expect(await page.evaluate(() => window.__MUSE_APP__.canOpenDialogue())).toBe(false);
+      expect(await page.evaluate(() => window.__MUSE_APP__.sceneTour.phase)).toBe("complete");
       expect((await journeySnapshot(page)).visited).toEqual(PROCESS.slice(0, index + 1).map((item) => item.sceneId));
       await expect(page.locator("#route-list > li.done")).toHaveCount(index + 1);
 
@@ -391,7 +461,9 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
         await expect(page.locator("[data-drawer-action='world']")).toHaveCount(8);
         await expect(page.locator("[data-drawer-action='world']:not([disabled])")).toHaveCount(2);
         await page.locator(`[data-drawer-action='world'][data-value='${PROCESS[1].worldId}']`).click();
+        const atlasTransition = await expectHighFidelityTransition(page, PROCESS[1]);
         await page.waitForFunction((worldId) => window.__MUSE_APP__.engine.activeWorld.id === worldId, PROCESS[1].worldId);
+        await waitForTransitionExit(atlasTransition, 4_000);
         expect(await page.evaluate(() => ({
           sessionPhase: window.__MUSE_APP__.session.phase,
           sessionStop: window.__MUSE_APP__.session.currentStopId,
@@ -420,6 +492,19 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     }
 
     expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("world_exploration");
+    expect(await page.evaluate(() => {
+      const app = window.__MUSE_APP__;
+      const digest = app.session.digest({
+        companion_ids: app.journey.companions,
+        station_evidence: app.state.journeyStationEvidence
+      });
+      return {
+        stateCount: app.state.journeyStationEvidence.length,
+        digestCount: digest.station_evidence.length,
+        observations: digest.station_evidence.filter((item) => item.evidence_kind === "observation").length,
+        inquiries: digest.station_evidence.filter((item) => item.evidence_kind === "inquiry").length
+      };
+    })).toEqual({ stateCount: 24, digestCount: 24, observations: 0, inquiries: 24 });
     await expect(page.locator(".evidence-count b")).toHaveText("08");
     await expect(page.locator("#chapter-label")).toHaveText("WORLD EXPLORATION / 04");
     await expect(page.locator("[data-entry-action='enter-final']")).toHaveCount(0);
@@ -689,6 +774,7 @@ async function installCuratedModelRoutes(page, interceptedModelRequests, dialogu
       dialogueReplyAvailable = false;
       interceptedModelRequests.push(pathname);
       dialogueRequests.push(request.postDataJSON());
+      await new Promise((resolve) => setTimeout(resolve, 150));
       return route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -723,6 +809,9 @@ async function verifyLiveInquiry(page, dialogueRequests) {
   await page.locator("#inquiry-input").fill(LIVE_INQUIRY.question);
   await page.locator(".inquiry-form button[type='submit']").click();
 
+  await expect(page.locator("#dialogue")).toHaveAttribute("aria-busy", "true");
+  await expect(page.locator("#answers button:not([disabled]), #answers input:not([disabled])")).toHaveCount(0);
+
   const visitorTurn = page.locator("#inquiry-thread .visitor-turn").last();
   await expect(visitorTurn.locator("b")).toHaveText("YOU");
   await expect(visitorTurn.locator("p")).toHaveText(LIVE_INQUIRY.question);
@@ -735,6 +824,7 @@ async function verifyLiveInquiry(page, dialogueRequests) {
   }
 
   await expect(page.locator("[data-inquiry-pending]")).toHaveCount(0);
+  await expect(page.locator("#dialogue")).toHaveAttribute("aria-busy", "false");
   await expect(page.locator("#inquiry-input")).toBeEnabled();
   await expect(page.locator("#inquiry-input")).toHaveValue("");
   await expect(page.locator(".inquiry-form button[type='submit']")).toBeEnabled();
@@ -744,18 +834,21 @@ async function verifyLiveInquiry(page, dialogueRequests) {
     scene_id: PROCESS[0].sceneId,
     companion_ids: ["monet", "van-gogh", "socrates"],
     recent_evidence: [],
+    station_history: [],
     scene: { id: PROCESS[0].sceneId },
     artwork: { id: dialogueRequests[0].artwork_id }
   });
   expect(dialogueRequests[0].artwork_id).toMatch(/^aic-/);
 
-  const visualEffect = await page.evaluate((sceneId) => {
-    const record = window.__MUSE_APP__.engine.worldLayer.artworks.get(sceneId);
+  const visualEffect = await page.evaluate(() => {
+    const app = window.__MUSE_APP__;
+    const record = [...app.engine.worldLayer.artworks.values()]
+      .find((candidate) => candidate.artwork.id === app.sceneTour.focusedArtworkId);
     return {
       opacity: record?.border.material.opacity,
       transparent: record?.border.material.transparent
     };
-  }, PROCESS[0].sceneId);
+  });
   expect(visualEffect.opacity).toBeCloseTo(0.82, 2);
   expect(visualEffect.transparent).toBe(true);
 }
@@ -808,7 +901,7 @@ async function installLightweightWorldSwitches(page) {
     window.__MUSE_REAL_GROUND_HEIGHT__ = engine.worldLayer.groundHeightAt.bind(engine.worldLayer);
     window.__MUSE_REAL_WALKABLE_GROUND_HEIGHT__ = engine.worldLayer.walkableGroundHeightAt.bind(engine.worldLayer);
     engine.worldLayer.groundHeightAt = () => engine.worldLayer.activeWorld?.profile?.groundY || 0;
-    engine.worldLayer.walkableGroundHeightAt = (_x, _z, referenceY) => referenceY;
+    engine.worldLayer.walkableGroundHeightAt = () => engine.worldLayer.activeWorld?.profile?.groundY || 0;
     engine.setWorld = async (worldId) => {
       const token = ++engine.worldToken;
       const world = WORLDS.find((item) => item.id === worldId) || WORLDS[0];
@@ -854,12 +947,7 @@ async function verifyAtlasCannotInterruptTransition(page, expected) {
   });
   await page.locator("#continue-button").click();
   await page.waitForFunction(() => window.__MUSE_APP__.state.busy === true);
-  const transition = page.locator("#world-transition");
-  await expect(transition).toBeVisible();
-  await expect(transition).toHaveClass(/is-visible/);
-  await expect(page.locator("#world-transition-title")).toHaveText(expected.title);
-  await expect.poll(() => loadedImages(page, "#world-transition-image")).toBe(1);
-  expect(await imagePaths(page, "#world-transition-image")).toEqual([`/assets/thumbs/${expected.worldId}.jpg`]);
+  const transition = await expectHighFidelityTransition(page, expected);
   expect(await page.locator(".world-transition-shade").evaluate((shade) => getComputedStyle(shade).pointerEvents)).not.toBe("none");
   await page.locator("[data-drawer='atlas']").evaluate((button) => button.click());
   await expect(page.locator("[data-drawer-action='world']:not([disabled])")).toHaveCount(0);
@@ -867,8 +955,7 @@ async function verifyAtlasCannotInterruptTransition(page, expected) {
   await page.evaluate(() => window.__MUSE_RELEASE_WORLD_SWITCH__());
   await page.waitForFunction(() => window.__MUSE_APP__.state.busy === false);
   expect(await page.evaluate(() => window.__MUSE_APP__.engine.activeWorld.id)).toBe(expected.worldId);
-  await expect(transition).toBeHidden({ timeout: 3_000 });
-  await expect(transition).not.toHaveClass(/is-visible|is-leaving/);
+  await waitForTransitionExit(transition, 3_000);
   await page.locator("[data-action='close-drawer']").click();
 }
 
@@ -877,6 +964,8 @@ async function verifyArchiveFailureRequiresRetry(page, expected) {
   await page.locator("#continue-button").click();
   await page.waitForFunction(() => window.__MUSE_APP__.state.busy === false
     && document.querySelector("#entry-panel")?.dataset.stage === "archive-required");
+  await expectPosterPresentation(page, expected);
+  await waitForTransitionExit(page.locator("#world-transition"), 4_000);
   expect(await page.evaluate(() => ({
     phase: window.__MUSE_APP__.session.phase,
     stop: window.__MUSE_APP__.session.currentStopId,
@@ -884,29 +973,68 @@ async function verifyArchiveFailureRequiresRetry(page, expected) {
   }))).toEqual({ phase: "walking", stop: expected.sceneId, finalWorldEntered: false });
   await page.locator("[data-entry-action='retry-scene']").click();
   await page.waitForFunction(() => window.__MUSE_APP__.state.busy === false
+    && window.__MUSE_APP__.engine.isWorldReady(window.__MUSE_APP__.engine.activeWorld.id)
+    && !document.querySelector("#app")?.dataset.worldPresentation
     && document.querySelector("#dialogue")?.hidden === false);
+  await expectLiveWorldPresentation(page);
+  await waitForTransitionExit(page.locator("#world-transition"), 4_000);
 }
 
 async function verifyCurrentArchiveFailureBlocksEvidence(page, expected, visitedCount) {
   await installOneShotWorldLoadFailure(page, expected.worldId);
-  await page.locator("[data-drawer='atlas']").click();
-  await page.locator(`[data-drawer-action='world'][data-value='${expected.worldId}']`).click();
-  await page.waitForFunction(() => window.__MUSE_APP__.state.busy === false);
-  await page.locator("[data-action='close-drawer']").click();
+  await page.evaluate(async (worldId) => window.__MUSE_APP__.engine.setWorld(worldId), expected.worldId);
 
   await page.locator("[data-answer]").first().click();
   await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "archive-required");
+  await expectPosterPresentation(page, expected);
   expect(await page.evaluate(() => ({
     phase: window.__MUSE_APP__.session.phase,
+    tourPhase: window.__MUSE_APP__.sceneTour.phase,
     sessionVisits: window.__MUSE_APP__.session.visited.length,
     journeyVisits: window.__MUSE_APP__.journey.visitedSceneIds.length
-  }))).toEqual({ phase: "asking", sessionVisits: visitedCount, journeyVisits: visitedCount });
+  }))).toEqual({ phase: "walking", tourPhase: "discussing", sessionVisits: visitedCount, journeyVisits: visitedCount });
 
   await page.locator("[data-entry-action='retry-scene']").click();
   await page.waitForFunction(() => window.__MUSE_APP__.state.busy === false
-    && window.__MUSE_APP__.session.phase === "walking");
+    && window.__MUSE_APP__.session.phase === "walking"
+    && window.__MUSE_APP__.engine.isWorldReady(window.__MUSE_APP__.engine.activeWorld.id)
+    && !document.querySelector("#app")?.dataset.worldPresentation);
+  await expectLiveWorldPresentation(page);
+  await waitForTransitionExit(page.locator("#world-transition"), 4_000);
   await arriveAtCurrentStop(page);
-  await expect(page.locator("[data-answer]")).toHaveCount(2);
+  await expect(page.locator("[data-answer]")).toHaveCount(3);
+}
+
+async function expectHighFidelityTransition(page, expected, { kicker } = {}) {
+  const transition = page.locator("#world-transition");
+  await expect(transition).toBeVisible();
+  await expect(transition).toHaveCSS("visibility", "visible");
+  await expect(transition).toHaveClass(/is-visible/);
+  await expect(page.locator("#world-transition-title")).toHaveText(expected.title);
+  if (kicker) await expect(page.locator("#world-transition-kicker")).toHaveText(kicker);
+  await expect.poll(() => loadedImages(page, "#world-transition-image")).toBe(1);
+  expect(await imagePaths(page, "#world-transition-image")).toEqual([expected.image]);
+  await expect.poll(() => page.locator("#world-transition-image").evaluate((image) => image.naturalWidth)).toBeGreaterThanOrEqual(1600);
+  return transition;
+}
+
+async function waitForTransitionExit(transition, timeout) {
+  await expect.poll(
+    () => transition.evaluate((element) => getComputedStyle(element).visibility),
+    { timeout }
+  ).toBe("hidden");
+  await expect(transition).toHaveAttribute("aria-busy", "false");
+}
+
+async function expectPosterPresentation(page, expected) {
+  await expect(page.locator("#app")).toHaveAttribute("data-world-presentation", "poster");
+  await expect(page.locator("#world")).toHaveCSS("visibility", "hidden");
+  expect(await page.locator("#app").evaluate((app) => app.style.getPropertyValue("--world-poster"))).toContain(expected.image);
+}
+
+async function expectLiveWorldPresentation(page) {
+  await expect(page.locator("#app")).not.toHaveAttribute("data-world-presentation", "poster");
+  await expect(page.locator("#world")).toHaveCSS("visibility", "visible");
 }
 
 async function installOneShotWorldLoadFailure(page, worldId) {
@@ -937,13 +1065,13 @@ async function waitForRealRadWorld(page, worldId) {
   }, worldId, { timeout: 180_000 });
 }
 
-async function constrainRadAfterScreenshot(page) {
-  await page.evaluate(() => {
+async function setRadLodForHeadless(page, target) {
+  await page.evaluate((lodSplatCount) => {
     const spark = window.__MUSE_APP__.engine.worldLayer.archive.spark;
-    spark.lodSplatCount = 120_000;
+    spark.lodSplatCount = lodSplatCount;
     spark.lodDirty = true;
     spark.lastLod = undefined;
-  });
+  }, target);
   await page.waitForFunction(() => (window.__MUSE_APP__.engine.worldLayer.archive.spark.activeSplats || 0) > 0);
 }
 
@@ -1019,14 +1147,23 @@ async function meshArchiveMetrics(page) {
 
 async function arriveAtCurrentStop(page) {
   await page.evaluate(() => {
-    const { director } = window.__MUSE_APP__.engine;
-    if (window.__MUSE_APP__.session.phase !== "walking") return;
-    director.object.position.copy(director.target);
-    const delta = director.lookAt.clone().sub(director.object.position);
-    director.object.rotation.y = Math.atan2(delta.x, delta.z);
-    director.transition("asking");
+    const { engine, sceneTour } = window.__MUSE_APP__;
+    if (sceneTour.phase !== "station-walking") return;
+    const tour = engine.companyTour;
+    if (!tour) return;
+    const lead = tour.stages[0];
+    engine.player.group.position.set(lead.x, lead.y, lead.z + 0.6);
+    for (const [index, stage] of tour.stages.entries()) {
+      engine.launchCompanyMember(tour, index);
+      const director = engine.companyDirectors.get(stage.companionId);
+      director.object.position.set(stage.x, stage.y, stage.z);
+      const [lookX, , lookZ] = stage.lookAt;
+      director.object.rotation.y = Math.atan2(lookX - stage.x, lookZ - stage.z);
+      director.transition("asking");
+    }
+    engine.publishCompanyReady(tour);
   });
-  await page.waitForFunction(() => window.__MUSE_APP__.session.phase === "asking"
+  await page.waitForFunction(() => window.__MUSE_APP__.sceneTour.phase === "discussing"
     && Boolean(document.querySelector("[data-answer]")));
 }
 
