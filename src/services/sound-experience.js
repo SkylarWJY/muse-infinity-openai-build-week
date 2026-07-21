@@ -439,7 +439,7 @@ export class ProceduralSoundscape {
 export function splitNarration(text, limit = NARRATION_LIMIT) {
   const clean = String(text || "").replace(/\s+/g, " ").trim();
   if (!clean) return [];
-  const sentences = clean.match(/[^.!?。！？…]+[.!?。！？…]*\s*/gu) || [clean];
+  const sentences = narrationSentences(clean);
   const segments = [];
   let current = "";
   for (const sentenceValue of sentences) {
@@ -461,6 +461,24 @@ export function splitNarration(text, limit = NARRATION_LIMIT) {
   }
   if (current) segments.push(current);
   return segments;
+}
+
+function narrationSentences(text) {
+  const sentences = [];
+  let start = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (![".", "!", "?", "。", "！", "？", "…"].includes(character)) continue;
+    if (character === "." && /\d/u.test(text[index - 1] || "") && /\d/u.test(text[index + 1] || "")) continue;
+    let end = index + 1;
+    while ([".", "!", "?", "。", "！", "？", "…"].includes(text[end])) end += 1;
+    sentences.push(text.slice(start, end).trim());
+    while (/\s/u.test(text[end] || "")) end += 1;
+    start = end;
+    index = end - 1;
+  }
+  if (start < text.length) sentences.push(text.slice(start).trim());
+  return sentences.filter(Boolean);
 }
 
 export class NarrationSession {

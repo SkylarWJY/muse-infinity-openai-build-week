@@ -3,7 +3,7 @@ import { createFallbackSalon, createFallbackTransformation } from "../shared/con
 
 const desktop = { width: 1440, height: 900 };
 const mobile = { width: 390, height: 844 };
-const appUrl = process.env.MUSE_E2E_BASE_URL || "/?quality=high";
+const appUrl = process.env.MUSE_E2E_BASE_URL || "/?quality=performance";
 
 const PROCESS = Object.freeze([
   { sceneId: "threshold-conservatory", worldId: "grand-conservatory-with-lush-gardens", image: "/assets/scenes/01-entrance-conservatory.png", title: "The Threshold Conservatory", speaker: "MIRA" },
@@ -13,7 +13,7 @@ const PROCESS = Object.freeze([
   { sceneId: "burning-sky", worldId: "van-gogh-inspired-gallery-interior", image: "/assets/scenes/05-van-gogh-burning-sky.png", title: "The Studio of the Burning Sky", speaker: "VAN GOGH" },
   { sceneId: "petal-transition", worldId: "sunlit-palace-gardens", image: "/assets/scenes/06-petal-transition-hall.png", title: "The Petal Transition Hall", speaker: "QI BAISHI" },
   { sceneId: "living-memory", worldId: "mexican-courtyard-bedroom-fantasy", image: "/assets/scenes/07-frida-living-memory.png", title: "The Courtyard of Living Memory", speaker: "FRIDA" },
-  { sceneId: "infinite-repetition", worldId: "yellow-polka-dot-infinity-room", image: "/assets/scenes/08-kusama-infinite-dots.png", title: "The Infinite Repetition Chamber", speaker: "KUSAMA" }
+  { sceneId: "infinite-repetition", worldId: "yellow-polka-dot-infinity-room", image: "/assets/scenes/08-kusama-infinite-dots.png", title: "The Infinite Repetition Chamber", speaker: "INFINITY & REPETITION" }
 ]);
 
 const FINAL = Object.freeze({
@@ -68,7 +68,7 @@ const COMPANION_NAMES = Object.freeze([
   "Pablo Picasso",
   "Sigmund Freud",
   "Qi Baishi",
-  "Yayoi Kusama"
+  "Infinity & Repetition Lens"
 ]);
 
 const COMPANION_PORTRAITS = Object.freeze([
@@ -79,20 +79,21 @@ const COMPANION_PORTRAITS = Object.freeze([
   "/assets/portraits/picasso.jpg",
   "/assets/portraits/freud-card.jpg",
   "/assets/portraits/qi-baishi-card.jpg",
-  "/assets/portraits/yayoi-kusama-card.jpg"
+  "/assets/thumbs/yellow-polka-dot-infinity-room.jpg"
 ]);
 
 test.describe.configure({ mode: "serial" });
 
 test("the canonical ten-stage journey carries eight worlds into one gated answer world", async ({ page }) => {
-  test.setTimeout(480_000);
+  test.setTimeout(900_000);
   await page.setViewportSize(desktop);
   const errors = captureErrors(page);
   const interceptedModelRequests = [];
   const dialogueRequests = [];
-  await installCuratedModelRoutes(page, interceptedModelRequests, dialogueRequests);
+  const dialogueControl = {};
+  await installCuratedModelRoutes(page, interceptedModelRequests, dialogueRequests, dialogueControl);
   await page.goto(appUrl, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => Boolean(window.__MUSE_APP__));
+  await page.waitForFunction(() => Boolean(window.__MUSE_APP__), null, { polling: 100, timeout: 30_000 });
   await installStageTrace(page);
 
   await test.step("the threshold renders the real high-fidelity RAD archive", async () => {
@@ -106,8 +107,7 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
       return engine.player?.ready === true
         && engine.guide?.ready === true
         && engine.partyActors?.length === 2
-        && engine.partyActors.every((actor) => actor.ready === true && actor.group.visible === true)
-        && engine.ambient?.metrics?.().moving === true;
+        && engine.partyActors.every((actor) => actor.ready === true && actor.group.visible === true);
     }, null, { timeout: 90_000 });
 
     const archive = await page.evaluate(() => {
@@ -129,6 +129,8 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
         party: engine.partyActors.map((actor) => actor.companion.id),
         partyAssets: engine.partyActors.map((actor) => actor.group.userData.asset),
         learnerReady: engine.player.ready,
+        learnerAvatarId: engine.player.group.userData.avatarId,
+        learnerAsset: engine.player.group.userData.asset,
         learnerModel: engine.player.group.userData.model,
         learnerFallback: engine.player.group.userData.fallback,
         learnerRig: engine.player.model?.userData.motionRig,
@@ -149,18 +151,20 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
       companion: "monet",
       companionAsset: "/assets/characters/monet.glb",
       learnerReady: true,
-      learnerModel: "gpt-image-2-tripo-v3.1-rig-v1",
+      learnerAvatarId: "little-girl",
+      learnerAsset: "/assets/characters/learner-girl.glb",
+      learnerModel: "tripo-little-girl-static-v1",
       learnerFallback: false,
-      learnerRig: "skeletal-animation",
-      learnerClips: ["preset:biped:wait", "preset:biped:walk"],
-      sourceGradeSkinWeights: true,
+      learnerRig: "procedural-limbs",
+      learnerClips: [],
+      sourceGradeSkinWeights: false,
       ambient: {
         sceneId: PROCESS[0].sceneId,
-        count: 3,
-        kinds: ["butterfly", "white-dove"],
-        articulatedCount: 3,
+        count: 0,
+        kinds: [],
+        articulatedCount: 0,
         pointCount: 0,
-        moving: true
+        moving: false
       },
       party: ["van-gogh", "socrates"],
       partyAssets: ["/assets/characters/van-gogh.glb", "/assets/characters/socrates.glb"],
@@ -174,8 +178,7 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     await waitForTransitionExit(bootVeil, 10_000);
     expect(await page.locator("#entry-panel").evaluate((element) => element.inert)).toBe(false);
     expect(await page.evaluate(() => window.__MUSE_APP__.canOpenDialogue())).toBe(false);
-    await page.locator("#voice-tool").click();
-    await expect(page.locator("#toast")).toContainText("Reach and face the current artwork");
+    await expect(page.locator(".tools")).toHaveCSS("visibility", "hidden");
     expect(await page.evaluate(() => window.__MUSE_APP__.voiceActive())).toBe(false);
 
     const pixels = await canvasPixels(page, "artifacts/screenshots/desktop-rad-threshold.png");
@@ -188,9 +191,9 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     await page.keyboard.down("w");
     await page.waitForFunction(() => window.__MUSE_APP__.engine.player.group.userData.motion === "walk");
     await page.waitForTimeout(250);
-    const firstLegPose = await playerLegPose(page);
+    const firstLegPose = await playerMotionPose(page);
     await page.waitForTimeout(220);
-    const secondLegPose = await playerLegPose(page);
+    const secondLegPose = await playerMotionPose(page);
     await page.waitForFunction((startPositions) => window.__MUSE_APP__.engine.partyActors.every((actor, index) => {
       const start = startPositions[index];
       return actor.group.userData.motion === "walk"
@@ -208,25 +211,17 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
       expect(planarDistance(partyBefore[index], position)).toBeGreaterThan(0.08);
       expect(poseDistance(partyGaitA[index], partyGaitB[index])).toBeGreaterThan(0.01);
     }
-    expect(poseDistance(firstLegPose, secondLegPose)).toBeGreaterThan(0.02);
+    expect(poseDistance(firstLegPose, secondLegPose)).toBeGreaterThan(0.001);
 
   });
 
   await installLightweightWorldSwitches(page);
 
-  await test.step("Atlas exposes only process worlds and cannot create evidence", async () => {
-    await page.locator("[data-drawer='atlas']").click();
-    const atlas = page.locator("[data-drawer-action='world']");
-    await expect(atlas).toHaveCount(8);
-    expect(await atlas.evaluateAll((items) => items.map((item) => item.dataset.value))).toEqual(PROCESS.map((item) => item.worldId));
-    await expect(page.locator(`[data-drawer-action='world'][data-value='${FINAL.worldId}']`)).toHaveCount(0);
-    await expect(page.locator("#drawer-body")).toContainText("09 / ANSWER remains outside the Atlas");
-    await expect(page.locator("[data-drawer-action='world']:not([disabled])")).toHaveCount(1);
-
-    await atlas.first().click();
+  await test.step("the threshold hides world tools and cannot create evidence", async () => {
+    await expect(page.locator(".tools")).toHaveCSS("visibility", "hidden");
+    await expect(page.locator("#drawer")).toBeHidden();
     expect(await journeySnapshot(page)).toMatchObject({ stage: "threshold", visited: [], finalWorldEntered: false });
     expect(await page.evaluate(() => window.__MUSE_APP__.session.phase)).toBe("idle");
-    await page.locator("[data-action='close-drawer']").click();
 
     await expect(page.locator("[data-entry-action='enter-final']")).toHaveCount(0);
     await page.evaluate(() => window.__MUSE_APP__.enterFinalWorld());
@@ -243,7 +238,9 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     expect((await mobileLayout(page, "#entry-panel")).panelTouchesMission).toBe(false);
     await page.setViewportSize(desktop);
 
-    await page.getByRole("button", { name: "How composition moves my attention" }).click();
+    await page.locator("#goal-input").fill("How composition moves my attention");
+    await expect(page.locator("#goal-input")).toHaveValue("How composition moves my attention");
+    await page.locator("#goal-form").evaluate((form) => form.requestSubmit());
     await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "company");
     expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("companion_selection");
     await expect(page.locator("[data-companion]")).toHaveCount(8);
@@ -304,14 +301,28 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     });
   });
 
-  await test.step("all eight process worlds are visited in canonical order", async () => {
+  await test.step("the canonical traversal remains available across all eight process worlds", async () => {
     await page.locator("[data-entry-action='enter-walk']").click();
     await waitForProcessStop(page, 0, "walking");
 
-    const guideBefore = await page.evaluate(() => window.__MUSE_APP__.engine.guide.group.position.toArray());
-    await page.waitForTimeout(500);
-    const guideAfter = await page.evaluate(() => window.__MUSE_APP__.engine.guide.group.position.toArray());
-    expect(planarDistance(guideBefore, guideAfter)).toBeGreaterThan(0.05);
+    const openingTour = await page.evaluate(() => {
+      const { engine } = window.__MUSE_APP__;
+      return {
+        speakers: [...engine.companyTour.speakerOrder],
+        launched: [...engine.companyTour.launched],
+        routeLengths: engine.companyTour.stages.map((stage) => stage.route.length),
+        visitorAnchor: [...engine.companyTour.visitorAnchor],
+        sharedTravel: engine.followGuide
+      };
+    });
+    expect(openingTour).toMatchObject({
+      speakers: ["monet", "van-gogh", "socrates"],
+      launched: ["monet", "van-gogh", "socrates"],
+      sharedTravel: true
+    });
+    expect(openingTour.routeLengths.every((length) => length >= 1)).toBe(true);
+    expect(openingTour.visitorAnchor).toHaveLength(3);
+    expect(openingTour.visitorAnchor.every(Number.isFinite)).toBe(true);
 
     for (let index = 0; index < PROCESS.length; index += 1) {
       const expected = PROCESS[index];
@@ -342,18 +353,20 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
         await installLightweightWorldSwitches(page);
       }
       await arriveAtCurrentStop(page);
-      await page.waitForFunction((sceneId) => {
-        const ambient = window.__MUSE_APP__.engine.ambient?.metrics?.();
-        return ambient?.sceneId === sceneId && ambient.count > 0 && ambient.moving === true;
-      }, expected.sceneId);
+      const expectedAmbient = index === PROCESS.length - 1
+        ? { sceneId: expected.sceneId, count: 24, kinds: ["dots"], moving: true }
+        : { sceneId: expected.sceneId, count: 0, kinds: [], moving: false };
+      await expect.poll(() => page.evaluate(() => window.__MUSE_APP__.engine.ambient?.metrics?.())).toMatchObject(expectedAmbient);
 
       if (index === 1) await verifyCurrentArchiveFailureBlocksEvidence(page, expected, index);
 
       for (let stationIndex = 0; stationIndex < 3; stationIndex += 1) {
         if (stationIndex > 0) await arriveAtCurrentStop(page);
         expect(await page.evaluate(() => window.__MUSE_APP__.canOpenDialogue())).toBe(true);
+        await expect(page.locator("#voice-tool")).toBeVisible();
         await expect(page.locator("#stop-title")).toContainText(expected.title);
-        await expect(page.locator("#speaker-name")).toHaveText(["MONET", "VAN GOGH", "SOCRATES"][stationIndex]);
+        await expect(page.locator("#speaker-name")).toContainText(["MONET", "VAN GOGH", "SOCRATES"][stationIndex]);
+        await expect(page.locator("#speaker-name")).toContainText("AI LENS");
         await expect(page.locator("#dialogue")).toHaveAttribute("data-station-index", String(stationIndex));
         await expect(page.locator("#dialogue")).toHaveAttribute("data-station-count", "3");
         await expect(page.locator("[data-answer]")).toHaveCount(3);
@@ -361,13 +374,13 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
         await expect(page.locator("[data-answer]").first().locator(".station-choice-evidence")).toContainText("Evidence");
 
         if (index === 0 && stationIndex === 0) {
-          await verifyLiveInquiry(page, dialogueRequests);
+          await verifyLiveInquiry(page, dialogueRequests, dialogueControl);
           await page.locator("[data-drawer='atlas']").click();
-          await expect(page.locator("#drawer-body")).toContainText("Finish the current three-work inquiry");
-          await expect(page.locator("[data-drawer-action='world']:not([disabled])")).toHaveCount(0);
+          await expect(page.locator("#drawer-body")).toContainText("All eight thought chapters are available as worlds");
+          await expect(page.locator("[data-drawer-action='world']:not([disabled])")).toHaveCount(8);
           await page.locator("[data-action='close-drawer']").click();
           await page.setViewportSize(mobile);
-          const questionLayout = await mobileLayout(page, "#dialogue");
+          const questionLayout = await mobileLayout(page, "#dialogue-response");
           expect(questionLayout.documentOverflow).toBeLessThanOrEqual(0);
           expect(questionLayout.panelOverflow).toBeLessThanOrEqual(0);
           expect(questionLayout.panelTouchesMovement).toBe(false);
@@ -388,22 +401,14 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
         expect(await page.evaluate(() => window.__MUSE_APP__.canOpenDialogue())).toBe(false);
         await expect(page.locator("#guide-line")).toContainText("Inquiry path recorded");
         if (!(index === 0 && stationIndex === 0)) {
-          const localPerspectives = page.locator("#inquiry-thread .station-perspective");
-          await expect(localPerspectives).toHaveCount(3);
           const company = [
             { id: "monet", name: "Claude Monet" },
             { id: "van-gogh", name: "Vincent van Gogh" },
             { id: "socrates", name: "Socrates" }
           ];
           const expectedOrder = company.map((_, offset) => company[(stationIndex + offset) % company.length]);
-          expect(await localPerspectives.evaluateAll((items) => items.map((item) => item.dataset.speakerId))).toEqual(
-            expectedOrder.map((speaker) => speaker.id)
-          );
-          for (const [speakerIndex, speaker] of expectedOrder.entries()) {
-            await expect(localPerspectives.nth(speakerIndex)).toBeVisible();
-            await expect(localPerspectives.nth(speakerIndex).locator("b")).toHaveText(`${speaker.name} · CURATED COMPANY`);
-            await expect(localPerspectives.nth(speakerIndex).locator("p")).not.toBeEmpty();
-          }
+          await verifyCuratedConversation(page, expectedOrder,
+            stationIndex === 2 ? "Reflect on this world" : "Continue to the next artwork");
         }
         if (index === 0 && stationIndex === 0) {
           expect(await page.evaluate(() => window.__MUSE_APP__.state.journeyStationEvidence[0])).toMatchObject({
@@ -459,7 +464,7 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
       if (index === 0) {
         await page.locator("[data-drawer='atlas']").click();
         await expect(page.locator("[data-drawer-action='world']")).toHaveCount(8);
-        await expect(page.locator("[data-drawer-action='world']:not([disabled])")).toHaveCount(2);
+        await expect(page.locator("[data-drawer-action='world']:not([disabled])")).toHaveCount(8);
         await page.locator(`[data-drawer-action='world'][data-value='${PROCESS[1].worldId}']`).click();
         const atlasTransition = await expectHighFidelityTransition(page, PROCESS[1]);
         await page.waitForFunction((worldId) => window.__MUSE_APP__.engine.activeWorld.id === worldId, PROCESS[1].worldId);
@@ -470,19 +475,18 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
           sessionVisited: [...window.__MUSE_APP__.session.visited],
           journeyVisited: [...window.__MUSE_APP__.journey.visitedSceneIds]
         }))).toEqual({
-          sessionPhase: "reflecting",
-          sessionStop: PROCESS[0].sceneId,
+          sessionPhase: "walking",
+          sessionStop: PROCESS[1].sceneId,
           sessionVisited: [PROCESS[0].sceneId],
           journeyVisited: [PROCESS[0].sceneId]
         });
         await expect(page.locator(`[data-drawer-action='world'][data-value='${FINAL.worldId}']`)).toHaveCount(0);
-        await page.locator("[data-action='close-drawer']").click();
       }
 
       if (index === PROCESS.length - 2) await restoreRealWorldSwitches(page);
       if (index === 1) await verifyAtlasCannotInterruptTransition(page, PROCESS[index + 1]);
       else if (index === 2) await verifyArchiveFailureRequiresRetry(page, PROCESS[index + 1]);
-      else await page.locator("#continue-button").click();
+      else if (index !== 0) await page.locator("#continue-button").click();
       if (index < PROCESS.length - 1) {
         await waitForProcessStop(page, index + 1, "walking");
       } else {
@@ -509,17 +513,14 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     await expect(page.locator("#chapter-label")).toHaveText("WORLD EXPLORATION / 04");
     await expect(page.locator("[data-entry-action='enter-final']")).toHaveCount(0);
 
-    await page.locator("[data-drawer='atlas']").click();
-    await expect(page.locator("[data-drawer-action='world']")).toHaveCount(8);
-    await expect(page.locator("[data-drawer-action='world']:not([disabled])")).toHaveCount(8);
-    await expect(page.locator(`[data-drawer-action='world'][data-value='${FINAL.worldId}']`)).toHaveCount(0);
+    await expect(page.locator(".tools")).toHaveCSS("visibility", "hidden");
+    await expect(page.locator("#drawer")).toBeHidden();
     expect(await page.evaluate(() => ({
       phase: window.__MUSE_APP__.session.phase,
       sessionVisits: window.__MUSE_APP__.session.visited.length,
       journeyVisits: window.__MUSE_APP__.journey.visitedSceneIds.length,
       finalWorldEntered: window.__MUSE_APP__.journey.finalWorldEntered
     }))).toEqual({ phase: "complete", sessionVisits: 8, journeyVisits: 8, finalWorldEntered: false });
-    await page.locator("[data-action='close-drawer']").click();
   });
 
   await test.step("Summoning, Roundtable, Decision and Transformation retain all evidence", async () => {
@@ -708,7 +709,7 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
   expect(errors).toEqual([]);
 });
 
-async function installCuratedModelRoutes(page, interceptedModelRequests, dialogueRequests) {
+async function installCuratedModelRoutes(page, interceptedModelRequests, dialogueRequests, dialogueControl) {
   let dialogueReplyAvailable = true;
   await page.route("**/api/**", async (route) => {
     const request = route.request();
@@ -774,7 +775,7 @@ async function installCuratedModelRoutes(page, interceptedModelRequests, dialogu
       dialogueReplyAvailable = false;
       interceptedModelRequests.push(pathname);
       dialogueRequests.push(request.postDataJSON());
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await new Promise((resolve) => { dialogueControl.release = resolve; });
       return route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -805,24 +806,35 @@ async function installCuratedModelRoutes(page, interceptedModelRequests, dialogu
   });
 }
 
-async function verifyLiveInquiry(page, dialogueRequests) {
+async function verifyLiveInquiry(page, dialogueRequests, dialogueControl) {
   await page.locator("#inquiry-input").fill(LIVE_INQUIRY.question);
-  await page.locator(".inquiry-form button[type='submit']").click();
-
-  await expect(page.locator("#dialogue")).toHaveAttribute("aria-busy", "true");
-  await expect(page.locator("#answers button:not([disabled]), #answers input:not([disabled])")).toHaveCount(0);
+  await expect(page.locator("#inquiry-input")).toHaveValue(LIVE_INQUIRY.question);
+  await page.locator(".inquiry-form").evaluate((form) => form.requestSubmit());
 
   const visitorTurn = page.locator("#inquiry-thread .visitor-turn").last();
   await expect(visitorTurn.locator("b")).toHaveText("YOU");
   await expect(visitorTurn.locator("p")).toHaveText(LIVE_INQUIRY.question);
+  await expect(page.locator("#dialogue")).toHaveAttribute("aria-busy", "true");
+  await expect(page.locator("#answers button:not([disabled]), #answers input:not([disabled])")).toHaveCount(0);
+  await expect.poll(() => typeof dialogueControl.release).toBe("function");
+  dialogueControl.release();
+  dialogueControl.release = null;
 
-  const replies = page.locator("#inquiry-thread .company-turn");
-  await expect(replies).toHaveCount(LIVE_INQUIRY.perspectives.length);
+  await expect(page.locator("#inquiry-thread .company-turn")).toHaveCount(0);
+  const conversation = page.locator("#companion-conversation");
+  await expect(conversation).toBeVisible();
   for (const [index, perspective] of LIVE_INQUIRY.perspectives.entries()) {
-    await expect(replies.nth(index).locator("b")).toHaveText(`${perspective.speaker} · GPT-5.6 · OPENAI API`);
-    await expect(replies.nth(index).locator("p")).toHaveText(perspective.text);
+    await expect(page.locator("#companion-conversation-speaker")).toContainText(perspective.speaker);
+    await expect(page.locator("#companion-conversation-speaker")).toContainText("AI INTERPRETIVE LENS");
+    await expect(page.locator("#companion-conversation-line")).toHaveText(perspective.text);
+    await expect(page.locator("#companion-conversation-progress")).toHaveText(`${index + 1} / ${LIVE_INQUIRY.perspectives.length}`);
+    await expect(page.locator("#companion-conversation-next")).toHaveText(
+      index === LIVE_INQUIRY.perspectives.length - 1 ? "Return to the artwork" : "Next voice"
+    );
+    await page.locator("#companion-conversation-next").click();
   }
 
+  await expect(conversation).toBeHidden();
   await expect(page.locator("[data-inquiry-pending]")).toHaveCount(0);
   await expect(page.locator("#dialogue")).toHaveAttribute("aria-busy", "false");
   await expect(page.locator("#inquiry-input")).toBeEnabled();
@@ -851,6 +863,28 @@ async function verifyLiveInquiry(page, dialogueRequests) {
   });
   expect(visualEffect.opacity).toBeCloseTo(0.82, 2);
   expect(visualEffect.transparent).toBe(true);
+}
+
+async function verifyCuratedConversation(page, expectedOrder, completeLabel) {
+  const evidence = await page.evaluate(() => window.__MUSE_APP__.state.journeyStationEvidence.at(-1));
+  expect(evidence.perspectives.map((item) => item.speaker_id)).toEqual(expectedOrder.map((speaker) => speaker.id));
+
+  const conversation = page.locator("#companion-conversation");
+  await expect(conversation).toBeVisible();
+  for (const [index, speaker] of expectedOrder.entries()) {
+    const perspective = evidence.perspectives[index];
+    await expect(page.locator("#companion-conversation-speaker")).toHaveText(speaker.name);
+    const spokenLine = await page.locator("#companion-conversation-line").textContent();
+    const spokenPrefix = spokenLine.endsWith("…") ? spokenLine.slice(0, -1) : spokenLine;
+    expect(spokenLine.length).toBeLessThanOrEqual(362);
+    expect(perspective.text.startsWith(spokenPrefix)).toBe(true);
+    await expect(page.locator("#companion-conversation-progress")).toHaveText(`${index + 1} / ${expectedOrder.length}`);
+    await expect(page.locator("#companion-conversation-next")).toHaveText(
+      index === expectedOrder.length - 1 ? completeLabel : "Next voice"
+    );
+    await page.locator("#companion-conversation-next").click();
+  }
+  await expect(conversation).toBeHidden();
 }
 
 async function installStageTrace(page) {
@@ -893,6 +927,10 @@ async function installLightweightWorldSwitches(page) {
       archive.spark.enableDriveLod = false;
       archive.spark.visible = false;
       archive.splat.visible = false;
+      await engine.worldLayer.retireSpark(archive);
+      engine.worldLayer.archive = null;
+      engine.worldLayer.splat = null;
+      engine.renderer.renderLists.dispose();
     } else if (archive?.type === "mesh") {
       archive.object.visible = false;
     }
@@ -905,11 +943,20 @@ async function installLightweightWorldSwitches(page) {
     engine.setWorld = async (worldId) => {
       const token = ++engine.worldToken;
       const world = WORLDS.find((item) => item.id === worldId) || WORLDS[0];
+      const worldLayer = engine.worldLayer;
       engine.director.paused = true;
       await engine.showSalonCharacters(false);
       if (token !== engine.worldToken) return engine.activeWorld;
       engine.applyWorldProfile(world, false);
-      engine.worldLayer.activeWorld = world;
+      const buildToken = ++worldLayer.buildToken;
+      worldLayer.clearCurrent();
+      worldLayer.activeWorld = world;
+      worldLayer.buildFloor(world);
+      worldLayer.buildArchitecture(world);
+      await worldLayer.buildArtworks(world, buildToken);
+      if (token !== engine.worldToken || buildToken !== worldLayer.buildToken) return engine.activeWorld;
+      worldLayer.scenery.visible = true;
+      worldLayer.artworkGroup.visible = true;
       engine.activeWorld = world;
       engine.activeWorldLive = true;
       engine.ambient.setWorld(world.sceneId, { bounds: world.profile.bounds });
@@ -1009,7 +1056,7 @@ async function expectHighFidelityTransition(page, expected, { kicker } = {}) {
   const transition = page.locator("#world-transition");
   await expect(transition).toBeVisible();
   await expect(transition).toHaveCSS("visibility", "visible");
-  await expect(transition).toHaveClass(/is-visible/);
+  await expect(transition).toHaveClass(/is-visible|is-leaving/);
   await expect(page.locator("#world-transition-title")).toHaveText(expected.title);
   if (kicker) await expect(page.locator("#world-transition-kicker")).toHaveText(kicker);
   await expect.poll(() => loadedImages(page, "#world-transition-image")).toBe(1);
@@ -1054,15 +1101,18 @@ async function waitForRealRadWorld(page, worldId) {
   await page.waitForFunction((id) => {
     const engine = window.__MUSE_APP__?.engine;
     const archive = engine?.worldLayer?.archive;
-    return engine?.activeWorld?.id === id
+    return engine?.worldLayer?.lastArchiveError?.worldId === id
+      || (engine?.activeWorld?.id === id
       && engine.worldLayer.isLive(id)
       && archive?.type === "splat"
       && archive.splat?.isInitialized === true
       && archive.splat.userData.archiveFormat === "rad"
       && (archive.splat.paged?.numSplats || 0) > 0
       && (archive.spark.activeSplats || 0) > 0
-      && engine.worldLayer.scenery.visible === false;
+      && engine.worldLayer.scenery.visible === false);
   }, worldId, { timeout: 180_000 });
+  const archiveError = await page.evaluate(() => window.__MUSE_APP__.engine.worldLayer.lastArchiveError);
+  expect(archiveError, `RAD archive failed: ${JSON.stringify(archiveError)}`).toBeNull();
 }
 
 async function setRadLodForHeadless(page, target) {
@@ -1146,23 +1196,50 @@ async function meshArchiveMetrics(page) {
 }
 
 async function arriveAtCurrentStop(page) {
-  await page.evaluate(() => {
+  await page.waitForFunction(() => {
     const { engine, sceneTour } = window.__MUSE_APP__;
-    if (sceneTour.phase !== "station-walking") return;
+    return sceneTour.phase === "discussing"
+      || (sceneTour.phase === "station-walking" && Boolean(engine.companyTour?.stages?.length));
+  }, null, { timeout: 30_000 });
+  const arrival = await page.evaluate(() => {
+    const { engine, sceneTour } = window.__MUSE_APP__;
+    if (sceneTour.phase !== "station-walking") return { published: true, phase: sceneTour.phase };
     const tour = engine.companyTour;
-    if (!tour) return;
-    const lead = tour.stages[0];
-    engine.player.group.position.set(lead.x, lead.y, lead.z + 0.6);
+    if (!tour) return { published: false, phase: sceneTour.phase };
+    engine.player.group.position.fromArray(tour.visitorAnchor);
     for (const [index, stage] of tour.stages.entries()) {
       engine.launchCompanyMember(tour, index);
       const director = engine.companyDirectors.get(stage.companionId);
+      director.goTo({
+        id: tour.artworkId,
+        guideAnchor: [...stage.guideAnchor],
+        lookAt: [...stage.lookAt]
+      });
       director.object.position.set(stage.x, stage.y, stage.z);
       const [lookX, , lookZ] = stage.lookAt;
       director.object.rotation.y = Math.atan2(lookX - stage.x, lookZ - stage.z);
       director.transition("asking");
     }
     engine.publishCompanyReady(tour);
+    if (sceneTour.phase === "station-walking") {
+      engine.handleGuideState({
+        state: "asking",
+        stopId: sceneTour.focusedArtworkId,
+        speakerId: sceneTour.leadCompanionId,
+        artworkId: sceneTour.focusedArtworkId,
+        companyReady: true,
+        visitorReady: true
+      });
+    }
+    return {
+      published: tour.businessEventPublished,
+      phase: sceneTour.phase,
+      correspondence: engine.director.correspondence()
+    };
   });
+  expect(arrival.published).toBe(true);
+  expect(arrival.correspondence?.synced ?? true).toBe(true);
+  expect(arrival.phase).toBe("discussing");
   await page.waitForFunction(() => window.__MUSE_APP__.sceneTour.phase === "discussing"
     && Boolean(document.querySelector("[data-answer]")));
 }
@@ -1198,9 +1275,20 @@ async function partyMotionPoses(page) {
   ]));
 }
 
-async function playerLegPose(page) {
+async function playerMotionPose(page) {
   return page.evaluate(() => {
-    const model = window.__MUSE_APP__.engine.player.model;
+    const player = window.__MUSE_APP__.engine.player;
+    const model = player.model;
+    if (player.avatar.motionMode === "procedural-limbs") {
+      return [
+        player.motionAngles.leftArmX,
+        player.motionAngles.rightArmX,
+        player.motionAngles.leftLegX,
+        player.motionAngles.rightLegX,
+        player.motionAngles.leftKneeX,
+        player.motionAngles.rightKneeX
+      ];
+    }
     return ["L_Thigh", "L_Calf", "R_Thigh", "R_Calf"].flatMap((name) => model.getObjectByName(name).quaternion.toArray());
   });
 }

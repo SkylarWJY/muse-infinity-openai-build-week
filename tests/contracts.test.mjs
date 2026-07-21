@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  AI_INTERPRETIVE_LENSES,
+  HISTORICAL_COMPANIONS,
   LESSON_CONTRACT_VERSION,
   LESSON_JSON_SCHEMA,
   PROCESS_SCENE_IDS,
@@ -181,7 +183,7 @@ test("answers change interpretation but never bypass the next embodied world", (
   assert.notEqual(a.effect, b.effect);
 });
 
-test("session digest retains all eight scene observations and selected historical company", () => {
+test("session digest retains all eight scene observations and selected AI interpretive lenses", () => {
   const digest = createSessionDigest({
     ...completedSession(["frida", "socrates", "unknown", "frida"]),
     learning_goal: "x".repeat(300)
@@ -190,6 +192,20 @@ test("session digest retains all eight scene observations and selected historica
   assert.deepEqual(digest.visits.map((visit) => visit.stop_id), PROCESS_SCENE_IDS);
   assert.deepEqual(digest.companion_ids, ["frida", "socrates"]);
   assert.deepEqual(digest.station_evidence, []);
+});
+
+test("the living-artist compatibility id resolves only to a non-person lens", () => {
+  assert.equal(HISTORICAL_COMPANIONS, AI_INTERPRETIVE_LENSES);
+  const infinityLens = AI_INTERPRETIVE_LENSES.find((item) => item.id === "yayoi-kusama");
+  assert.deepEqual(infinityLens, {
+    id: "yayoi-kusama",
+    name: "Infinity & Repetition Lens",
+    lens: "Repetition can dissolve the boundary of the self."
+  });
+  assert.doesNotMatch(`${infinityLens.name} ${infinityLens.lens}`, /Yayoi|KUSAMA/iu);
+  assert.equal(SCENE_MANIFEST.stops.at(-1).artist, "Infinity & Repetition Lens");
+  assert.equal(SCENE_MANIFEST.stops.at(-1).guide, "Infinity & Repetition Lens");
+  assert.doesNotMatch(createFallbackLesson().stops.at(-1).guide_line, /Yayoi|KUSAMA/iu);
 });
 
 test("session digest retains 24 canonical station records without treating selected stances as observations", () => {

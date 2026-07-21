@@ -85,7 +85,7 @@ test("recorded museum score follows narrative acts, waits for a gesture and duck
   assert.equal(score.snapshot().unlocked, false);
 });
 
-test("every narrative stage maps to one of four original soundtrack acts", () => {
+test("every narrative stage maps to one of four recorded-score acts", () => {
   const expected = {
     threshold: "threshold",
     life_question: "threshold",
@@ -104,7 +104,7 @@ test("every narrative stage maps to one of four original soundtrack acts", () =>
   }
 });
 
-test("procedural score waits for a gesture, preserves same-act music, and aggregates duck sources", async () => {
+test("procedural ambient texture waits for a gesture, preserves its act and aggregates duck sources", async () => {
   const context = new FakeAudioContext();
   let contextCreations = 0;
   const soundscape = new ProceduralSoundscape({
@@ -210,6 +210,10 @@ test("narration is sentence-bounded and system voices speak character lines in o
   const segments = splitNarration(longLine);
   assert.ok(segments.length > 1);
   assert.equal(segments.every((segment) => segment.length <= 280), true);
+  assert.deepEqual(
+    splitNarration("GPT-5.6 keeps the route bounded. Enter the first chapter."),
+    ["GPT-5.6 keeps the route bounded. Enter the first chapter."]
+  );
 
   await narrator.enqueue([
     { speakerId: "monet", text: "Look first at the reflected light." },

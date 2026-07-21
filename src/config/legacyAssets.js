@@ -43,7 +43,7 @@ const CANONICAL_WORLDS = [
     sourceSplats: 4_320_000,
     worldScale: 1.7,
     palette: palette(0xc7dedc, 0x718e7c, 0xdce5d8, 0x74cec0),
-    profile: profile(0.8, -19, 1.1, -6.36, 23.3, -41.25, 16.21, Math.PI, 400)
+    profile: profile(1.86, -19, 1.1, -6.36, 23.3, -41.25, 16.21, Math.PI, 400, -0.06, 5.2)
   },
   {
     id: "dreamlike-coastal-villa-gardens",
@@ -106,7 +106,7 @@ const CANONICAL_WORLDS = [
     sceneId: "infinite-repetition",
     name: "Yellow Polka Dot Infinity Room",
     subtitle: "08 / INFINITY · The Infinite Repetition Chamber",
-    scene: scene("infinite-repetition", "The Infinite Repetition Chamber", "Yayoi Kusama", "/assets/scenes/08-kusama-infinite-dots.png"),
+    scene: scene("infinite-repetition", "The Infinite Repetition Chamber", "Infinity & Repetition Lens", "/assets/scenes/08-kusama-infinite-dots.png"),
     render: "mesh",
     mesh: "/assets/worlds/yellow-infinity-room-texture-mesh.glb",
     splat: "/assets/worlds/yellow-infinity-room.spz",
@@ -144,7 +144,16 @@ export const COMPANIONS = Object.freeze([
   companion("picasso", "Pablo Picasso", "PICASSO", "One viewpoint is never enough to hold the whole truth.", "#df786d"),
   companion("freud", "Sigmund Freud", "FREUD", "Inherited desires often speak before conscious intention.", "#8d8294", "/assets/portraits/freud-card.jpg"),
   companion("qi-baishi", "Qi Baishi", "QI BAISHI", "A spare mark can still contain a living world.", "#76926a", "/assets/portraits/qi-baishi-card.jpg"),
-  companion("yayoi-kusama", "Yayoi Kusama", "KUSAMA", "Repetition can dissolve the boundary of the self.", "#e6bf32", "/assets/portraits/yayoi-kusama-card.jpg")
+  companion(
+    "yayoi-kusama",
+    "Infinity & Repetition Lens",
+    "INFINITY & REPETITION",
+    "Repetition can dissolve the boundary of the self.",
+    "#e6bf32",
+    "/assets/thumbs/yellow-polka-dot-infinity-room.jpg",
+    null,
+    "Non-person scene marker; no living-artist portrait or character model is loaded"
+  )
 ]);
 
 export function getWorld(id) {
@@ -229,15 +238,24 @@ function scene(id, title, artist, image) {
   return Object.freeze({ id, stop_id: id, title, artist, image });
 }
 
-function companion(id, fullName, name, lens, color, portrait = `/assets/portraits/${id}.jpg`) {
+function companion(
+  id,
+  fullName,
+  name,
+  lens,
+  color,
+  portrait = `/assets/portraits/${id}.jpg`,
+  model = `/assets/characters/${id}.glb`,
+  provenance = "Optimized from the corresponding muse-infinity character GLB"
+) {
   return Object.freeze({
     id,
     fullName,
     name,
     lens,
     color,
-    model: `/assets/characters/${id}.glb`,
+    model,
     portrait,
-    provenance: "Optimized from the corresponding muse-infinity character GLB"
+    provenance
   });
 }

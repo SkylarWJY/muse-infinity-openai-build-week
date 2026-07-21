@@ -5,6 +5,7 @@ import { isIP } from "node:net";
 import path from "node:path";
 import { loadEnvFile } from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { loadCodexOpenAIEnv } from "./services/codex.js";
 import { MINIMAX_NARRATION_MODEL, MiniMaxService } from "./services/minimax.js";
 import { NARRATION_MODEL, OpenAIService } from "./services/openai.js";
 import { RoomService } from "./services/rooms.js";
@@ -41,11 +42,18 @@ const MIME = new Map([
   [".spz", "application/octet-stream"], [".rad", "application/octet-stream"], [".glb", "model/gltf-binary"]
 ]);
 
-export function createMuseServer({ env = process.env, fetchImpl = fetch, roomService, staticReadStreamFactory = createReadStream } = {}) {
+export function createMuseServer({
+  env = process.env,
+  fetchImpl = fetch,
+  roomService,
+  staticReadStreamFactory = createReadStream,
+  allowLocalCodexProvider = false
+} = {}) {
   const openai = new OpenAIService({
     apiKey: env.OPENAI_API_KEY,
     baseUrl: env.OPENAI_BASE_URL,
     model: env.OPENAI_MODEL,
+    allowLocalCodexProvider,
     fetchImpl,
     safetySalt: env.SAFETY_ID_SALT || "muse-build-week"
   });
@@ -625,9 +633,10 @@ export function loadLocalEnv(file = path.join(ROOT, ".env")) {
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   loadLocalEnv();
+  const codexConfig = await loadCodexOpenAIEnv();
   const port = Number(process.env.PORT || 4175);
   const host = process.env.HOST || "127.0.0.1";
-  const server = createMuseServer();
+  const server = createMuseServer({ allowLocalCodexProvider: codexConfig.allowLocalProvider });
   server.listen(port, host, () => console.log(`MUSE running at http://${host}:${port}`));
 }
 

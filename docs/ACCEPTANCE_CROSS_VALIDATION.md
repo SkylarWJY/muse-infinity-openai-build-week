@@ -30,7 +30,7 @@ The report correctly identified the visible symptom: many frames were generated 
 some old placements followed unsuitable collider layers. Its proposed global fixes were not
 accepted without geometry validation:
 
-- Raising `MAX_WALL_FRAME_GAP` from 0.10 m to 0.60 m would allow supports to disappear while
+- Raising `MAX_WALL_FRAME_GAP` from 0.10 m to 0.60 m would label frames as wall-mounted while
   frames remain 0.30-0.48 m away from the collider. That is a false wall mount.
 - Requiring an absolute world `centerY` of 1.2-1.7 m is invalid across independently authored
   archives with different origins and terrain elevations. The correct invariant is frame
@@ -40,39 +40,38 @@ accepted without geometry validation:
 
 The deterministic result is:
 
-| Scene | Mounted | Stands | Reason |
+| Scene | Mounted | Leg-free edge displays | Reason |
 | --- | ---: | ---: | --- |
-| Threshold Conservatory | 2 | 2 | Two collider-backed mounts; open-axis works use stands. |
-| Court of Light | 1 | 3 | One complete frame has strict wall backing; three use grounded stands. |
-| Garden of Water and Light | 1 | 3 | One complete frame has strict wall backing; three use reachable stands. |
+| Threshold Conservatory | 1 | 3 | One collider-backed mount; open-axis works use edge displays. |
+| Court of Light | 0 | 4 | The accessible route has no strict full-frame wall backing. |
+| Garden of Water and Light | 1 | 3 | One complete frame has strict wall backing; three use reachable edge displays. |
 | Sunset Frame Gallery | 0 | 4 | No four reachable, unobstructed wall anchors in the open garden. |
-| Studio of the Burning Sky | 1 | 3 | One complete frame has strict wall backing; three use grounded stands. |
-| Petal Transition Hall | 4 | 0 | Four true wall anchors with a continuous first-guide route. |
-| Courtyard of Living Memory | 0 | 4 | Open courtyard geometry; honest locally grounded stands. |
+| Studio of the Burning Sky | 1 | 3 | One complete frame has strict wall backing; three use grounded edge displays. |
+| Petal Transition Hall | 1 | 3 | One true wall anchor and a continuous route across the remaining edge displays. |
+| Courtyard of Living Memory | 0 | 4 | Open courtyard geometry; honest locally grounded edge displays. |
 | Infinite Repetition Chamber | 0 | 4 | Full textured mesh has no validated route-facing wall set. |
-| Your Dream World | 0 | 4 | Open answer world; locally grounded stands. |
+| Your Dream World | 0 | 4 | Authored provenance placements; hidden during the visitor-facing Finale. |
 
 Across all 36 works, the real-collider test requires finite authored coordinates, bounds,
 minimum 1.99 m separation, grounded guide positions, real source aspect ratios, unobstructed
 center and four-corner sightlines, a 2.2 m minimum viewing distance, locally relative 1.50 m
 center height and a near-vertical backing collider within 0.10 m behind the center and all four
-corners whenever supports are hidden. The strict result is 9 wall mounts and 27 grounded
-stands. The route from guide spawn to the first artwork is sampled for terrain continuity in
+corners for every wall mount. The strict result is 4 wall mounts and 32 grounded, leg-free edge
+displays. The route from guide spawn to the first artwork is sampled for terrain continuity in
 every world.
 
 The runtime repeats the full-frame sightline and backing-wall checks for authored placements.
-While a collider is loading or unavailable, a nominal mount keeps visible floor supports; it
-switches to wall-mounted only after the collider passes validation.
+While a collider is loading or unavailable, a nominal mount is treated as a leg-free edge
+display; it switches to wall-mounted only after the collider passes validation.
 
-The answer world also protects its default camera corridor. A browser isolation capture showed
-that the second stand's backing panel occupied the lower foreground even though its guide view
-was valid. The stand now sits behind the initial camera on the same real collider, and a
-regression reconstructs the runtime camera path and rejects any frame footprint entering it.
+The answer-world authored placements also protect its default camera corridor, and a regression
+rejects any frame footprint entering it. The Finale then hides the complete artwork group and
+stages the selected company facing the visitor.
 
 ## Character-animation report
 
-The asset inspection is correct: each of the eight inherited historical GLBs is one static
-mesh with zero skins, animation clips and morph targets. The learner is a separate 41-joint
+The asset inspection is correct: each of the eight inherited interpretive-companion GLBs is one
+static mesh with zero skins, animation clips and morph targets. The learner is a separate 41-joint
 asset with baked wait/walk clips. The report's claim that all remaining stiffness was purely
 an asset problem was too broad:
 
@@ -88,12 +87,13 @@ an asset problem was too broad:
   report's `biped-v2` description contradicted the canonical generation manifest.
 
 The station-tour contract no longer treats two companions as permanent followers. Each selected
-actor has an independent director; speaker order rotates with the artwork index, launches are
-staggered and listener targets are spatially separated. The movement tests exercise speaker
-rotation, target separation and launch delay without advancing actor internals from test code.
+actor has an independent director; speaker order rotates with the artwork index, the company
+launches simultaneously on independent safe routes, and conversation targets are spatially
+separated. The movement tests exercise speaker rotation, target separation and simultaneous
+launch without advancing actor internals from test code.
 
-These changes improve correspondence without changing the provenance claim. Historical
-figures remain bounded shader-deformed static meshes, not newly rigged characters, IK, mocap
+These changes improve correspondence without changing the provenance claim. The AI interpretive
+companion figures remain bounded shader-deformed static meshes, not newly rigged characters, IK, mocap
 or skeletal animation. A future rigged derivative must be retargeted and QA'd per character;
 an arbitrary human rig cannot be assumed compatible with the learner's bone names and bind
 pose.
@@ -183,5 +183,5 @@ explicitly labeled as curated fallback.
 The automated checks prove deterministic geometry and state contracts. Browser screenshots
 remain necessary for composition, legibility, motion and asset-loading confirmation.
 Navigation has local terrain continuity and learner collision sweep/slide, but no semantic
-water mask, navmesh, general rigid-body physics, guide/party obstacle planner or historical
-character skeletons.
+water mask, navmesh, general rigid-body physics, guide/party obstacle planner or
+interpretive-companion skeletons.

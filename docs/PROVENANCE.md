@@ -8,13 +8,13 @@ than symlinks.
 ## Build Week development record
 
 The core MUSE concept, nine prepared spatial worlds, colliders, scene images, thumbnails,
-historical-character assets and portraits are pre-Submission Period materials controlled by
+interpretive-companion assets and portraits are pre-Submission Period materials controlled by
 the entrant or lawfully sourced under the terms recorded here. Submission Period work added
 the strict ten-beat/8+1 state machine, GPT-5.6 Structured Outputs and two-stage synthesis,
 three required artwork stations per process world, independently directed companion movement,
 collider-tested artwork correspondence, high-resolution readiness transitions, conditional
-OpenAI Realtime plus MiniMax/OpenAI narration, procedural music, generated white-dove ambient
-life, responsive UI and automated verification.
+OpenAI Realtime plus MiniMax/OpenAI narration, gesture-gated public-domain museum music,
+ambient approval gates, abstract dots/fireflies, responsive UI and automated verification.
 
 Evidence is recorded in commits `62a7f59`, `9ab9062`, `7602267` and `55fdeed`, and in Codex
 `/feedback` session `019f7e53-4039-7cc1-9162-01906bec47b7`. This concise distinction follows
@@ -25,9 +25,10 @@ Submission Period to be identified.
 
 ## Runtime and generation boundary
 
-- Runtime language and reasoning requests use GPT-5.6 through exactly one of two allowlisted
-  origins: official OpenAI at `https://api.openai.com`, or the disclosed authorized
-  OpenAI-compatible gateway at `https://api.baizhiyuan.cloud`. The accepted model IDs are
+- Runtime language and reasoning requests use GPT-5.6 through one of two allowlisted remote
+  origins (official OpenAI at `https://api.openai.com` or the disclosed authorized
+  OpenAI-compatible gateway at `https://api.baizhiyuan.cloud`), or through the current user's
+  explicitly selected Codex loopback `/v1` Responses transport. The accepted model IDs are
   `gpt-5.6` and `gpt-5.6-sol`; no other reasoning-model family is allowed.
 - The compatible gateway is reasoning-only. Realtime microphone mode and OpenAI narration are
   enabled only with the official origin, including the checked-in GPT Realtime, transcription
@@ -38,9 +39,20 @@ Submission Period to be identified.
 - Supported browsers can fall back from Realtime to `SpeechRecognition` and
   `SpeechSynthesis`. Recognized text uses the configured GPT-5.6 dialogue endpoint or its
   labeled curated local fallback, so browser speech adds no language/reasoning model.
-- GPT Image 2 supplies the learner and white-dove source images. The dove used Tripo's hosted
+- GPT Image 2 supplies source images only for the retained adult learner and retired white-dove
+  experiment; it does
+  not output their GLBs. The adult asset continues through a Tripo four-view turnaround,
+  `multiview_to_model`, rig/animation and offline QA. The dove used Tripo's hosted
   `gpt_image_2` task after the configured compatible image gateway returned HTTP 403 with no
-  output. Tripo only produces checked-in assets and has no runtime API in MUSE.
+  output, then a Tripo multiview/reconstruction chain and local shader-authored motion. Because
+  that dove has no embedded animation clip, it has been removed from the visible configuration.
+  Tripo only produces checked-in assets and has no runtime API in MUSE.
+- The default little-girl learner is a user-provided Tripo export. Its manifest contains no GPT
+  Image 2 task, so the repository does not attribute that learner to GPT Image 2.
+- The eight living-artwork v1 assets are deterministic local Three.js-authored static GLBs. All
+  eight failed visual QA; approved-only production lookup returns no config for them and the
+  rejected path is tested to make zero loader calls. They remain inspectable artifacts, not
+  deployed dynamic artworks.
 - World Labs produced prepared spatial assets. Its separate optional Forge endpoint requires
   both a server API key and an exact admin token, generates only isolated spatial variations,
   receives no visitor question/evidence/conversation data and is outside the canonical journey.
@@ -50,15 +62,19 @@ Submission Period to be identified.
 
 ## Audio asset boundary
 
-MUSE does not bundle or play a third-party music recording. The four-profile score in
-`src/services/sound-experience.js` is deterministic Web Audio synthesis using checked-in pitch
-fields and oscillators, with no recording samples or reference audio. Narration and live
-conversation duck that score independently.
+MUSE bundles three public-domain instrumental recordings inherited from MUSE Infinity. Their
+sources and performer information are recorded in `THIRD_PARTY_NOTICES.md`; exact bytes are
+locked by `tests/music-provenance.test.mjs`:
 
-Any future recorded or generated soundtrack file must have an asset-level record covering its
-source, generator or performer, applicable rights, prompt/reference inputs when relevant,
-generation date and SHA-256. AI generation alone is not treated as copyright clearance. This
-implements the competition rule that demo-video music must be authorized.
+| Asset | SHA-256 |
+| --- | --- |
+| `assets/audio/promenade.ogg` | `7103f5376e8f939dbb80d6fba89bf1c5e984a951139499af2b692e3589c429c4` |
+| `assets/audio/clair-de-lune.opus` | `84040bf8138e81aca757501a342ada6fd12d594e75d322288cafd5c86a0aee1b` |
+| `assets/audio/gymnopedie.ogg` | `419e37656856224227086df32d6d481a00a738961e08fca9f6147e472beea53e` |
+
+Playback begins only after a visitor gesture, changes between narrative acts without restarting
+inside an act, and ducks under narration and live conversation. A quiet deterministic Web Audio
+texture remains underneath and uses no samples or reference audio.
 
 ## Dialogue and voice boundary
 
@@ -97,8 +113,9 @@ curated local fallback; browser speech is not a second reasoning provider.
 Passive guide narration is controlled with Sound and stops at scene or process transitions.
 The separate Voice control remains the visitor-initiated live microphone conversation
 described above; starting it stops passive narration so the input stream does not capture the
-guide's own speech. Both narration and live conversation lower the procedural score while
-speaking. Browser autoplay policy requires a visitor gesture before Web Audio can begin.
+guide's own speech. Both narration and live conversation lower the recorded score and
+procedural texture while speaking. Browser autoplay policy requires a visitor gesture before
+audio begins.
 
 GPT-5.6 requires an untracked credential accepted by the configured exact-allowlist origin.
 Realtime and OpenAI TTS additionally require the official OpenAI origin. Expressive cast
@@ -228,10 +245,12 @@ referenced by the canonical 8+1 spine or default route:
 
 Bright Gallery is explicitly not scene 1, a process world or the answer world.
 
-## Tripo companion asset ledger
+## Tripo interpretive-companion asset ledger
 
-The eight deployed historical-character GLBs are browser-optimized copies of the corresponding
-full-size MUSE source files. Each source GLB embeds `asset.generator: "Tripo"`.
+The eight deployed AI interpretive-companion GLBs are browser-optimized copies of the
+corresponding full-size MUSE source files. Each source GLB embeds
+`asset.generator: "Tripo"`. They are visual interfaces for bounded interpretive lenses, not
+authentic embodiments, quotations or endorsements by the named people.
 
 | Companion | Source export / bytes | Deployed file / bytes | SHA-256 |
 | --- | --- | --- | --- |
@@ -262,24 +281,26 @@ produce byte-identical optimized output from the same command shape.
 The deployed companion files contain static meshes rather than skins or animation clips.
 Submission Period runtime work added approximate shader-region deformation and root
 translation. Free walking can use grounded formation slots; artwork tours assign every selected
-companion an independent `GuideDirector`, rotate the lead by station, stagger departures and
-place the other actors at separated collider-grounded listening positions. Gait cadence follows
+companion an independent `GuideDirector`, rotate the lead by station, launch the whole company
+simultaneously on independent safe routes and place the actors at separated collider-grounded
+conversation positions. Gait cadence follows
 root speed, and each director holds distinct listening and reflection poses. Roundtable staging uses
 the same selected roster. The figures are AI interpretations, not authentic likeness
 reconstructions or endorsements by the named people. Yayoi Kusama is a living person; this
 repository does not describe her representation as a public-domain historical likeness.
 
-The nine-scene ambient cast is implemented by `src/config/ambientLife.js` and
-`src/render/AmbientLife.js`. Most distant creatures remain code-native articulated geometry or
-bounded point fields. Threshold, Sunset and Petal additionally load the generated white-dove GLB
-recorded below. Runtime clones its mesh/material resources per instance, follows deterministic
-paths with heading/pitch/bank, and applies independent PBR vertex-shader deformation to the
-detailed mesh's wing regions for visible flapping. It disposes late loads and retains a concrete
-procedural white-dove fallback only for detailed-asset failure. The selected GLB has no skin or
-baked animation clip and is not described as skeletal or rigged; its visible articulation is
-runtime-authored shader deformation.
+The current ambient configuration is implemented by `src/config/ambientLife.js` and
+`src/render/AmbientLife.js`. Threshold through Living Memory now declare no ambient subjects.
+Only the abstract `dots` point field in Infinite Repetition and `firefly` point field in the
+answer world remain visible. Earlier procedural birds, butterflies, dragonflies, koi and other
+creatures were removed, along with the unskinned and clipless white-dove visual.
 
-## Submission Period white-dove asset ledger
+A future concrete ambient GLB is eligible only when its spec records all of these gates:
+GPT Image 2 reference, identity-consistent multiview, Tripo reconstruction, a named embedded
+animation clip and `visualQa: "approved"`. Unapproved, missing or static assets remain hidden;
+the renderer does not construct a concrete primitive fallback.
+
+## Retired Submission Period white-dove asset ledger
 
 The white rock dove was produced as one bounded Tripo chain. A direct GPT Image 2 request to the
 configured compatible image gateway returned HTTP 403 and produced no selected output. Tripo's
@@ -299,8 +320,45 @@ dark eyes, beak details and coral feet.
 The complete prompt, task IDs, multiview hashes, credit usage, rejected attempts, material
 correction and QA record are in
 `assets/generated/ambient-avian-v1/manifest.json`. Provider-generated wing animation is not
-claimed. The checked-in GLB remains unskinned and clipless, while the deployed renderer combines
-authored root flight with a dedicated PBR vertex-shader wing deformation.
+claimed. The checked-in GLB remains unskinned and clipless. It is retained for provenance and is
+not referenced by the current visible ambient configuration.
+
+## Submission Period living-artwork v1 ledger
+
+The eight files under `assets/living-artworks/` are shallow-relief story elements generated by
+the repository's deterministic local Three.js script. Their GLBs contain static authored
+geometry. All eight have `visualQa: "rejected"` in the runtime config because they obscure the
+original artwork and do not meet the exhibition visual-quality bar. Production lookup is
+approved-only, so `ArtworkStoryDirector` receives a null config, requests no frame anchor, makes
+zero loader calls and mounts no rejected visual. No file in this v1 collection is attributed to
+GPT Image 2, World Labs Marble or Tripo.
+
+The collection-level source claim, file sizes, triangle/primitive counts and SHA-256 hashes are
+recorded in `assets/generated/living-artworks-v1/manifest.json`. The files remain inspectable
+failure evidence, not production dynamic artworks.
+
+## Living-artwork v2 Marble experiments
+
+Two World Labs `marble-1.1` candidates were generated for `aic-111436`; neither is production
+approved or deployed:
+
+| Candidate | World ID | Credits | Local manifest | Current decision |
+| --- | --- | ---: | --- | --- |
+| Image-conditioned from the AIC artwork | `a4b12eab-863e-4a96-b5d0-7136017cbad8` | 1,580 | `assets/generated/living-artworks-v2/aic-111436-marble/manifest.json` | `rejected-visual-qa`; painterly treatment, diluted composition and no independent hero motion |
+| Text-conditioned impossible still-life chamber | `43225634-4b37-474e-bdd6-68ae43d52548` | 1,580 | `assets/generated/living-artworks-v2/aic-111436-marble-text/manifest.json` | `approved-for-browser-qa` only |
+
+Each candidate directory contains local 100K/500K SPZ files, collider, panorama and thumbnail.
+The text-conditioned candidate's preliminary Hermes static blind review scored 9/10 and only
+advanced it to browser QA. Its manifest explicitly requires desktop, mobile, reduced-motion,
+frame-return and a second independent visual review before production approval. The static world
+also lacks an independently animated hero asset.
+
+The current candidate presentation is a Musée du Monde-inspired, evidence-triggered five-second
+frame portal. It reveals outward from the selected painting, performs a bounded camera passage,
+then dissolves fully back to the frame. It is available only through the isolated browser-QA
+path; approved production lookup still returns null. Curated facts and imagined reenactment cues
+remain separately labeled. See `docs/BUILD_PROCESS_EVIDENCE.md` for the redacted experiment and
+gate record.
 
 ## Portrait ledger
 
@@ -333,7 +391,23 @@ endorsements by the named people.
 
 ## Submission Period learner asset ledger
 
-The learner was produced during the Submission Period. Tripo's `generate_image` task invoked
+The default learner is a user-provided Tripo export named `little girl 3d model.glb`. The
+58,341,140-byte source contains 1,016,272 vertices, 1,964,005 triangles, no skin and no
+animations. It was mechanically optimized with glTF-Transform 4.4.1 to the checked-in
+2,066,968-byte file below; the runtime uses bounded shader-limb articulation and does not claim
+that this static mesh is rigged or skeletally animated.
+
+| File | Bytes | Detail | SHA-256 |
+| --- | ---: | --- | --- |
+| `assets/characters/learner-girl.glb` | 2,066,968 | 56,770 vertices; 88,379 triangles; 0 skins; 0 animations | `62b84aab7414b12d4ca2c5f9a0aa4ae11dfe51dca879bf45814e892dbb71b5c4` |
+
+The original source hash, optimization command and output geometry are recorded in
+`assets/generated/learner-girl/manifest.json`. The source file is user-controlled material and
+is not redistributed; the optimized deployment asset is the authoritative runtime byte set.
+
+### Retained original learner
+
+The retained original learner was produced during the Submission Period. Tripo's `generate_image` task invoked
 `model_version: gpt_image_2` for the accepted strict T-pose source. A separate Tripo
 multiview-image task generated consistent front, character-left, back and character-right
 views. Those views drove a detailed `v3.1-20260211` reconstruction. The selected legacy biped
@@ -474,15 +548,16 @@ The canonical web-export SPZ worlds are y-up and keep their native frame; there 
 range before this declared scale is applied.
 
 `src/config/legacyAssets.js` is the executable record. `src/config/exhibitionSpine.js` is the
-ordered narrative/asset record. The runtime loads the matching scene collider and uses it
-for ground height; route order and movement bounds remain deterministic.
+canonical narrative/asset record. The runtime loads the matching scene collider and uses it
+for ground height; authored anchors and movement bounds remain deterministic while Atlas lets
+the visitor choose process-world order.
 
-`src/config/artworkPlacements.js` records all 36 authored artwork anchors. Nine frames hide
-their supports only where a near-vertical collider is within 0.10 m behind the center and all
-four corners; the remaining twenty-seven use grounded stands in open geometry. Geometry QA
-uses each source JPEG's real aspect ratio, requires unobstructed center/corner sightlines and
-keeps every center 1.50 m above its local viewing ground. Absolute world Y is not a
-cross-world height contract.
+`src/config/artworkPlacements.js` records all 36 authored artwork anchors: four collider-backed
+wall mounts and thirty-two grounded edge displays. No frame renders the former pair of support
+posts. Geometry QA uses each source JPEG's real aspect ratio, requires unobstructed center/corner
+sightlines and keeps every center 1.50 m above its local viewing ground. The four ninth-world
+records remain in the asset ledger but are hidden during the visitor-facing Finale. Absolute
+world Y is not a cross-world height contract.
 
 ## Rights and use notes
 
@@ -493,7 +568,7 @@ cross-world height contract.
 - Portrait use remains subject to each source page, applicable jurisdiction and likeness law.
   Yayoi Kusama is a living person; her representation is not described as a public-domain
   historical likeness.
-- Historical companion perspectives are labeled AI interpretations. They are not authentic
+- Interpretive-companion perspectives are labeled AI interpretations. They are not authentic
   quotations, cloned voices, endorsements or statements by the named people.
 - Runtime package and asset-source notices are consolidated in
   [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).

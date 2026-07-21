@@ -5,15 +5,21 @@ import { ArchivedAvatar } from "./ArchivedAvatar.js";
 import { LearnerAvatar } from "./LearnerAvatar.js";
 import { ProceduralAvatar } from "./ProceduralAvatar.js";
 import { AmbientLife } from "./AmbientLife.js";
+import { ArtworkStoryDirector } from "./ArtworkStoryDirector.js";
+import { ArtworkVisionDirector } from "./ArtworkVisionDirector.js";
 import { WorldLayer, currentSceneQuality } from "./WorldLayer.js";
+import { approvedLivingArtworkForScene, browserQaLivingArtworkForScene } from "../config/livingArtworks.js";
 import { WORLDS, getSceneStop } from "../config/scenes.js";
 
 const LEARNER_WALK_SPEED = 1.33;
 const LEARNER_FOLLOW_CATCHUP_SPEED = 1.6;
-const COMPANY_LISTENER_SPREAD = 1.05;
-const COMPANY_LISTENER_RETREAT = 0.35;
+const COMPANY_LISTENER_SPREAD = 1.35;
+const COMPANY_LISTENER_RETREAT = 0.7;
 const COMPANY_VISITOR_READY_RADIUS = 2.8;
 const COMPANY_STAGE_MIN_SEPARATION = 0.72;
+const COMPANY_TRIGGER_CLEARANCE = 0.82;
+const COMPANY_ARTWORK_SIGHTLINE_CLEARANCE = 0.72;
+const COMPANY_STAGE_MAX_GROUND_DELTA = 0.8;
 const COMPANY_STAGE_PATH_SPACING = 0.2;
 const MAX_COMPANY_STAGE_CANDIDATES = 36;
 const COMPANY_STAGE_SIDE_OFFSETS = Object.freeze([-1.65, -1.35, -1.05, -0.8, -0.55, -0.3, 0, 0.3, 0.55, 0.8, 1.05, 1.35, 1.65]);
@@ -68,13 +74,17 @@ const INITIAL_PARTY_PATTERN_OVERRIDES = Object.freeze({
 });
 
 export class MuseumEngine {
-  constructor(container, { onGuideState = () => {}, onMetrics = () => {}, onFollowChange = () => {}, onWorldLayerStatus = () => {}, onCompanionStatus = () => {}, learnerAvatarId, quality = currentSceneQuality() } = {}) {
+  constructor(container, { onGuideState = () => {}, onMetrics = () => {}, onFollowChange = () => {}, onWorldLayerStatus = () => {}, onCompanionStatus = () => {}, onArtworkStoryStatus = () => {}, artworkVisionQaCandidate = null, learnerAvatarId, quality = currentSceneQuality() } = {}) {
     this.container = container;
     this.onGuideState = onGuideState;
     this.onMetrics = onMetrics;
-    this.onFollowChange = onFollowChange;
+    this.onFollowChange = typeof onFollowChange === "function" ? onFollowChange : () => {};
     this.onWorldLayerStatus = onWorldLayerStatus;
     this.onCompanionStatus = onCompanionStatus;
+    this.onArtworkStoryStatus = typeof onArtworkStoryStatus === "function" ? onArtworkStoryStatus : () => {};
+    this.artworkVisionQaCandidate = typeof artworkVisionQaCandidate === "string"
+      ? artworkVisionQaCandidate
+      : null;
     this.quality = quality;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(52, 1, 0.08, 90);
@@ -109,6 +119,7 @@ export class MuseumEngine {
     this.companyTour = null;
     this.companyTourToken = 0;
     this.companySpeakingId = null;
+    this.finaleActive = false;
     this.worldTransitioning = false;
     this.activeWorld = WORLDS[0];
     this.activeWorldLive = false;
@@ -119,6 +130,15 @@ export class MuseumEngine {
     this.setupLights();
     this.worldLayer = new WorldLayer(this.scene, { renderer: this.renderer, quality, onStatus: onWorldLayerStatus });
     this.ambient = new AmbientLife(this.scene);
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+    this.artworkStoryDirector = new ArtworkStoryDirector(this.scene, {
+      onStatus: (event) => this.onArtworkStoryStatus(event),
+      reducedMotion
+    });
+    this.artworkVisionDirector = new ArtworkVisionDirector(this.container, {
+      onStatus: (event) => this.onArtworkStoryStatus(event),
+      reducedMotion
+    });
     this.player = new LearnerAvatar({ avatarId: learnerAvatarId });
     this.guide = new ProceduralAvatar({ coat: 0x1a312d, accent: 0xd8ff42, skin: 0xa66f55, name: "Mira" });
     this.player.group.position.set(0.8, 0, 5.2);
@@ -157,8 +177,11 @@ export class MuseumEngine {
     const token = ++this.worldToken;
     const world = WORLDS.find((item) => item.id === worldId) || WORLDS[0];
     this.worldTransitioning = true;
+    this.finaleActive = false;
     this.cancelCompanyTour({ pauseDirectors: true, resetActiveSpeaker: true });
     this.ambient.clear();
+    this.artworkStoryDirector?.clear?.();
+    this.artworkVisionDirector?.clear?.();
     try {
       await this.showSalonCharacters(false);
       if (token !== this.worldToken) return this.activeWorld;
@@ -170,6 +193,8 @@ export class MuseumEngine {
       this.applyWorldProfile(world, true);
       this.ambient.setWorld(world.sceneId, { bounds: world.profile.bounds });
       if (token !== this.worldToken) return this.activeWorld;
+      this.installArtworkStory(world);
+      this.installArtworkVision(world);
       return world;
     } finally {
       if (token === this.worldToken) {
@@ -183,6 +208,78 @@ export class MuseumEngine {
     return this.activeWorld.id === worldId
       && this.activeWorldLive === true
       && this.worldLayer.isLive(worldId);
+  }
+
+  installArtworkStory(world = this.activeWorld) {
+    if (!this.artworkStoryDirector?.setWorld) return null;
+    const config = this.activeWorldLive ? approvedLivingArtworkForScene(world?.sceneId) : null;
+    const anchorMatrix = config ? this.worldLayer.artworkAnchorMatrix(config.artworkId) : null;
+    return this.artworkStoryDirector.setWorld({
+      sceneId: world?.sceneId || null,
+      artworkId: config?.artworkId || null,
+      anchorMatrix,
+      config: anchorMatrix ? config : null
+    });
+  }
+
+  installArtworkVision(world = this.activeWorld) {
+    if (!this.artworkVisionDirector?.setWorld) return null;
+    const candidate = this.activeWorldLive ? browserQaLivingArtworkForScene(world?.sceneId) : null;
+    const config = candidate?.artworkId === this.artworkVisionQaCandidate ? candidate : null;
+    return this.artworkVisionDirector.setWorld({
+      sceneId: world?.sceneId || null,
+      artworkId: config?.artworkId || null,
+      config
+    });
+  }
+
+  triggerArtworkStory(artworkId) {
+    this.artworkVisionDirector?.setRevealOrigin?.(this.artworkVisionOrigin(artworkId));
+    return this.artworkVisionDirector?.trigger?.(artworkId) === true
+      || this.artworkStoryDirector?.trigger?.(artworkId) === true;
+  }
+
+  triggerArtworkVisionPreview(artworkId) {
+    this.artworkVisionDirector?.setRevealOrigin?.(this.artworkVisionOrigin(artworkId));
+    return this.artworkVisionDirector?.trigger?.(artworkId) === true;
+  }
+
+  artworkVisionOrigin(artworkId) {
+    const matrix = this.worldLayer?.artworkAnchorMatrix?.(artworkId);
+    if (!matrix?.isMatrix4 || !this.camera) return { x: 0.5, y: 0.5 };
+    const point = this.artworkVisionAnchor || (this.artworkVisionAnchor = new THREE.Vector3());
+    point.setFromMatrixPosition(matrix).project(this.camera);
+    if (![point.x, point.y, point.z].every(Number.isFinite) || point.z < -1 || point.z > 1) {
+      return { x: 0.5, y: 0.5 };
+    }
+    return {
+      x: THREE.MathUtils.clamp(point.x * 0.5 + 0.5, 0, 1),
+      y: THREE.MathUtils.clamp(0.5 - point.y * 0.5, 0, 1)
+    };
+  }
+
+  pauseArtworkStory(paused) {
+    return this.artworkVisionDirector?.pause?.(paused) === true
+      || this.artworkStoryDirector?.pause?.(paused) === true;
+  }
+
+  skipArtworkStory() {
+    return this.artworkVisionDirector?.skip?.() === true
+      || this.artworkStoryDirector?.skip?.() === true;
+  }
+
+  replayArtworkStory() {
+    return this.artworkVisionDirector?.replay?.() === true
+      || this.artworkStoryDirector?.replay?.() === true;
+  }
+
+  artworkStorySnapshot() {
+    const vision = this.artworkVisionDirector?.snapshot?.();
+    return vision?.artworkId ? vision : this.artworkStoryDirector.snapshot();
+  }
+
+  artworkVisionSnapshot() {
+    return this.artworkVisionDirector?.snapshot?.() || null;
   }
 
   applyWorldProfile(world, snapToCollider) {
@@ -335,7 +432,6 @@ export class MuseumEngine {
         director.goTo({ id: tour.artworkId, guideAnchor: [...nextTarget], lookAt: [...stage.lookAt] });
         return;
       }
-      this.launchCompanyMember(tour, index + 1);
     }
     if (event.state === "asking") tour.ready.add(companionId);
 
@@ -414,6 +510,48 @@ export class MuseumEngine {
     }
   }
 
+  stageFinale({ distance = 3.2 } = {}) {
+    this.cancelCompanyTour({ pauseDirectors: true, resetActiveSpeaker: true });
+    this.finaleActive = true;
+    this.salonVisible = false;
+    for (const actor of this.salonActors) actor.group.visible = false;
+    this.setPermanentPartyVisible(true);
+    this.worldLayer.setArtworksVisible?.(false);
+    if (this.worldLayer.artworkGroup && typeof this.worldLayer.setArtworksVisible !== "function") {
+      this.worldLayer.artworkGroup.visible = false;
+    }
+
+    const actors = this.permanentCompanyActors().slice(0, 3);
+    const groundAt = (x, z, referenceY, maxDelta) => typeof this.worldLayer.walkableGroundHeightAt === "function"
+      ? this.worldLayer.walkableGroundHeightAt(x, z, referenceY, maxDelta)
+      : this.worldLayer.groundHeightAt(x, z);
+    const stages = resolveFinaleStages({
+      visitorPosition: this.player.group.position,
+      visitorYaw: this.player.group.rotation.y,
+      count: actors.length,
+      distance,
+      bounds: this.activeWorld?.profile?.bounds,
+      groundAt
+    });
+    actors.forEach((actor, index) => {
+      const stage = stages[index];
+      actor.group.position.set(stage.x, stage.y, stage.z);
+      actor.group.rotation.y = stage.yaw;
+      actor.group.visible = true;
+      actor.setMotion?.(0, "open");
+    });
+    for (const director of this.companyDirectors?.values?.() || []) resetDirectorNavigation(director, true);
+    this.setFollow(false);
+    return {
+      companionIds: actors.map((actor) => actor.companion?.id || null),
+      stages: stages.map((stage) => ({ ...stage, lookAt: [...stage.lookAt] }))
+    };
+  }
+
+  enterFinale(options) {
+    return this.stageFinale(options);
+  }
+
   placePartyAtFormation(snapToCollider = true) {
     const groundY = this.activeWorld.profile.groundY;
     const groundedTargets = snapToCollider && this.partyActors.length ? this.groundedPartyTargets() : [];
@@ -481,7 +619,7 @@ export class MuseumEngine {
   }
 
   updateParty(dt) {
-    if (this.salonVisible || this.companyTour) return;
+    if (this.salonVisible || this.companyTour || this.finaleActive) return;
     const groundedTargets = this.partyActors.length ? this.groundedPartyTargets() : [];
     for (const [index, actor] of this.partyActors.entries()) {
       const target = groundedTargets[index];
@@ -522,6 +660,8 @@ export class MuseumEngine {
   navigateTo(stopId) {
     const stop = getSceneStop(stopId, this.activeWorld.id);
     if (!stop) throw new Error(`unknown_scene_stop:${stopId}`);
+    this.finaleActive = false;
+    this.worldLayer.setArtworksVisible?.(true);
     this.cancelCompanyTour();
     this.activeSpeakerId = this.guide.companion?.id || "mira";
     this.director = this.companyDirectors?.get?.(this.activeSpeakerId) || this.director;
@@ -540,6 +680,8 @@ export class MuseumEngine {
   navigateCompanyToArtwork(artworkId, speakerOrder = this.companionIds) {
     const pose = this.worldLayer.artworkPose?.(artworkId) || this.worldLayer.stopPose?.(artworkId);
     if (!pose) throw new Error(`unknown_artwork_pose:${artworkId}`);
+    this.finaleActive = false;
+    this.worldLayer.setArtworksVisible?.(true);
     const available = new Set(this.companyDirectors?.keys?.() || []);
     const order = [...new Set(Array.isArray(speakerOrder) ? speakerOrder : [])]
       .map((id) => String(id || "").trim())
@@ -562,6 +704,10 @@ export class MuseumEngine {
         pathIsClear: (from, target, radius) => this.companyPathIsClear(from, target, radius)
       }
     );
+    const visitorAnchor = [...pose.guideAnchor];
+    const visitorGroundY = groundAt(visitorAnchor[0], visitorAnchor[2], visitorAnchor[1], COMPANY_STAGE_MAX_GROUND_DELTA);
+    if (!Number.isFinite(visitorGroundY)) throw new Error("artwork_visitor_anchor_unavailable");
+    visitorAnchor[1] = visitorGroundY;
     this.cancelCompanyTour();
     this.activeStopId = artworkId;
     this.activeSpeakerId = order[0];
@@ -570,6 +716,7 @@ export class MuseumEngine {
       token: this.companyTourToken,
       artworkId: pose.artwork?.id || artworkId,
       pose,
+      visitorAnchor,
       speakerOrder: order,
       stages,
       launched: new Set(),
@@ -579,11 +726,12 @@ export class MuseumEngine {
       businessEventPublished: false
     };
     this.worldLayer.highlight(this.companyTour.artworkId, "focus");
-    this.launchCompanyMember(this.companyTour, 0);
+    for (let index = 0; index < stages.length; index += 1) this.launchCompanyMember(this.companyTour, index);
     return {
       artworkId: this.companyTour.artworkId,
       speakerId: this.activeSpeakerId,
       speakerOrder: [...order],
+      visitorAnchor: [...visitorAnchor],
       stages: stages.map((stage) => ({
         ...stage,
         guideAnchor: [...stage.guideAnchor],
@@ -678,6 +826,45 @@ export class MuseumEngine {
     return true;
   }
 
+  companionScreenAnchor(companionId) {
+    const id = String(companionId || "").trim();
+    const actor = this.permanentCompanionActor(id);
+    if (!actor) return null;
+    const viewport = this.renderer?.domElement?.getBoundingClientRect?.()
+      || this.container?.getBoundingClientRect?.();
+    if (!this.camera || !viewport || actor.group.visible === false) {
+      return { speakerId: id, ...missingScreenAnchor() };
+    }
+    const worldAnchor = this.companionAnchorWorld?.isVector3
+      ? this.companionAnchorWorld
+      : (this.companionAnchorWorld = new THREE.Vector3());
+    try {
+      if (typeof actor.headWorldPosition === "function") actor.headWorldPosition(worldAnchor);
+      else actor.group.localToWorld(worldAnchor.set(0, Math.max(1.2, Number(actor.height) || 1.75) + 0.14, 0));
+    } catch {
+      return { speakerId: id, ...missingScreenAnchor() };
+    }
+    return { speakerId: id, ...projectWorldAnchorToViewport(worldAnchor, this.camera, viewport) };
+  }
+
+  permanentCompanionActor(companionId) {
+    const id = String(companionId || "").trim();
+    if (!id) return null;
+    const salonActors = Array.isArray(this.salonActors) ? this.salonActors : [];
+    const permanentActors = [this.guide, ...(Array.isArray(this.partyActors) ? this.partyActors : [])]
+      .filter((candidate) => candidate?.group && !salonActors.includes(candidate));
+    const directed = this.companyDirectors?.get?.(id)?.avatar;
+    const directedIsCurrent = directed?.group
+      && !salonActors.includes(directed)
+      && (!permanentActors.length || permanentActors.includes(directed));
+    const matchesId = (candidate) => candidate.companion?.id === id
+      || (candidate === this.guide && id === "mira");
+    if (directedIsCurrent && directed.group.visible !== false) return directed;
+    return permanentActors.find((candidate) => matchesId(candidate) && candidate.group.visible !== false)
+      || (directedIsCurrent ? directed : permanentActors.find(matchesId))
+      || null;
+  }
+
   applyCompanySpeakerGestures(tour = this.companyTour) {
     if (!tour || !(this.companyDirectors instanceof Map)) return;
     for (const [companionId, director] of this.companyDirectors) {
@@ -716,7 +903,8 @@ export class MuseumEngine {
 
   setFollow(enabled) {
     this.followGuide = Boolean(enabled);
-    this.onFollowChange(this.followGuide);
+    this.onFollowChange?.(this.followGuide);
+    return this.followGuide;
   }
 
   setTouchVector(x, y) {
@@ -734,19 +922,19 @@ export class MuseumEngine {
     let forward = (this.keys.has("KeyW") || this.keys.has("ArrowUp") ? 1 : 0) - (this.keys.has("KeyS") || this.keys.has("ArrowDown") ? 1 : 0) - this.touchVector.y;
     let side = (this.keys.has("KeyD") || this.keys.has("ArrowRight") ? 1 : 0) - (this.keys.has("KeyA") || this.keys.has("ArrowLeft") ? 1 : 0) + this.touchVector.x;
     const manual = Math.abs(forward) + Math.abs(side) > 0.08;
-    if (manual && this.followGuide) {
-      this.followGuide = false;
-      this.onFollowChange(false);
-    }
     const velocity = new THREE.Vector3();
     if (manual) {
       const cameraForward = new THREE.Vector3(Math.sin(this.cameraYaw), 0, Math.cos(this.cameraYaw) * -1);
       const cameraRight = new THREE.Vector3(cameraForward.z * -1, 0, cameraForward.x);
       velocity.addScaledVector(cameraForward, forward).addScaledVector(cameraRight, side).normalize().multiplyScalar(LEARNER_WALK_SPEED);
-    } else if (this.followGuide && this.director.state === "walking") {
+    } else if (this.followGuide && (this.companyTour || this.director.state === "walking")) {
       const lead = this.director.avatar || this.guide;
-      const behind = new THREE.Vector3(0, 0, -1.8).applyAxisAngle(new THREE.Vector3(0, 1, 0), lead.group.rotation.y);
-      const target = lead.group.position.clone().add(behind);
+      const visitorAnchor = this.companyTour?.visitorAnchor;
+      const target = Array.isArray(visitorAnchor)
+        ? new THREE.Vector3().fromArray(visitorAnchor)
+        : lead.group.position.clone().add(
+          new THREE.Vector3(0, 0, -1.8).applyAxisAngle(new THREE.Vector3(0, 1, 0), lead.group.rotation.y)
+        );
       const delta = target.sub(this.player.group.position);
       delta.y = 0;
       if (delta.length() > 0.25) velocity.copy(delta.normalize().multiplyScalar(Math.min(LEARNER_FOLLOW_CATCHUP_SPEED, delta.length() * 1.7)));
@@ -830,9 +1018,11 @@ export class MuseumEngine {
     for (const actor of this.partyActors) actor.update(dt.visual, this.elapsed);
     for (const actor of this.salonActors) actor.update(dt.visual, this.elapsed);
     const ambientMetrics = this.ambient.update(this.elapsed);
+    this.artworkStoryDirector.update(dt.visual);
     this.updateCamera(dt.movement);
     this.updateEffects(dt.visual);
     this.renderer.render(this.scene, this.camera);
+    this.artworkVisionDirector?.update?.(dt.visual);
     this.frames.push(dt.raw);
     if (!window.__MUSE_METRICS__) {
       window.__MUSE_METRICS__ = {
@@ -865,6 +1055,16 @@ export class MuseumEngine {
     }
   };
 
+  async dispose() {
+    this.ready = false;
+    this.resizeObserver?.disconnect?.();
+    this.artworkStoryDirector?.dispose?.();
+    this.artworkVisionDirector?.dispose?.();
+    this.ambient?.clear?.();
+    await this.worldLayer?.clear?.();
+    this.renderer?.dispose?.();
+  }
+
   bindInput() {
     window.addEventListener("keydown", (event) => this.keys.add(event.code));
     window.addEventListener("keyup", (event) => this.keys.delete(event.code));
@@ -888,6 +1088,7 @@ export class MuseumEngine {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
+    this.artworkVisionDirector?.resize?.();
   }
 }
 
@@ -912,9 +1113,9 @@ export function resolveArtworkPartyStages(pose, speakerOrder, groundAt = null, b
   const rightX = -forwardZ;
   const rightZ = forwardX;
   const slots = [
-    { side: 0, retreat: 0 },
     { side: -COMPANY_LISTENER_SPREAD, retreat: COMPANY_LISTENER_RETREAT },
-    { side: COMPANY_LISTENER_SPREAD, retreat: COMPANY_LISTENER_RETREAT }
+    { side: COMPANY_LISTENER_SPREAD, retreat: COMPANY_LISTENER_RETREAT },
+    { side: 0, retreat: 1.75 }
   ];
 
   const origins = normalizeCompanyOrigins(options?.origins, order);
@@ -937,6 +1138,40 @@ export function resolveArtworkPartyStages(pose, speakerOrder, groundAt = null, b
   const stages = selectArtworkStageCombination(pools);
   if (!stages) throw new RangeError("artwork_party_stage_unavailable");
   return stages.map(({ score, ...stage }) => stage);
+}
+
+export function projectWorldAnchorToViewport(worldAnchor, camera, viewport, { sourceVisible = true } = {}) {
+  if (!sourceVisible || !worldAnchor?.isVector3 || !camera?.isCamera) return missingScreenAnchor();
+  const left = Number(viewport?.left) || 0;
+  const top = Number(viewport?.top) || 0;
+  const width = Number(viewport?.width);
+  const height = Number(viewport?.height);
+  if (!(width > 0) || !(height > 0)) return missingScreenAnchor();
+  camera.updateMatrixWorld?.(true);
+  const distance = camera.position?.isVector3 ? camera.position.distanceTo(worldAnchor) : null;
+  const cameraSpace = worldAnchor.clone().applyMatrix4(camera.matrixWorldInverse);
+  if (!Number.isFinite(cameraSpace.z) || cameraSpace.z >= 0) {
+    return { ...missingScreenAnchor("behind"), distance };
+  }
+  const projected = worldAnchor.clone().project(camera);
+  if (![projected.x, projected.y, projected.z].every(Number.isFinite)) {
+    return { ...missingScreenAnchor("offscreen"), distance };
+  }
+  const visible = projected.x >= -1 && projected.x <= 1
+    && projected.y >= -1 && projected.y <= 1
+    && projected.z >= -1 && projected.z <= 1;
+  return {
+    x: left + (projected.x + 1) * width / 2,
+    y: top + (1 - projected.y) * height / 2,
+    depth: projected.z,
+    distance,
+    visible,
+    state: visible ? "anchored" : "offscreen"
+  };
+}
+
+function missingScreenAnchor(state = "missing") {
+  return { x: null, y: null, depth: null, distance: null, visible: false, state };
 }
 
 function artworkStageCandidates({
@@ -965,6 +1200,12 @@ function artworkStageCandidates({
       const key = `${x.toFixed(3)}:${z.toFixed(3)}`;
       if (seen.has(key)) continue;
       seen.add(key);
+      if (Math.hypot(x - guideAnchor[0], z - guideAnchor[2]) < COMPANY_TRIGGER_CLEARANCE) continue;
+      if (pointSegmentDistance2D(
+        { x, z },
+        { x: guideAnchor[0], z: guideAnchor[2] },
+        { x: lookAt[0], z: lookAt[2] }
+      ) < COMPANY_ARTWORK_SIGHTLINE_CLEARANCE) continue;
       const sideCrossingPenalty = slot.side && Math.sign(side) !== Math.sign(slot.side) ? 1.4 : 0;
       specs.push({
         x,
@@ -978,7 +1219,7 @@ function artworkStageCandidates({
   const candidates = [];
   for (const spec of specs) {
     const y = typeof groundAt === "function"
-      ? groundAt(spec.x, spec.z, guideAnchor[1], MAX_PARTY_GROUND_DELTA)
+      ? groundAt(spec.x, spec.z, guideAnchor[1], COMPANY_STAGE_MAX_GROUND_DELTA)
       : guideAnchor[1];
     if (!Number.isFinite(y)) continue;
     const candidate = {
@@ -987,9 +1228,9 @@ function artworkStageCandidates({
       x: spec.x,
       y,
       z: spec.z,
-      yaw: Math.atan2(lookAt[0] - spec.x, lookAt[2] - spec.z),
+      yaw: Math.atan2(guideAnchor[0] - spec.x, guideAnchor[2] - spec.z),
       guideAnchor: [spec.x, y, spec.z],
-      lookAt: [...lookAt],
+      lookAt: [guideAnchor[0], guideAnchor[1] + 1.45, guideAnchor[2]],
       score: spec.score
     };
     if (typeof groundAt === "function" && !artworkStageFootprintIsSupported(candidate, groundAt)) continue;
@@ -1003,6 +1244,46 @@ function artworkStageCandidates({
     if (candidates.length >= MAX_COMPANY_STAGE_CANDIDATES) break;
   }
   return candidates;
+}
+
+export function resolveFinaleStages({ visitorPosition, visitorYaw = 0, count = 3, distance = 3.2, bounds = null, groundAt = null } = {}) {
+  const visitor = normalizeCompanyPosition(visitorPosition);
+  const stageCount = Math.min(3, Math.max(1, Number(count) || 1));
+  if (!visitor) throw new TypeError("finale_stage_requires_visitor_position");
+  const baseYaw = Number.isFinite(visitorYaw) ? visitorYaw : 0;
+  const arcAngles = stageCount === 1 ? [0] : stageCount === 2 ? [-0.38, 0.38] : [-0.48, 0, 0.48];
+  const baseDistance = Math.max(2.2, Number(distance) || 3.2);
+  const rotations = [0, Math.PI / 8, -Math.PI / 8, Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2, Math.PI];
+  const radii = [baseDistance, baseDistance - 0.35, baseDistance - 0.7, 2.2].filter((value, index, values) =>
+    value >= 2.2 && values.indexOf(value) === index
+  );
+
+  for (const rotation of rotations) {
+    for (const radius of radii) {
+      const stages = arcAngles.map((angle, index) => {
+        const heading = baseYaw + rotation + angle;
+        const arcRadius = radius + (stageCount === 3 && index === 1 ? 0.22 : 0);
+        const x = clampFormationCoordinate(visitor.x + Math.sin(heading) * arcRadius, bounds?.minX, bounds?.maxX);
+        const z = clampFormationCoordinate(visitor.z + Math.cos(heading) * arcRadius, bounds?.minZ, bounds?.maxZ);
+        const y = typeof groundAt === "function" ? groundAt(x, z, visitor.y, 0.75) : visitor.y;
+        if (!Number.isFinite(y)) return null;
+        const stage = {
+          x,
+          y,
+          z,
+          yaw: Math.atan2(visitor.x - x, visitor.z - z),
+          lookAt: [visitor.x, visitor.y + 1.4, visitor.z]
+        };
+        if (typeof groundAt === "function" && !artworkStageFootprintIsSupported(stage, groundAt)) return null;
+        return stage;
+      });
+      if (stages.some((stage) => !stage)) continue;
+      if (stages.some((stage, index) => stages.slice(index + 1)
+        .some((other) => Math.hypot(stage.x - other.x, stage.z - other.z) < COMPANY_STAGE_MIN_SEPARATION))) continue;
+      return stages;
+    }
+  }
+  throw new RangeError("finale_stage_unavailable");
 }
 
 function selectArtworkStageCombination(pools) {
@@ -1136,6 +1417,15 @@ function routeLength(origin, route) {
 function planarDistance(left, right) {
   if (!left || !right) return 0;
   return Math.hypot(right.x - left.x, right.z - left.z);
+}
+
+function pointSegmentDistance2D(point, start, end) {
+  const dx = end.x - start.x;
+  const dz = end.z - start.z;
+  const lengthSquared = dx * dx + dz * dz;
+  if (lengthSquared <= 1e-8) return Math.hypot(point.x - start.x, point.z - start.z);
+  const t = THREE.MathUtils.clamp(((point.x - start.x) * dx + (point.z - start.z) * dz) / lengthSquared, 0, 1);
+  return Math.hypot(point.x - (start.x + dx * t), point.z - (start.z + dz * t));
 }
 
 export function resolvePartyFormation(position, yaw, slotIndex, bounds = null) {
@@ -1325,6 +1615,14 @@ export function resolveCompanionMetrics({ guide = null, partyActors = [], salonA
     archivedCompanion: primary?.ready === true ? primary.companion?.id || null : null,
     archivedCompanions
   };
+}
+
+export function resolveActiveArtwork(artworkId, liveArtwork, companyTour) {
+  if (!artworkId) return null;
+  if (liveArtwork?.id === artworkId) return liveArtwork;
+  return companyTour?.artworkId === artworkId && companyTour.pose?.artwork?.id === artworkId
+    ? companyTour.pose.artwork
+    : null;
 }
 
 function sameActorRoster(actors, companionIds) {

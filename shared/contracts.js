@@ -12,7 +12,7 @@ export const ALLOWED_EFFECTS = Object.freeze(["ripple", "warmth", "focus", "cons
 export const PHILOSOPHY_AXES = Object.freeze(["perception", "emotion", "invention"]);
 export const PROCESS_SCENE_IDS = Object.freeze(EXHIBITION_SPINE.map((scene) => scene.id));
 
-export const HISTORICAL_COMPANIONS = Object.freeze([
+export const AI_INTERPRETIVE_LENSES = Object.freeze([
   companion("monet", "Claude Monet", "Light changes an answer before the scene can settle."),
   companion("van-gogh", "Vincent van Gogh", "Color carries pressure, work and emotional temperature."),
   companion("socrates", "Socrates", "Every image is a claim waiting to be examined."),
@@ -20,11 +20,13 @@ export const HISTORICAL_COMPANIONS = Object.freeze([
   companion("picasso", "Pablo Picasso", "One viewpoint is never enough to hold the whole truth."),
   companion("freud", "Sigmund Freud", "Inherited desires often speak before conscious intention."),
   companion("qi-baishi", "Qi Baishi", "A spare mark can still contain a living world."),
-  companion("yayoi-kusama", "Yayoi Kusama", "Repetition can dissolve the boundary of the self.")
+  companion("yayoi-kusama", "Infinity & Repetition Lens", "Repetition can dissolve the boundary of the self.")
 ]);
+// Compatibility export for persisted sessions and older integrations.
+export const HISTORICAL_COMPANIONS = AI_INTERPRETIVE_LENSES;
 export const DEFAULT_COMPANION_IDS = Object.freeze(["monet", "van-gogh", "socrates"]);
 
-const COMPANIONS_BY_ID = new Map(HISTORICAL_COMPANIONS.map((item) => [item.id, item]));
+const COMPANIONS_BY_ID = new Map(AI_INTERPRETIVE_LENSES.map((item) => [item.id, item]));
 const COMPANION_IDS = new Set(COMPANIONS_BY_ID.keys());
 const STOP_IDS = new Set(PROCESS_SCENE_IDS);
 const GESTURES = new Set(ALLOWED_GESTURES);
@@ -172,7 +174,7 @@ const FALLBACK_COPY = Object.freeze([
     ]
   ),
   fallbackCopy(
-    "Kusama repeats the field until the border of the self becomes uncertain. Decide what repetition removes and what it reveals.",
+    "The Infinity & Repetition Lens extends the field until the border of the self becomes uncertain. Decide what repetition removes and what it reveals.",
     [
       choice("dissolve", "The self dissolves", "You let infinity loosen the demand for a fixed identity.", "constellation"),
       choice("remain", "A singular trace remains", "You found difference persisting inside repetition.", "stillness"),

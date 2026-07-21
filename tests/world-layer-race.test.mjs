@@ -7,6 +7,7 @@ import {
   hasPendingSparkWork,
   hasPresentationReadySplatFrame,
   hasRenderableSplatFrame,
+  presentationLoadedSplatThreshold,
   presentationSplatThreshold,
   retireSparkArchive,
   waitForSplatFrame
@@ -24,19 +25,24 @@ test("presentation readiness rejects an early sparse RAD frame without hard-lock
   const splat = { paged: { numSplats: 241_870 } };
   const spark = { activeSplats: 46_010, lodInstances: new Map() };
   assert.equal(hasRenderableSplatFrame(spark, splat), true);
-  assert.equal(hasPresentationReadySplatFrame(spark, splat, 129_600), false);
-  spark.activeSplats = 135_000;
-  assert.equal(hasPresentationReadySplatFrame(spark, splat, 129_600), true);
-  assert.equal(presentationSplatThreshold({ lodSplatCount: 4_320_000 }), 129_600);
+  assert.equal(hasPresentationReadySplatFrame(spark, splat, 43_200, 432_000), false);
+  splat.paged.numSplats = 3_232_670;
+  spark.activeSplats = 48_252;
+  assert.equal(hasPresentationReadySplatFrame(spark, splat, 43_200, 432_000), true);
+  assert.equal(presentationSplatThreshold({ lodSplatCount: 4_320_000 }), 43_200);
+  assert.equal(presentationLoadedSplatThreshold({ lodSplatCount: 4_320_000 }), 432_000);
   assert.equal(presentationSplatThreshold({ lodSplatCount: 750_000 }), 40_000);
-  assert.equal(presentationSplatThreshold({ lodSplatCount: 9_000_000 }), 135_000);
+  assert.equal(presentationSplatThreshold({ lodSplatCount: 9_000_000 }), 60_000);
 });
 
 test("presentation readiness fails honestly when a RAD remains sparse for its whole budget", async () => {
   const splat = { paged: { numSplats: 240_000 } };
   const spark = { activeSplats: 48_000, lodInstances: new Map() };
   await assert.rejects(
-    waitForSplatFrame(spark, splat, 40, () => false, { minimumActiveSplats: 129_600 }),
+    waitForSplatFrame(spark, splat, 40, () => false, {
+      minimumActiveSplats: 43_200,
+      minimumLoadedSplats: 432_000
+    }),
     /splat_presentation_timeout/
   );
 });
@@ -134,7 +140,7 @@ test("a stalled artwork settles to the spatial fallback and its late texture is 
   await layer.clear();
 });
 
-test("artwork supports own their render resources and dispose them exactly once", async () => {
+test("artwork frames do not create freestanding support posts", async () => {
   const layer = new WorldLayer(new THREE.Scene(), {
     textureLoader: { loadAsync: async () => null }
   });
@@ -147,25 +153,12 @@ test("artwork supports own their render resources and dispose them exactly once"
   };
 
   assert.equal(await layer.build(world), false);
-  const supports = [...layer.artworks.values()].flatMap((record) => record.frame.userData.supports);
-  const geometries = new Set(supports.map((support) => support.geometry));
-  const materials = new Set(supports.map((support) => support.material));
-  const geometryDisposals = new Map([...geometries].map((geometry) => [geometry, 0]));
-  const materialDisposals = new Map([...materials].map((material) => [material, 0]));
-
-  for (const geometry of geometries) {
-    geometry.addEventListener("dispose", () => geometryDisposals.set(geometry, geometryDisposals.get(geometry) + 1));
-  }
-  for (const material of materials) {
-    material.addEventListener("dispose", () => materialDisposals.set(material, materialDisposals.get(material) + 1));
-  }
-
-  assert.equal(supports.length, 8);
-  assert.equal(geometries.size, supports.length);
-  assert.equal(materials.size, supports.length);
+  const records = [...layer.artworks.values()];
+  assert.equal(records.length, 4);
+  assert.ok(records.every((record) => record.frame.userData.supports === undefined));
+  assert.ok(records.every((record) => record.frame.children.length === 3),
+    "a frame should contain only border, mat, and picture meshes");
   await layer.clear();
-  assert.deepEqual([...geometryDisposals.values()], Array(supports.length).fill(1));
-  assert.deepEqual([...materialDisposals.values()], Array(supports.length).fill(1));
 });
 
 test("stale mesh and collider loads are disposed before the next world becomes resident", async () => {

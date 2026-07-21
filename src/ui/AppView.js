@@ -20,6 +20,7 @@ const PORTRAIT_POSITIONS = Object.freeze({
 });
 
 const PROCESS_WORLDS = EXHIBITION_SPINE.map((item) => WORLDS.find((world) => world.id === item.worldId)).filter(Boolean);
+const QUESTION_MOMENTS_TOTAL = EXHIBITION_SPINE.length * 3;
 
 export function providerPresentation(status = {}) {
   const model = String(status.model || "GPT-5.6").toUpperCase();
@@ -65,7 +66,20 @@ export class AppView {
     this.companionConversationSpeaker = byId("companion-conversation-speaker");
     this.companionConversationLine = byId("companion-conversation-line");
     this.companionConversationProgress = byId("companion-conversation-progress");
+    this.companionConversationSkip = byId("companion-conversation-skip");
     this.companionConversationNext = byId("companion-conversation-next");
+    this.artworkStory = byId("artwork-story");
+    this.artworkStoryTitle = byId("artwork-story-title");
+    this.artworkStoryStatus = byId("artwork-story-status");
+    this.artworkStoryDescription = byId("artwork-story-description");
+    this.artworkStoryCaption = byId("artwork-story-caption");
+    this.artworkStoryCueLabel = byId("artwork-story-cue-label");
+    this.artworkStorySpeaker = byId("artwork-story-speaker");
+    this.artworkStoryLine = byId("artwork-story-line");
+    this.artworkStorySource = byId("artwork-story-source");
+    this.artworkStoryPause = byId("artwork-story-pause");
+    this.artworkStorySkip = byId("artwork-story-skip");
+    this.artworkStoryReplay = byId("artwork-story-replay");
     this.drawer = byId("drawer");
     this.drawerKicker = byId("drawer-kicker");
     this.drawerTitle = byId("drawer-title");
@@ -99,6 +113,9 @@ export class AppView {
     this.conversationTurns = [];
     this.conversationIndex = -1;
     this.conversationCompleteLabel = "Continue the exploration";
+    this.companionConversationSuspended = false;
+    this.artworkStoryCue = null;
+    this.stationQuestionDrafts = new Map();
     this.endingCompanions = [];
   }
 
@@ -107,12 +124,13 @@ export class AppView {
       const callback = callbacks[name];
       return typeof callback === "function" ? callback(...args) : undefined;
     };
+    const defer = (name, ...args) => queueMicrotask(() => call(name, ...args));
 
     this.entry.addEventListener("submit", (event) => {
       if (event.target.id !== "goal-form") return;
       event.preventDefault();
       const goal = event.target.elements.goal?.value.trim();
-      if (goal) setTimeout(() => call("onStart", goal), 80);
+      if (goal) defer("onStart", goal);
     });
 
     this.entry.addEventListener("click", (event) => {
@@ -121,17 +139,17 @@ export class AppView {
       const decision = event.target.closest("[data-decision]");
       const action = event.target.closest("[data-entry-action]");
       if (companion) {
-        setTimeout(() => call("onCompanionToggle", companion.dataset.companion), 80);
+        defer("onCompanionToggle", companion.dataset.companion);
         return;
       }
       if (preset) {
         const input = this.entry.querySelector("#goal-input");
         if (input) input.value = preset.dataset.goal;
-        setTimeout(() => call("onStart", preset.dataset.goal), 80);
+        defer("onStart", preset.dataset.goal);
         return;
       }
       if (decision) {
-        setTimeout(() => call("onDecision", decision.dataset.decision), 80);
+        defer("onDecision", decision.dataset.decision);
         return;
       }
       if (!action) return;
@@ -139,24 +157,29 @@ export class AppView {
       if (name === "cross-threshold") {
         if (typeof callbacks.onCrossThreshold === "function") call("onCrossThreshold");
         else this.showLifeQuestion();
-      } else if (name === "curate") setTimeout(() => call("onCurate"), 80);
-      else if (name === "enter-walk") setTimeout(() => call("onEnterWalk"), 80);
-      else if (name === "begin-summoning") setTimeout(() => call("onBeginSummoning"), 80);
-      else if (name === "convene-roundtable") setTimeout(() => call("onConveneRoundtable"), 80);
+      } else if (name === "curate") defer("onCurate");
+      else if (name === "enter-walk") defer("onEnterWalk");
+      else if (name === "begin-summoning") defer("onBeginSummoning");
+      else if (name === "convene-roundtable") defer("onConveneRoundtable");
       else if (name === "open-decision") {
         if (typeof callbacks.onOpenDecision === "function") call("onOpenDecision");
         else this.showDecision(undefined, this.currentSalon);
       }
-      else if (name === "complete-transformation") setTimeout(() => call("onCompleteTransformation"), 80);
+      else if (name === "complete-transformation") defer("onCompleteTransformation");
       else if (name === "publish-manifesto") {
         const value = this.entry.querySelector("#manifesto-input")?.value.trim() || "";
-        if (value) setTimeout(() => call("onPublishManifesto", value), 80);
-      } else if (name === "enter-final") setTimeout(() => call("onEnterFinal"), 80);
-      else if (name === "retry-scene") setTimeout(() => call("onRetryScene"), 80);
+        if (value) defer("onPublishManifesto", value);
+      } else if (name === "enter-final") defer("onEnterFinal");
+      else if (name === "retry-scene") defer("onRetryScene");
       else if (name === "dismiss-final") this.entry.hidden = true;
     });
 
     this.answers.addEventListener("click", (event) => {
+      const skip = event.target.closest("[data-skip-artwork]");
+      if (skip) {
+        call("onSkipArtwork", { source: "station-question" });
+        return;
+      }
       const button = event.target.closest("[data-answer]");
       if (button) call("onAnswer", button.dataset.answer);
     });
@@ -184,6 +207,14 @@ export class AppView {
       const result = this.advanceCompanionConversation();
       call("onConversationNext", { previousTurn: currentTurn, ...result });
     });
+    this.artworkStory.addEventListener("click", (event) => {
+      const control = event.target.closest("[data-story-action]");
+      const storyAction = control?.dataset.storyAction;
+      if (!storyAction) return;
+      if (storyAction === "pause") call("onArtworkStoryPause", this.artworkStory.dataset.paused !== "true");
+      else if (storyAction === "skip") call("onArtworkStorySkip");
+      else if (storyAction === "replay") call("onArtworkStoryReplay");
+    });
     document.addEventListener("click", (event) => {
       const drawerButton = event.target.closest("[data-drawer]");
       const actionButton = event.target.closest("[data-action]");
@@ -203,8 +234,8 @@ export class AppView {
     this.presentEntry("threshold", [
       element("p", { className: "eyebrow" }, "00 / THRESHOLD"),
       element("h1", {}, "MUSE∞"),
-      element("p", { className: "threshold-offer" }, "An immersive museum built around one question"),
-      element("p", { className: "entry-copy threshold-copy" }, "Enter with a question. Walk beside artists and thinkers. Let eight worlds change how you see it."),
+      element("p", { className: "threshold-offer" }, "Understanding is not something you can simply read."),
+      element("p", { className: "entry-copy threshold-copy" }, "Bring a real question. GPT-5.6 curates real artworks and three AI interpretive lenses across time and space; their disagreements and your actual observations shape an answer only this journey can form."),
       element("button", { type: "button", className: "entry-primary", dataset: { entryAction: "cross-threshold" } }, "Enter the museum →"),
       entryMeta()
     ]);
@@ -221,17 +252,17 @@ export class AppView {
     form.append(
       element("label", { className: "sr-only", htmlFor: "goal-input" }, "Life question"),
       element("input", { id: "goal-input", name: "goal", maxLength: 120, autoComplete: "off", placeholder: "What makes a life meaningful?", value }),
-      element("button", { type: "submit" }, "Choose your company →")
+      element("button", { type: "submit" }, "Choose your AI lenses →")
     );
     this.presentEntry("life-question", [
       element("p", { className: "eyebrow" }, "01 / LIFE QUESTION"),
       element("h1", {}, "What question are you carrying?"),
-      element("p", { className: "entry-copy" }, "Choose a question or write your own. It will remain visible while each world and companion tests it from a different position."),
+      element("p", { className: "entry-copy" }, "Choose a question or write your own. It stays with you while real artworks and distinct AI interpretive lenses test it from different positions."),
       presets,
       form,
       entryMeta()
     ]);
-    if (value) this.setQuestionProgress({ question: value, explored: 0, total: EXHIBITION_SPINE.length, worldsExplored: 0, worldsTotal: EXHIBITION_SPINE.length });
+    if (value) this.setQuestionProgress({ question: value, explored: 0, total: QUESTION_MOMENTS_TOTAL, worldsExplored: 0, worldsTotal: EXHIBITION_SPINE.length });
     this.chapterLabel.textContent = "LIFE QUESTION / 01";
     requestAnimationFrame(() => form.querySelector("input")?.focus());
   }
@@ -264,7 +295,7 @@ export class AppView {
     this.setQuestionProgress({
       question,
       explored: 0,
-      total: EXHIBITION_SPINE.length,
+      total: QUESTION_MOMENTS_TOTAL,
       worldsExplored: 0,
       worldsTotal: EXHIBITION_SPINE.length
     });
@@ -277,9 +308,10 @@ export class AppView {
     this.endingCompanions = COMPANIONS.filter((companion) => selected.has(companion.id));
     const intro = element("div", { className: "entry-intro" });
     intro.append(
-      element("p", { className: "eyebrow" }, "02 / CHOOSE YOUR COMPANY"),
-      element("h1", {}, "Who should walk the question with you?"),
-      element("p", { className: "entry-copy" }, "Invite up to three interpretive companions. Their distinct ways of seeing will travel through every world with you.")
+      element("p", { className: "eyebrow" }, "02 / CHOOSE THREE LENSES"),
+      element("h1", {}, "Which perspectives should challenge your question?"),
+      element("p", { className: "entry-copy" }, "Choose up to three AI interpretive lenses grounded in documented ideas. They are not the artists or thinkers themselves, and their words are not authentic quotations or endorsements."),
+      element("p", { className: "interpretation-note" }, "Every named voice is an AI interpretation, including lenses based on living artists.")
     );
     const grid = element("div", { className: "companion-grid" });
     for (const companion of COMPANIONS) {
@@ -289,7 +321,7 @@ export class AppView {
         className: `companion-choice${active ? " selected" : ""}`,
         dataset: { companion: companion.id },
         ariaPressed: String(active),
-        "aria-label": `${active ? "Remove" : "Invite"} ${companion.fullName}`
+        "aria-label": `${active ? "Remove" : "Choose"} ${companion.fullName} AI interpretive lens`
       });
       button.style.setProperty("--portrait-position", PORTRAIT_POSITIONS[companion.id] || "center 24%");
       button.append(
@@ -297,16 +329,19 @@ export class AppView {
         element("span", { className: "companion-copy" }),
         element("span", { className: "companion-check", ariaHidden: "true" }, active ? "✓" : "+")
       );
-      button.querySelector(".companion-copy").append(element("b", {}, companion.fullName), element("small", {}, companion.lens));
+      button.querySelector(".companion-copy").append(
+        element("b", {}, companion.fullName),
+        element("small", {}, `AI INTERPRETIVE LENS · ${companion.lens}`)
+      );
       grid.append(button);
     }
     const footer = element("div", { className: "company-footer" });
     footer.append(
-      element("span", {}, `${selected.size} / 3 INVITED`),
+      element("span", {}, `${selected.size} / 3 LENSES`),
       element("button", { type: "button", disabled: selected.size === 0, dataset: { entryAction: "curate" } }, "Let GPT curate →")
     );
     this.presentEntry("company", [intro, grid, footer]);
-    this.chapterLabel.textContent = "COMPANY / 02";
+    this.chapterLabel.textContent = "AI LENSES / 02";
   }
 
   showCuration(question, companions = []) {
@@ -314,11 +349,11 @@ export class AppView {
     this.setQuestionProgress({
       question,
       explored: 0,
-      total: EXHIBITION_SPINE.length,
+      total: QUESTION_MOMENTS_TOTAL,
       worldsExplored: 0,
       worldsTotal: EXHIBITION_SPINE.length
     });
-    const route = element("ol", { className: "curation-route", "aria-label": "Eight-scene exhibition route" });
+    const route = element("ol", { className: "curation-route", "aria-label": "Eight-chapter thought route" });
     for (const [index, sceneItem] of EXHIBITION_SPINE.entries()) {
       const item = element("li");
       item.style.setProperty("--stagger-delay", `${index * 55}ms`);
@@ -339,7 +374,7 @@ export class AppView {
     const action = element("button", { type: "button", className: "entry-primary", disabled: true, dataset: { entryAction: "enter-walk" } }, "Preparing the route…");
     this.presentEntry("curation", [
       element("p", { className: "eyebrow" }, "03 / GPT CURATION"),
-      element("h1", {}, "A question becomes an eight-world inquiry."),
+      element("h1", {}, "GPT-5.6 shapes a bounded path through eight thought chapters."),
       element("blockquote", { className: "curation-question" }, question),
       company,
       route,
@@ -356,25 +391,34 @@ export class AppView {
   }
 
   showWalking(stopId) {
+    this.hideArtworkStory();
     const sceneStop = scene(stopId);
     this.entry.hidden = true;
     this.dialogue.hidden = false;
     this.app.dataset.narrativeStage = "world-exploration";
     this.guideState.textContent = "WALKING";
     this.stopTitle.textContent = `Approaching ${sceneStop.title}`;
-    this.guideLine.textContent = "Your company is moving to the selected evidence point.";
+    this.guideLine.textContent = "Your chosen AI lenses are moving to the selected evidence point.";
     delete this.dialogue.dataset.stationIndex;
     delete this.dialogue.dataset.stationCount;
     delete this.dialogue.dataset.stationId;
     delete this.dialogue.dataset.artworkId;
+    delete this.dialogue.dataset.stationQuestionKey;
     this.inquiryThread.hidden = true;
     this.inquiryThread.replaceChildren();
+    this.answers.hidden = true;
     this.answers.replaceChildren();
     this.continueButton.hidden = true;
   }
 
   showStationWalking(stop, station, artwork, stationIndex, stationCount) {
+    this.hideArtworkStory();
     const sceneStop = scene(stop.stop_id);
+    const questionKey = `${stop.stop_id}:${station.station_id}:${artwork.id}`;
+    const currentKey = this.dialogue.dataset.stationQuestionKey;
+    const currentInput = this.answers.querySelector("#inquiry-input");
+    if (currentKey && currentInput) this.stationQuestionDrafts.set(currentKey, currentInput.value);
+    const reusingStation = currentKey === questionKey;
     this.entry.hidden = true;
     this.dialogue.hidden = false;
     this.app.dataset.narrativeStage = "world-exploration";
@@ -382,16 +426,21 @@ export class AppView {
     this.dialogue.dataset.stationCount = String(stationCount);
     this.dialogue.dataset.stationId = station.station_id;
     this.dialogue.dataset.artworkId = artwork.id;
+    this.dialogue.dataset.stationQuestionKey = questionKey;
     this.guideState.textContent = "WALKING";
     this.stopTitle.textContent = `${sceneStop.title} · work ${stationIndex + 1} of ${stationCount}`;
-    this.guideLine.textContent = `Your company is moving independently toward ${artwork.title} by ${artwork.artist}.`;
+    this.guideLine.textContent = `Your chosen AI lenses are moving independently toward ${artwork.title} by ${artwork.artist}.`;
     this.inquiryThread.hidden = true;
-    this.inquiryThread.replaceChildren();
-    this.answers.replaceChildren();
+    this.answers.hidden = true;
+    if (!reusingStation) {
+      this.inquiryThread.replaceChildren();
+      this.answers.replaceChildren();
+    }
     this.continueButton.hidden = true;
   }
 
   showArchiveRequired(sceneItem) {
+    this.hideArtworkStory();
     this.setWorldPresentation(sceneItem, false);
     this.presentEntry("archive-required", [
       element("p", { className: "eyebrow" }, `${sceneItem.chapter} / SCENE UNAVAILABLE`),
@@ -403,16 +452,19 @@ export class AppView {
   }
 
   showQuestion(stop) {
+    this.hideArtworkStory();
     const sceneStop = scene(stop.stop_id);
     this.dialogue.dataset.stationIndex = "reflection";
     this.dialogue.dataset.stationCount = String(stop.stations?.length || 3);
     delete this.dialogue.dataset.stationId;
     delete this.dialogue.dataset.artworkId;
+    delete this.dialogue.dataset.stationQuestionKey;
     this.guideState.textContent = "ASKING";
     this.stopTitle.textContent = `${sceneStop.title} · world reflection`;
     this.guideLine.textContent = `${stop.guide_line} ${stop.prompt}`;
     this.inquiryThread.hidden = true;
     this.inquiryThread.replaceChildren();
+    this.answers.hidden = false;
     const observationForm = element("form", { className: "observation-form" });
     observationForm.append(
       element("label", { className: "sr-only", htmlFor: "observation-input" }, "Your observation"),
@@ -428,20 +480,41 @@ export class AppView {
 
   showStationQuestion(stop, station, artwork, stationIndex, stationCount) {
     const sceneStop = scene(stop.stop_id);
+    const questionKey = `${stop.stop_id}:${station.station_id}:${artwork.id}`;
+    const drafts = this.stationQuestionDrafts || (this.stationQuestionDrafts = new Map());
+    const currentInput = this.answers.querySelector("#inquiry-input");
+    const currentKey = this.dialogue.dataset.stationQuestionKey;
+    if (currentKey && currentInput) drafts.set(currentKey, currentInput.value);
+    const reusableQuestion = currentKey === questionKey && Boolean(currentInput);
+    const draftQuestion = preserveStationQuestionDraft(
+      currentKey,
+      questionKey,
+      currentInput?.value,
+      drafts.get(questionKey)
+    );
     this.dialogue.dataset.stationIndex = String(stationIndex);
     this.dialogue.dataset.stationCount = String(stationCount);
     this.dialogue.dataset.stationId = station.station_id;
     this.dialogue.dataset.artworkId = artwork.id;
+    this.dialogue.dataset.stationQuestionKey = questionKey;
     this.guideState.textContent = "ASKING";
     this.stopTitle.textContent = `${sceneStop.title} · ${artwork.title}`;
     this.guideLine.textContent = station.focus_question;
     this.inquiryThread.hidden = false;
+    this.answers.hidden = false;
+    if (reusableQuestion) {
+      this.continueButton.hidden = true;
+      return;
+    }
     this.inquiryThread.replaceChildren();
 
     const inquiryForm = element("form", { className: "inquiry-form" });
+    const inquiryInput = element("input", { id: "inquiry-input", name: "question", maxLength: 600, autoComplete: "off", placeholder: "Ask about this work" });
+    inquiryInput.value = draftQuestion;
+    inquiryInput.addEventListener("input", () => drafts.set(questionKey, inquiryInput.value));
     inquiryForm.append(
-      element("label", { className: "sr-only", htmlFor: "inquiry-input" }, "Question for the company"),
-      element("input", { id: "inquiry-input", name: "question", maxLength: 600, autoComplete: "off", placeholder: "Ask about this work" }),
+      element("label", { className: "sr-only", htmlFor: "inquiry-input" }, "Question for the AI interpretive lenses"),
+      inquiryInput,
       element("button", { type: "submit" }, "Ask")
     );
     const choices = station.choices.map((choice) => richStationChoice(choice));
@@ -451,7 +524,12 @@ export class AppView {
       element("input", { id: "observation-input", name: "observation", maxLength: 240, autoComplete: "off", placeholder: "Record specific evidence you can point to" }),
       element("button", { type: "submit" }, "Record")
     );
-    this.answers.replaceChildren(inquiryForm, ...choices, observationForm);
+    const skip = element("button", {
+      type: "button",
+      className: "station-skip",
+      dataset: { skipArtwork: "true" }
+    }, "Skip this artwork");
+    this.answers.replaceChildren(inquiryForm, ...choices, observationForm, skip);
     this.continueButton.hidden = true;
   }
 
@@ -475,7 +553,7 @@ export class AppView {
         dataset: { stationPerspective: "true", speakerId: companion?.id || item.companionId || item.speakerId || "companion" }
       });
       turn.append(
-        element("b", {}, `${companion?.fullName || item.speaker || item.companionId || item.speakerId || "COMPANION"} · CURATED COMPANY`),
+        element("b", {}, `${companion?.fullName || item.speaker || item.companionId || item.speakerId || "MUSE"} · AI INTERPRETIVE LENS`),
         element("p", {}, item.text || "")
       );
       this.inquiryThread.append(turn);
@@ -501,14 +579,17 @@ export class AppView {
     for (const item of result?.perspectives || []) {
       const turn = element("div", { className: "inquiry-turn company-turn" });
       turn.append(
-        element("b", {}, `${item.speaker || item.speakerId} · ${source}`),
+        element("b", {}, `${item.speaker || item.speakerId} · AI INTERPRETATION · ${source}`),
         element("p", {}, item.text || "")
       );
       this.inquiryThread.append(turn);
     }
     const form = this.answers.querySelector(".inquiry-form");
     this.setInquiryBusy(false);
-    if (form?.elements.question) form.elements.question.value = "";
+    if (form?.elements.question) {
+      form.elements.question.value = "";
+      this.stationQuestionDrafts?.delete(this.dialogue.dataset.stationQuestionKey);
+    }
     this.inquiryThread.scrollTop = this.inquiryThread.scrollHeight;
   }
 
@@ -525,6 +606,7 @@ export class AppView {
     for (const control of this.answers.querySelectorAll("button, input, textarea, select")) {
       control.disabled = Boolean(busy);
     }
+    this.continueButton.disabled = Boolean(busy);
   }
 
   appendVoiceTranscript({ role, id, delta = "", text, final, mode, provider }) {
@@ -573,8 +655,8 @@ export class AppView {
     button.dataset.soundState = state;
     button.setAttribute("aria-pressed", String(Boolean(enabled)));
     button.title = enabled
-      ? "Mute original score and synthetic guide narration"
-      : "Enable original score and synthetic guide narration";
+      ? "Mute museum score and synthetic guide narration"
+      : "Enable museum score and synthetic guide narration";
     if (label) label.textContent = enabled ? "Sound" : "Muted";
   }
 
@@ -584,10 +666,77 @@ export class AppView {
     button.dataset.soundState = speaking ? "speaking" : this.soundRestingState;
     button.title = speaking
       ? "Synthetic guide narration speaking"
-      : "Mute original score and synthetic guide narration";
+      : "Mute museum score and synthetic guide narration";
   }
 
-  setQuestionProgress({ question, explored = 0, total = EXHIBITION_SPINE.length, worldsExplored = 0, worldsTotal = EXHIBITION_SPINE.length } = {}) {
+  setArtworkStory(story = {}) {
+    const storyState = String(story.state || "idle");
+    const visible = storyState === "story"
+      || storyState === "completed"
+      || (storyState === "loading" && story.pendingTrigger === true);
+    if (!visible) {
+      this.hideArtworkStory();
+      return false;
+    }
+
+    const previousState = this.artworkStory.dataset.state;
+    if (storyState === "story" && previousState !== "story") this.artworkStoryCue = null;
+    if (story.cue) this.artworkStoryCue = normalizeArtworkStoryCue(story.cue);
+    const cue = this.artworkStoryCue;
+    const paused = story.paused === true;
+    const title = String(story.title || story.artworkTitle || "Artwork story").trim();
+
+    this.artworkStory.hidden = false;
+    this.artworkStory.dataset.state = storyState;
+    this.artworkStory.dataset.paused = String(paused);
+    this.app.dataset.artworkStory = storyState;
+    this.artworkStoryTitle.textContent = title;
+    this.artworkStoryStatus.textContent = artworkStoryStatus(storyState, story);
+    this.artworkStoryDescription.textContent = String(story.accessibleDescription || "").trim();
+    this.artworkStoryDescription.hidden = !this.artworkStoryDescription.textContent;
+
+    this.artworkStoryCaption.hidden = !cue;
+    if (cue) {
+      this.artworkStoryCaption.dataset.kind = cue.kind;
+      this.artworkStoryCueLabel.textContent = cue.label;
+      this.artworkStorySpeaker.textContent = cue.speaker;
+      this.artworkStoryLine.textContent = cue.text;
+      const sourceUrl = cue.kind === "curated-fact" ? safeArtworkStorySource(cue.sourceUrl) : "";
+      this.artworkStorySource.hidden = !sourceUrl;
+      if (sourceUrl) {
+        this.artworkStorySource.href = sourceUrl;
+        this.artworkStorySource.textContent = cue.sourceLabel || "Art Institute of Chicago source";
+      } else {
+        this.artworkStorySource.removeAttribute("href");
+      }
+    } else {
+      delete this.artworkStoryCaption.dataset.kind;
+      this.artworkStoryCueLabel.textContent = "";
+      this.artworkStorySpeaker.textContent = "";
+      this.artworkStoryLine.textContent = "";
+      this.artworkStorySource.hidden = true;
+      this.artworkStorySource.removeAttribute("href");
+    }
+
+    this.artworkStoryPause.hidden = storyState !== "story";
+    this.artworkStorySkip.hidden = !["loading", "story"].includes(storyState);
+    this.artworkStoryReplay.hidden = storyState !== "completed";
+    const pauseLabel = this.artworkStoryPause.querySelector(".artwork-story-control-label");
+    if (pauseLabel) pauseLabel.textContent = paused ? "Resume" : "Pause";
+    this.artworkStoryPause.setAttribute("aria-label", paused ? "Resume living artwork" : "Pause living artwork");
+    return true;
+  }
+
+  hideArtworkStory() {
+    if (!this.artworkStory) return;
+    this.artworkStory.hidden = true;
+    delete this.artworkStory.dataset.state;
+    delete this.artworkStory.dataset.paused;
+    delete this.app.dataset.artworkStory;
+    this.artworkStoryCue = null;
+  }
+
+  setQuestionProgress({ question, explored = 0, total = QUESTION_MOMENTS_TOTAL, worldsExplored = 0, worldsTotal = EXHIBITION_SPINE.length } = {}) {
     const safeTotal = positiveCount(total);
     const safeExplored = clampCount(explored, safeTotal);
     const safeWorldsTotal = positiveCount(worldsTotal);
@@ -615,14 +764,17 @@ export class AppView {
     return state;
   }
 
-  showCompanionConversation(turns, { onCompleteLabel = "Continue the exploration" } = {}) {
+  showCompanionConversation(turns, { onCompleteLabel = "Continue the exploration", allowSkip = true } = {}) {
     this.conversationTurns = normalizeConversationTurns(turns);
     this.conversationIndex = this.conversationTurns.length ? 0 : -1;
     this.conversationCompleteLabel = String(onCompleteLabel || "Continue the exploration");
+    this.companionConversationSkip.hidden = !allowSkip;
+    this.companionConversationSuspended = false;
     if (!this.conversationTurns.length) {
       this.hideCompanionConversation();
       return { turn: null, index: -1, total: 0, complete: true };
     }
+    this.setInquiryBusy?.(true);
     this.companionConversation.hidden = false;
     this.app.dataset.companionConversation = "true";
     return this.renderCompanionConversationTurn();
@@ -645,7 +797,8 @@ export class AppView {
     const companion = findCompanion(turn.speakerId);
     const name = turn.speaker || turn.name || companion?.fullName || companion?.name || "MUSE";
     const portrait = turn.portrait || companion?.portrait || "";
-    this.companionConversationSpeaker.textContent = name;
+    if (this.companionConversation?.dataset) this.companionConversation.dataset.speakerId = turn.speakerId;
+    this.companionConversationSpeaker.textContent = companion ? `${name} · AI INTERPRETIVE LENS` : name;
     this.companionConversationLine.textContent = turn.text;
     this.companionConversationProgress.textContent = `${this.conversationIndex + 1} / ${total}`;
     this.companionConversationNext.textContent = this.conversationIndex === total - 1 ? this.conversationCompleteLabel : "Next voice";
@@ -663,26 +816,47 @@ export class AppView {
 
   hideCompanionConversation() {
     this.companionConversation.hidden = true;
+    this.setInquiryBusy?.(false);
     delete this.app.dataset.companionConversation;
     this.conversationTurns = [];
     this.conversationIndex = -1;
+    this.companionConversationSuspended = false;
+    if (this.companionConversation?.dataset) delete this.companionConversation.dataset.speakerId;
+  }
+
+  suspendCompanionConversation() {
+    if (this.companionConversation.hidden || !this.conversationTurns.length || this.conversationIndex < 0) return false;
+    this.companionConversation.hidden = true;
+    this.companionConversationSuspended = true;
+    delete this.app.dataset.companionConversation;
+    if (this.companionConversation?.dataset) delete this.companionConversation.dataset.speakerId;
+    return true;
+  }
+
+  resumeCompanionConversation() {
+    if (!this.companionConversationSuspended || !this.conversationTurns.length || this.conversationIndex < 0) return false;
+    this.companionConversationSuspended = false;
+    this.companionConversation.hidden = false;
+    this.app.dataset.companionConversation = "true";
+    this.setInquiryBusy?.(true);
+    return this.renderCompanionConversationTurn();
   }
 
   showRecap(recap, digest) {
     const count = Array.isArray(digest?.visits) ? digest.visits.length : 0;
     this.presentEntry("exploration-complete", [
-      element("p", { className: "eyebrow" }, "04 / WORLD EXPLORATION COMPLETE"),
-      element("h1", {}, recap?.title || "Eight worlds are now in the record."),
-      element("p", { className: "entry-copy" }, recap?.summary || "Your observations can now be read together rather than as isolated answers."),
+      element("p", { className: "eyebrow" }, "04 / EIGHT-CHAPTER THOUGHT SPINE"),
+      element("h1", {}, recap?.title || "Your question now carries an eight-chapter record."),
+      element("p", { className: "entry-copy" }, recap?.summary || "Your observations now travel together, ready to be challenged rather than graded as isolated answers."),
       evidenceCount(count),
-      element("button", { type: "button", className: "entry-primary", disabled: count < EXHIBITION_SPINE.length, dataset: { entryAction: "begin-summoning" } }, "Summon the record →")
+      element("button", { type: "button", className: "entry-primary", disabled: count < EXHIBITION_SPINE.length, dataset: { entryAction: "begin-summoning" } }, "Bring the evidence to the roundtable →")
     ]);
-    this.chapterLabel.textContent = "WORLD EXPLORATION / 04";
+    this.chapterLabel.textContent = "THOUGHT SPINE / 04";
   }
 
   showSummoning(digest, companions = [], recap = null) {
     const visits = Array.isArray(digest?.visits) ? digest.visits : [];
-    const ledger = element("ol", { className: "summoning-ledger", "aria-label": "Evidence gathered across eight worlds" });
+    const ledger = element("ol", { className: "summoning-ledger", "aria-label": "Evidence carried across eight thought chapters" });
     for (const [index, sceneItem] of EXHIBITION_SPINE.entries()) {
       const visit = visits.find((item) => item.stop_id === sceneItem.id);
       const row = element("li", { className: visit ? "recorded" : "missing" });
@@ -698,11 +872,11 @@ export class AppView {
     for (const companion of companions) company.append(portraitChip(companion));
     this.presentEntry("summoning", [
       element("p", { className: "eyebrow" }, "05 / SUMMONING"),
-      element("h1", {}, "The walk enters the record."),
-      element("p", { className: "entry-copy" }, recap?.summary || "Eight observations are placed before your chosen company. The closing concept must account for all of them."),
+      element("h1", {}, "The evidence enters the roundtable."),
+      element("p", { className: "entry-copy" }, recap?.summary || "The observations you actually made are placed before your chosen AI lenses. Their disagreements must remain visible in the concept that follows."),
       company,
       ledger,
-      element("p", { className: "interpretation-note" }, "Historical companions appear as AI interpretations grounded in their documented themes, not authentic quotations or endorsements."),
+      element("p", { className: "interpretation-note" }, "These are AI interpretive lenses grounded in documented themes, not the historical figures or living artists themselves, and not authentic quotations or endorsements."),
       element("button", { type: "button", className: "entry-primary", disabled: visits.length < EXHIBITION_SPINE.length, dataset: { entryAction: "convene-roundtable" } }, "Convene the roundtable →")
     ]);
     this.chapterLabel.textContent = "SUMMONING / 05";
@@ -722,14 +896,14 @@ export class AppView {
         article.style.setProperty("--stagger-delay", `${index * 55}ms`);
         if (companion) article.append(portraitChip(companion));
         article.append(
-          element("h3", {}, companion?.fullName || item.name || item.character_id),
+          element("h3", {}, `${companion?.fullName || item.name || item.character_id} · AI INTERPRETIVE LENS`),
           element("p", {}, item.stance || item.text || ""),
           element("small", { className: "ai-disclaimer" }, "AI interpretation · not an authentic quotation")
         );
         threads.append(article);
       }
     } else {
-      threads.append(element("p", { className: "roundtable-status" }, "The selected company is reading all eight scenes…"));
+      threads.append(element("p", { className: "roundtable-status" }, "The selected AI lenses are tracing your real observations across all eight chapters…"));
     }
     const synthesis = element("section", { className: "roundtable-synthesis" });
     synthesis.append(
@@ -835,14 +1009,16 @@ export class AppView {
     const title = conceptTitle(this.currentSalon);
     const source = provider?.live === true || salon?.live === true ? liveProviderName(provider) : "curated fallback";
     this.dialogue.hidden = true;
+    delete this.dialogue.dataset.speakerId;
     this.stopTitle.textContent = `${FINAL_SCENE.title} · ${FINAL_SCENE.artist}`;
     this.guideLine.textContent = FINAL_SCENE.question;
     this.inquiryThread.replaceChildren();
     this.answers.replaceChildren();
-    this.setQuestionProgress({
-      question: this.questionProgressState?.question,
-      explored: this.questionProgressState?.total || EXHIBITION_SPINE.length,
-      total: this.questionProgressState?.total || EXHIBITION_SPINE.length,
+    const progress = this.questionProgressState || {};
+    const finalProgress = this.setQuestionProgress({
+      question: progress.question,
+      explored: progress.explored || 0,
+      total: progress.total || QUESTION_MOMENTS_TOTAL,
       worldsExplored: EXHIBITION_SPINE.length,
       worldsTotal: EXHIBITION_SPINE.length
     });
@@ -850,12 +1026,12 @@ export class AppView {
       ? this.endingCompanions
       : (salon?.perspectives || []).map((item) => findCompanion(item.character_id || item.speakerId)).filter(Boolean).slice(0, 3);
     const lookback = element("div", { className: "ending-lookback" });
-    const company = element("div", { className: "ending-company", "aria-label": "Your full company" });
+    const company = element("div", { className: "ending-company", "aria-label": "Your chosen AI interpretive lenses" });
     for (const companion of endingCompany) company.append(portraitChip(companion));
     lookback.append(
       company,
-      element("p", {}, "Your whole company turns back toward the worlds you crossed together."),
-      element("strong", {}, "QUESTION EXPLORATION COMPLETE · 8 / 8 WORLDS")
+      element("p", {}, "Your chosen AI lenses turn toward you as the worlds you crossed settle into one answer."),
+      element("strong", {}, `YOUR QUESTION, RECOMPOSED · ${finalProgress.explored} / ${finalProgress.total} WORKS · ${finalProgress.worldsExplored} / ${finalProgress.worldsTotal} THOUGHT CHAPTERS`)
     );
     this.presentEntry("final-answer", [
       element("button", { type: "button", className: "final-dismiss", dataset: { entryAction: "dismiss-final" }, "aria-label": "Close answer plaque" }, "×"),
@@ -863,7 +1039,7 @@ export class AppView {
       conceptBadge(this.currentSalon, provider),
       element("h1", {}, title),
       element("p", { className: "final-world-name" }, world?.name || "Fantasy Realm of Shimmering Spheres"),
-      element("p", { className: "entry-copy" }, "Your GPT concept now inhabits the Shimmering Spheres realization. Move through it as the answer to the eight worlds behind you."),
+      element("p", { className: "entry-copy" }, "Your chosen AI lenses turn toward you in the Shimmering Spheres. The works fall away; what remains is the question you carried and the answer this journey allowed you to form."),
       lookback,
       element("blockquote", { className: "return-question" }, FINAL_SCENE.question),
       element("p", { className: "archive-note" }, `Personalized concept: ${source} · Spatial form: 09 / ANSWER`)
@@ -874,10 +1050,18 @@ export class AppView {
 
   setSpeaker(companion) {
     if (!companion) return;
-    this.speakerName.textContent = companion.name;
+    if (this.dialogue?.dataset) {
+      const speakerId = String(companion.id || "").trim();
+      if (speakerId) this.dialogue.dataset.speakerId = speakerId;
+      else delete this.dialogue.dataset.speakerId;
+    }
+    const isInterpretiveLens = Boolean(findCompanion(companion.id));
+    this.speakerName.textContent = isInterpretiveLens ? `${companion.name} · AI LENS` : companion.name;
     if (companion.portrait) {
       this.speakerPortrait.src = companion.portrait;
-      this.speakerPortrait.alt = companion.fullName;
+      this.speakerPortrait.alt = isInterpretiveLens
+        ? `${companion.fullName} AI interpretive lens`
+        : companion.fullName;
       this.speakerPortrait.hidden = false;
     } else {
       this.speakerPortrait.removeAttribute("src");
@@ -921,12 +1105,12 @@ export class AppView {
     const progress = this.questionProgressState || {};
     this.setQuestionProgress({
       question: progress.question || plan?.question || plan?.goal,
-      explored: Math.max(progress.explored || 0, visitedIds.size),
-      total: progress.total || EXHIBITION_SPINE.length,
+      explored: progress.explored || 0,
+      total: progress.total || QUESTION_MOMENTS_TOTAL,
       worldsExplored: visitedIds.size,
       worldsTotal: EXHIBITION_SPINE.length
     });
-    if (currentIndex >= 0) this.chapterLabel.textContent = `WORLD EXPLORATION · ${String(currentIndex + 1).padStart(2, "0")} / 08`;
+    if (currentIndex >= 0) this.chapterLabel.textContent = `THOUGHT CHAPTER · ${String(currentIndex + 1).padStart(2, "0")} / 08`;
     else if (!plan) this.chapterLabel.textContent = "THRESHOLD / 00";
   }
 
@@ -966,22 +1150,19 @@ export class AppView {
   }
 
   renderAtlas(context) {
-    this.drawerKicker.textContent = "EIGHT PROCESS WORLDS";
+    this.drawerKicker.textContent = "EIGHT-CHAPTER THOUGHT SPINE";
     this.drawerTitle.textContent = "Atlas";
     const visitedIds = normalizeIds(context.visited || context.visitedSceneIds || context.session?.visited || []);
-    const complete = Boolean(context.canConveneSalon || context.lessonComplete || visitedIds.size >= EXHIBITION_SPINE.length);
     const answerOpen = Boolean(context.finalWorldEntered);
-    const tourLocked = Boolean(context.tourLocked);
     const grid = element("div", { className: "drawer-grid atlas-grid" });
     for (const [index, world] of PROCESS_WORLDS.entries()) {
       const sceneItem = EXHIBITION_SPINE.find((item) => item.worldId === world.id);
       const visited = visitedIds.has(sceneItem?.id) || visitedIds.has(world.id);
       const active = context.worldId === world.id;
-      const unlocked = complete || visited || active || index === visitedIds.size;
       const button = element("button", {
         type: "button",
         className: `command atlas-world${active ? " selected" : ""}${visited ? " visited" : ""}`,
-        disabled: answerOpen || tourLocked || context.busy || !unlocked,
+        disabled: answerOpen || context.busy,
         dataset: { drawerAction: "world", value: world.id }
       });
       button.append(
@@ -989,7 +1170,7 @@ export class AppView {
         element("span", { className: "atlas-copy" })
       );
       button.querySelector(".atlas-copy").append(
-        element("small", {}, `${sceneItem?.chapter || String(index + 1).padStart(2, "0")} · ${answerOpen ? "ANSWER OPEN" : tourLocked ? "FINISH CURRENT SCENE" : context.busy ? "LOADING" : visited ? "VISITED" : active ? "CURRENT" : unlocked ? "AVAILABLE" : "LOCKED"}`),
+        element("small", {}, `${sceneItem?.chapter || String(index + 1).padStart(2, "0")} · ${answerOpen ? "ANSWER OPEN" : context.busy ? "LOADING" : visited ? "VISITED" : active ? "CURRENT" : "AVAILABLE"}`),
         element("b", {}, sceneItem?.title || world.name),
         element("span", {}, sceneItem?.artist || world.subtitle)
       );
@@ -997,10 +1178,8 @@ export class AppView {
     }
     this.drawerBody.replaceChildren(
       element("p", { className: "drawer-note" }, answerOpen
-        ? "09 / ANSWER is open. The eight process worlds remain visible here as a locked evidence record."
-        : tourLocked
-          ? "Finish the current three-work inquiry and scene reflection before comparing worlds in the Atlas."
-          : "Eight worlds hold the process evidence. 09 / ANSWER remains outside the Atlas until the manifesto opens it."),
+        ? "09 / ANSWER is open. The eight thought chapters remain visible here as a locked evidence record."
+        : "All eight thought chapters are available as worlds. Move freely, linger with a work, or jump ahead; your question and evidence remain intact."),
       grid
     );
   }
@@ -1020,7 +1199,7 @@ export class AppView {
   }
 
   renderSalon(context) {
-    this.drawerKicker.textContent = "SELECTED HISTORICAL COMPANY";
+    this.drawerKicker.textContent = "SELECTED AI INTERPRETIVE LENSES";
     this.drawerTitle.textContent = "Salon";
     const body = element("div", { className: "drawer-grid" });
     const perspectives = Array.isArray(context.salon?.perspectives) ? context.salon.perspectives : [];
@@ -1030,16 +1209,19 @@ export class AppView {
         const companion = findCompanion(item.character_id, context.companions);
         const view = element("div", { className: "perspective" });
         if (companion) view.append(portraitChip(companion));
-        view.append(element("h3", {}, companion?.fullName || item.name), element("p", {}, item.stance || item.text));
+        view.append(
+          element("h3", {}, `${companion?.fullName || item.name} · AI INTERPRETIVE LENS`),
+          element("p", {}, item.stance || item.text)
+        );
         body.append(view);
       }
       body.append(element("blockquote", { className: "drawer-synthesis" }, context.salon.synthesis));
     } else {
       const note = !context.hasLesson
-        ? "Begin the eight-world route to bring evidence into the Salon."
+        ? "Begin the eight-chapter route to carry evidence into the Salon."
         : context.canConveneSalon
           ? "All eight observations are ready for the closing roundtable."
-          : "The selected company convenes after all eight process worlds are visited.";
+          : "The selected AI lenses convene after evidence has been carried across all eight thought chapters.";
       body.append(element("p", { className: "drawer-note" }, note));
       body.append(element("button", { type: "button", className: "command", disabled: !context.canConveneSalon, dataset: { drawerAction: "salon" } }, "Convene perspectives"));
     }
@@ -1083,10 +1265,10 @@ export class AppView {
       ["Reasoning model", live ? liveProviderName(context.provider) : "GPT contract · curated fallback"],
       ["Narration", narrationProvider],
       ["Scene manifest", SCENE_MANIFEST.version],
-      ["Canonical process", "8 ordered worlds"],
+      ["Thought spine", "8 freely navigable chapters"],
       ["Final realization", "Shimmering Spheres · world 09"],
       ["Active world", context.worldId],
-      ["Selected companions", context.companions.map((item) => item.fullName).join(" · ")],
+      ["Selected AI lenses", context.companions.map((item) => item.fullName).join(" · ")],
       ["Guide position", context.metrics?.distance == null ? "Awaiting route" : `${context.metrics.distance.toFixed(2)} m from anchor`],
       ["Guide facing", context.metrics?.facingError == null ? "Awaiting route" : `${context.metrics.facingError.toFixed(1)}° error`],
       ["Runtime", "MUSE embodied inquiry"],
@@ -1100,7 +1282,7 @@ export class AppView {
       tbody.append(tr);
     }
     table.append(tbody);
-    this.drawerBody.replaceChildren(table, element("p", { className: "drawer-note" }, "Dialogue opens after the selected companion reaches the scene anchor and faces its evidence point. Atlas browsing does not create visit evidence."));
+    this.drawerBody.replaceChildren(table, element("p", { className: "drawer-note" }, "Dialogue opens after the selected AI lens reaches the scene anchor and faces its evidence point. Atlas browsing does not create visit evidence."));
   }
 
   setWorld(world) {
@@ -1121,6 +1303,7 @@ export class AppView {
 
   beginWorldTransition(sceneItem = {}, { boot = false } = {}) {
     const token = ++this.worldTransitionToken;
+    delete this.dialogue.dataset.speakerId;
     clearTimeout(this.worldTransitionTimer);
     clearTimeout(this.toastTimer);
     this.toastElement.hidden = true;
@@ -1213,6 +1396,7 @@ export class AppView {
 
   presentEntry(stage, children) {
     this.hideCompanionConversation();
+    this.hideArtworkStory();
     const stageChanged = this.lastPresentedStage !== stage;
     this.entry.dataset.stage = stage;
     this.entry.hidden = false;
@@ -1220,6 +1404,7 @@ export class AppView {
     const heading = this.entry.querySelector("h1, h2");
     if (heading) heading.id = "entry-title";
     this.dialogue.hidden = true;
+    delete this.dialogue.dataset.speakerId;
     this.app.dataset.narrativeStage = stage;
     if (stageChanged) {
       this.entry.classList.remove("stage-reveal");
@@ -1284,7 +1469,7 @@ function findCompanion(id, companions = []) {
 }
 
 function portraitChip(companion) {
-  const chip = element("span", { className: "portrait-chip" });
+  const chip = element("span", { className: "portrait-chip", ariaLabel: `${companion.fullName} AI interpretive lens` });
   chip.append(element("img", { src: companion.portrait, alt: "" }), element("b", {}, companion.name));
   return chip;
 }
@@ -1305,6 +1490,48 @@ function normalizeConversationTurns(turns) {
       portrait: String(turn?.portrait || "")
     };
   }).filter((turn) => turn.text);
+}
+
+function normalizeArtworkStoryCue(cue = {}) {
+  const curated = cue.kind === "curated-fact";
+  return {
+    kind: curated ? "curated-fact" : "imagined-reenactment",
+    label: curated ? "CURATED FACT" : "IMAGINED REENACTMENT · NOT HISTORICAL TESTIMONY",
+    speaker: String(cue.speakerName || cue.presenter || cue.speaker || (curated ? "MUSE" : "ARTWORK VOICE")).trim(),
+    text: String(cue.text || "").trim(),
+    sourceUrl: curated ? String(cue.sourceUrl || "").trim() : "",
+    sourceLabel: curated ? String(cue.sourceLabel || "").trim() : ""
+  };
+}
+
+function safeArtworkStorySource(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return url.protocol === "https:" && url.hostname === "www.artic.edu" ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function artworkStoryStatus(state, story = {}) {
+  if (state === "loading") return "PREPARING STORY";
+  if (state === "completed") return "STORY COMPLETE";
+  if (story.paused === true) return "PAUSED";
+  const elapsed = storyTime(story.elapsed);
+  const duration = storyTime(story.duration);
+  return duration ? `${elapsed} / ${duration}` : "PLAYING";
+}
+
+function storyTime(value) {
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds < 0) return "";
+  const whole = Math.round(seconds);
+  return `${String(Math.floor(whole / 60)).padStart(2, "0")}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+export function preserveStationQuestionDraft(currentKey, nextKey, value, storedValue = "") {
+  const draft = currentKey && currentKey === nextKey ? value : storedValue;
+  return String(draft || "").slice(0, 600);
 }
 
 function positiveCount(value) {
@@ -1328,7 +1555,7 @@ function evidenceCount(count) {
 
 function entryMeta() {
   const meta = element("div", { className: "entry-meta" });
-  meta.append(element("span", { id: "model-badge" }, "CURATED FALLBACK"), element("span", {}, "8 process worlds · 8 companions · 1 answer world"));
+  meta.append(element("span", { id: "model-badge" }, "CURATED FALLBACK"), element("span", {}, "8 thought chapters · 3 AI interpretive lenses · 1 personalized answer world"));
   return meta;
 }
 

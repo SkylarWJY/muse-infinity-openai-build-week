@@ -36,17 +36,19 @@ Audio texture remains underneath the recordings; it uses no samples or reference
 
 ## OpenAI model services
 
-MUSE requests GPT-5.6 Responses through one of two exact disclosed origins: official OpenAI at
+MUSE requests GPT-5.6 Responses through one of two exact disclosed remote origins: official OpenAI at
 `https://api.openai.com`, or the authorized OpenAI-compatible gateway at
-`https://api.baizhiyuan.cloud`. The compatible gateway is used for GPT-5.6 reasoning only.
+`https://api.baizhiyuan.cloud`. A local operator may explicitly reuse their current Codex auth
+and its exact loopback `/v1` Responses transport. Compatible transports are used for GPT-5.6 reasoning only.
 OpenAI Realtime and `gpt-4o-mini-tts` narration are enabled only with the official origin. TTS
 renders already-visible lines as speech; it is not used for language reasoning. Supported
 browsers may use
 `SpeechRecognition` and `SpeechSynthesis` as speech-only fallbacks. Recognized text still uses
 the configured GPT-5.6 dialogue path or its labeled curated local fallback. Runtime reasoning
-model and origin selection are fixed to checked-in exact allowlists.
+model and remote-origin selection are fixed to checked-in exact allowlists; local Codex mode is
+limited to a user-owned auth file and an exact loopback provider.
 
-Use of either service is governed by the terms associated with the operator's authorized
+Use of each service is governed by the terms associated with the operator's authorized
 account. API credentials remain server-side and are not bundled as software or committed to
 the repository. The competition permits authorized third-party services; this notice separates
 their roles rather than implying an OpenAI-only product boundary.
@@ -90,7 +92,8 @@ uses the inherited high-resolution scene posters and the checked-in local RAD/GL
 
 ## Tripo character assets
 
-These browser-optimized GLBs were derived from MUSE Tripo character outputs:
+These seven browser-optimized GLBs are used by named AI interpretive lenses and were derived
+from MUSE Tripo character outputs:
 
 - `assets/characters/monet.glb`
 - `assets/characters/van-gogh.glb`
@@ -99,9 +102,22 @@ These browser-optimized GLBs were derived from MUSE Tripo character outputs:
 - `assets/characters/picasso.glb`
 - `assets/characters/freud.glb`
 - `assets/characters/qi-baishi.glb`
-- `assets/characters/yayoi-kusama.glb`
 
-The fictional learner is a separate Submission Period asset:
+`assets/characters/yayoi-kusama.glb` remains a legacy compatibility artifact in the repository,
+but current configuration does not load it, use its portrait, or present the living artist as a
+speaker. The compatible `yayoi-kusama` ID resolves to the non-person **Infinity & Repetition
+Lens** and an infinity-room scene marker.
+
+The default learner is a separate user-supplied asset:
+
+- `assets/characters/learner-girl.glb` is a mechanically browser-optimized copy of a
+  user-provided Tripo export. `assets/generated/learner-girl/manifest.json` records the supplied
+  filename, hashes, geometry and optimization command. It does **not** document a GPT Image 2
+  source, a Tripo task/account, the original source URL, or license/redistribution permission.
+  No such permission is inferred here. The submission owner and downstream redistributors must
+  confirm authorization with the contributor before publication or redistribution.
+
+The optional adult learner is a distinct Submission Period asset:
 
 - `assets/characters/learner.glb`, designed with GPT Image 2 through Tripo's image task, then
   reconstructed, PBR-textured, rigged and animated by Tripo.
@@ -112,11 +128,11 @@ The white-dove ambient asset is another Submission Period production output:
   a detailed PBR model with Tripo v3.1. Its full task, prompt, credit, post-process and hash
   record is `assets/generated/ambient-avian-v1/manifest.json`.
 
-Tripo is an asset-production tool only; this repository has no Tripo runtime API. The learner
-and dove generation manifests are checked in. The dove is a static mesh without a skin or
-animation clip; runtime path motion is not described as provider-generated skeletal animation.
-The historical figures are interpretive representations and do not claim endorsement,
-quotation or authentic reconstruction.
+Tripo is an asset-production tool only; this repository has no Tripo runtime API. The adult
+learner and dove generation manifests are checked in. The dove is a static mesh without a skin
+or animation clip; runtime path motion is not described as provider-generated skeletal
+animation. Named character assets represent AI interpretive lenses and do not claim
+endorsement, quotation or authentic reconstruction.
 
 Tripo output rights depend on the generating account tier under Tripo's current terms. Confirm
 the applicable account and output rights before commercial redistribution; the repository's
@@ -143,6 +159,7 @@ Commons file page and jurisdiction-specific status before redistribution.
 The Freud, Qi Baishi and Yayoi Kusama files are local MUSE character-reference images and are
 not described as public-domain documentary portraits. Yayoi Kusama is living; neither her
 portrait nor generated representation is described as a public-domain historical likeness.
+Current runtime configuration does not load or display the Yayoi Kusama portrait.
 
 `freud-card.jpg`, `qi-baishi-card.jpg` and `yayoi-kusama-card.jpg` are mechanically cropped
 single-view derivatives of those same local turnaround images. The crops do not change their

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { OPENAI_ENDPOINTS, resolveOpenAIEndpoints } from "../services/openai.js";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const AUDIT_SURFACES = [
@@ -35,9 +36,14 @@ test("core GPT runtime is restricted to allowlisted GPT-5.6 provider paths", () 
   assert.match(source, /ALLOWED_OPENAI_BASE_URLS/);
   assert.match(source, /ALLOWED_REASONING_MODELS/);
   assert.match(source, /OPENAI_API_KEY/);
-  assert.match(source, /\/v1\/responses/);
-  assert.match(source, /\/v1\/realtime\/calls/);
-  assert.match(source, /\/v1\/audio\/speech/);
+  assert.match(source, /MUSE_OPENAI_CONFIG/);
+  assert.match(source, /allowLocalCodexProvider/);
+  assert.equal(OPENAI_ENDPOINTS.responses, "https://api.openai.com/v1/responses");
+  assert.equal(OPENAI_ENDPOINTS.realtime, "https://api.openai.com/v1/realtime/calls");
+  assert.equal(OPENAI_ENDPOINTS.speech, "https://api.openai.com/v1/audio/speech");
+  const local = resolveOpenAIEndpoints("http://127.0.0.1:19090/v1", { allowLocalCodexProvider: true });
+  assert.equal(local.local, true);
+  assert.equal(local.responses, "http://127.0.0.1:19090/v1/responses");
   assert.match(source, /realtimeConfigured/);
   assert.match(source, /WorldLabsService/);
   assert.match(source, /world_forge/);

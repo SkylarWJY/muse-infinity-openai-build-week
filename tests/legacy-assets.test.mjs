@@ -69,20 +69,35 @@ test("process worlds deploy streamable quality RAD archives and preserve the sce
   }
 });
 
-test("all eight muse-infinity companions are selectable and deployable", () => {
+test("all eight AI interpretive lenses are selectable without embodying a living artist", () => {
   assert.equal(COMPANIONS.length, 8);
   for (const companion of COMPANIONS) {
-    assert.match(companion.model, /^\/assets\/characters\/.+\.glb$/);
-    assert.match(companion.portrait, /^\/assets\/portraits\/.+\.jpg$/);
-    assertDeployable(companion.model);
+    if (companion.model) {
+      assert.match(companion.model, /^\/assets\/characters\/.+\.glb$/);
+      assertDeployable(companion.model);
+    }
+    assert.match(companion.portrait, /^\/assets\/(?:portraits|thumbs)\/.+\.jpg$/);
     assertDeployable(companion.portrait);
+    if (companion.id === "yayoi-kusama") continue;
     const portrait = fs.readFileSync(path.join(ROOT, companion.portrait.slice(1)));
     const dimensions = jpegDimensions(portrait);
     assert.ok(dimensions.height > dimensions.width * 1.15,
       `${companion.id} companion card must use a portrait crop, received ${dimensions.width}x${dimensions.height}`);
   }
   assert.equal(getCompanion("van-gogh").fullName, "Vincent van Gogh");
-  assert.equal(getCompanion("yayoi-kusama").fullName, "Yayoi Kusama");
+  const infinityLens = getCompanion("yayoi-kusama");
+  assert.equal(infinityLens.fullName, "Infinity & Repetition Lens");
+  assert.equal(infinityLens.name, "INFINITY & REPETITION");
+  assert.equal(infinityLens.model, null);
+  assert.equal(infinityLens.portrait, "/assets/thumbs/yellow-polka-dot-infinity-room.jpg");
+  assert.match(infinityLens.provenance, /non-person/iu);
+  assert.doesNotMatch([
+    infinityLens.fullName,
+    infinityLens.name,
+    infinityLens.portrait,
+    infinityLens.model || ""
+  ].join(" "), /Yayoi|KUSAMA/iu);
+  assert.equal(getWorld("yellow-polka-dot-infinity-room").scene.artist, "Infinity & Repetition Lens");
   assert.equal(getCompanion("missing"), null);
 });
 

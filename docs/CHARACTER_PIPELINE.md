@@ -1,7 +1,26 @@
-# Learner character asset pipeline
+# Retained adult learner asset pipeline
 
-The learner is a checked-in, pre-generated asset. The browser and application server never
-call an image-generation or 3D-generation API.
+This document covers the retained adult learner in `assets/characters/learner.glb`. It is a
+checked-in, pre-generated asset; the browser and application server never call an image- or
+3D-generation API.
+
+The production chain is deliberately stated as separate tools and artifacts:
+
+```text
+GPT Image 2 T-pose reference
+  -> Tripo four-view turnaround
+  -> Tripo v3.1 multiview_to_model
+  -> GLB
+  -> Tripo rig and animation retarget
+  -> offline QA and bounded skin-weight correction
+```
+
+GPT Image 2 produces the reference image, not the GLB. The repository's default little-girl
+learner is instead a user-provided Tripo export documented in
+`assets/generated/learner-girl/manifest.json`; it has no GPT Image 2 provenance. The white dove
+is the only other deployed asset with a recorded GPT Image 2 reference plus Tripo reconstruction,
+and it uses local shader-authored wing motion rather than this biped rig/retarget path. The eight
+living-artwork v1 files are local Three.js-authored GLBs and are outside this pipeline.
 
 ## Canonical v2 production chain
 

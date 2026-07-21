@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "collection": "living-artworks-v1",
+  "purpose": "Local shallow-relief story elements for eight MUSE hero artworks",
+  "provenance": {
+    "assetOrigin": "MUSE-authored procedural GLB v1",
+    "generationMethod": "Deterministic local Three.js geometry authored by this repository script",
+    "externalGenerationProvider": null,
+    "historicalStatus": "Visual reenactments are interpretive and not historical testimony"
+  },
+  "runtimeContract": {
+    "anchorPlane": "local XY plane at Z=0",
+    "projectionDirection": "+Z toward the visitor",
+    "animation": "Runtime procedural timelines; GLB files contain static authored geometry"
+  },
+  "budgets": {
+    "maximumBytesPerAsset": 8388608,
+    "maximumPrimitivesPerAsset": 12,
+    "maximumTrianglesPerAsset": 100000
+  },
+  "files": [
+    {
+      "artworkId": "aic-153799",
+      "file": "../../living-artworks/aic-153799-v1.glb",
+      "bytes": 137584,
+      "sha256": "a66a7c227b800fc7b61910952a388c4e50c6121b409246cab9d1e7a1a4707eb2",
+      "scenes": 1,
+      "nodes": 6,
+      "meshes": 5,
+      "materials": 5,
+      "primitives": 5,
+      "triangles": 5296,
+      "title": "Water and Footfall",
+      "concept": "Layered water ripples and a stepping shoe emerge from the painted river surface."
+    },
+    {
+      "artworkId": "aic-14655",
+      "file": "../../living-artworks/aic-14655-v1.glb",
+      "bytes": 128252,
+      "sha256": "f18230fb23b36140abb24807f75695ea07e56bcca9dccfa7b8fbfdc83e670bab",
+      "scenes": 1,
+      "nodes": 5,
+      "meshes": 4,
+      "materials": 4,
+      "primitives": 4,
+      "triangles": 4072,
+      "title": "Runaway Yarn",
+      "concept": "A wound crimson yarn ball and loose strand roll forward from the portrait plane."
+    },
+    {
+      "artworkId": "aic-16568",
+      "file": "../../living-artworks/aic-16568-v1.glb",
+      "bytes": 213376,
+      "sha256": "a127f9820192b1ff2cbe5733086b06773b253c4b895c0f12f75ff3acee75dec0",
+      "scenes": 1,
+      "nodes": 6,
+      "meshes": 5,
+      "materials": 5,
+      "primitives": 5,
+      "triangles": 7600,
+      "title": "Water Lily Reflection",
+      "concept": "Water-lily pads, blossoms, and reflected ripples rise in shallow luminous layers."
+    },
+    {
+      "artworkId": "aic-111436",
+      "file": "../../living-artworks/aic-111436-v1.glb",
+      "bytes": 111316,
+      "sha256": "2d7d48861ccccdcb4f9ac44c034c1851b5f3919ae7a57ce01bd1afb5b687a6c7",
+      "scenes": 1,
+      "nodes": 6,
+      "meshes": 5,
+      "materials": 5,
+      "primitives": 5,
+      "triangles": 4116,
+      "title": "Apple and Fold",
+      "concept": "Cezanne-like fruit advances over a warped tablecloth that refuses one perspective."
+    },
+    {
+      "artworkId": "aic-28560",
+      "file": "../../living-artworks/aic-28560-v1.glb",
+      "bytes": 19220,
+      "sha256": "98fbe46155ce3fd745e81980cbfc8ed25b0afe68ffbdc9b3bd0ff52b26b3faa8",
+      "scenes": 1,
+      "nodes": 6,
+      "meshes": 5,
+      "materials": 5,
+      "primitives": 5,
+      "triangles": 200,
+      "title": "Bedroom Chair",
+      "concept": "A compact painted chair and tilted floor unfold beyond the bedroom frame."
+    },
+    {
+      "artworkId": "aic-27992",
+      "file": "../../living-artworks/aic-27992-v1.glb",
+      "bytes": 292332,
+      "sha256": "f3fd5889c69614011634c3b6635eaf022156f6cfc33570f244e7097cf745451f",
+      "scenes": 1,
+      "nodes": 8,
+      "meshes": 7,
+      "materials": 7,
+      "primitives": 7,
+      "triangles": 9708,
+      "title": "Pointillist Monkey",
+      "concept": "A monkey silhouette assembles from colored points above a calm concentric ripple."
+    },
+    {
+      "artworkId": "aic-26650",
+      "file": "../../living-artworks/aic-26650-v1.glb",
+      "bytes": 183308,
+      "sha256": "eb098a2766cfa9d40200e4f4d94c41af24d5aef96967d7adc5844c372c1cb885",
+      "scenes": 1,
+      "nodes": 8,
+      "meshes": 7,
+      "materials": 7,
+      "primitives": 7,
+      "triangles": 5896,
+      "title": "Newsprint and Petals",
+      "concept": "Folded newsprint opens outward while flowers and loose petals cross its edge."
+    },
+    {
+      "artworkId": "aic-8991",
+      "file": "../../living-artworks/aic-8991-v1.glb",
+      "bytes": 168912,
+      "sha256": "68e13fe6eca93073cbae9edca619a52522c25c540504a5dda104fcde86b7794d",
+      "scenes": 1,
+      "nodes": 7,
+      "meshes": 6,
+      "materials": 6,
+      "primitives": 6,
+      "triangles": 6480,
+      "title": "Abstract Color Wave",
+      "concept": "Kandinsky-like arcs, discs, and color lines surge out as a spatial composition."
+    }
+  ]
+}

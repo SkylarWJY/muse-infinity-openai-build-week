@@ -49,6 +49,33 @@ test("companion loading settles to its procedural body and disposes a late GLB",
   avatar.dispose();
 });
 
+test("a non-person lens stays a visual-free spatial anchor without loading an avatar", async () => {
+  const status = [];
+  let loaderCalls = 0;
+  const avatar = new ArchivedAvatar({
+    companion: getCompanion("yayoi-kusama"),
+    loader: { loadAsync: () => { loaderCalls += 1; } },
+    onStatus: (event) => status.push(event)
+  });
+
+  assert.equal(avatar.fallback === null, true);
+  assert.equal(avatar.visual.children.length, 0);
+  await avatar.load();
+
+  assert.equal(loaderCalls, 0);
+  assert.equal(avatar.ready, true);
+  assert.equal(avatar.model, null);
+  assert.equal(avatar.fallback === null, true);
+  assert.equal(avatar.visual.children.length, 0);
+  assert.deepEqual(status, [{
+    live: true,
+    hidden: true,
+    nonPerson: true,
+    companion: getCompanion("yayoi-kusama")
+  }]);
+  avatar.dispose();
+});
+
 function deferred() {
   let resolve;
   const promise = new Promise((settle) => { resolve = settle; });

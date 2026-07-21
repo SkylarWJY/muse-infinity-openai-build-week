@@ -1,0 +1,12 @@
+Use case: sketch-to-render
+Asset type: locked front-view source plate for a 3D living-artwork reconstruction
+Primary request: Reconstruct the supplied public-domain painting The Basket of Apples as a physically real tabletop set from exactly the same camera viewpoint and crop.
+Input images: Image 1 is the strict composition, object-identity, and camera reference.
+Scene/backdrop: A late-nineteenth-century tabletop against a worn blue-green plaster wall.
+Subject: A forward-pitching wicker basket of apples on a wood slab, a leaning dark-green bottle, bread on a ceramic plate, scattered heirloom apples, and heavy striped white linen.
+Style/medium: Photoreal physical set with museum-grade material detail; this is a reconstruction, not a generic still-life reinterpretation.
+Composition/framing: Preserve Cezanne's intentionally impossible geometry, including the tilted table, disjoint front edges, forward basket, leaning bottle, and conflicting local perspectives. Do not correct the perspective. Match the original crop and 1.25:1 composition.
+Lighting/mood: Soft north-window light from upper left, deep focus, plausible contact shadows, restrained natural contrast.
+Materials/textures: Worn wicker, matte wax-bloom fruit with russet bruising, aged green glass, glazed ceramic, crusty bread, scuffed wood, and thick woven linen with visible fibers.
+Constraints: Remove only the front-center vermilion apple resting on the foreground cloth and leave its natural cloth depression empty. Keep every other prop, its identity, and its position. No frame, text, signature, people, or added objects.
+Avoid: Glossy supermarket fruit, corrected rectangular furniture, dramatic grading, bokeh, shallow depth of field, floating props, illustration, painterly brush rendering, watermark.

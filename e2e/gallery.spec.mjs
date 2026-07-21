@@ -3,9 +3,20 @@ import { expect, test } from "@playwright/test";
 import { WORLDS } from "../src/config/scenes.js";
 
 const screenshotRoot = "artifacts/screenshots/gallery-v4";
+const EXPECTED_BACKED_MOUNTS = Object.freeze({
+  "threshold-conservatory": 1,
+  "court-of-light": 2,
+  "water-and-light": 1,
+  "sunset-frames": 0,
+  "burning-sky": 2,
+  "petal-transition": 1,
+  "living-memory": 0,
+  "infinite-repetition": 0,
+  "personal-dream-world": 0
+});
 
 test("all nine deterministic layouts place four readable artworks on inherited collider geometry", async ({ page }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(480_000);
   mkdirSync(screenshotRoot, { recursive: true });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.route("**/*", async (route) => {
@@ -24,18 +35,22 @@ test("all nine deterministic layouts place four readable artworks on inherited c
   });
 
   await page.goto("/?quality=performance", { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => window.__MUSE_APP__?.state.bootSettled === true, null, { timeout: 90_000 });
-  await page.evaluate(() => {
+  await page.waitForFunction(() => Boolean(window.__MUSE_APP__?.engine?.worldLayer), null, { timeout: 30_000 });
+  await page.evaluate(async () => {
     const { engine } = window.__MUSE_APP__;
     engine.ready = false;
     engine.worldLayer.loadArchive = async () => false;
+    await engine.setWorld(engine.activeWorld.id);
     document.querySelector("#app").removeAttribute("data-world-presentation");
     document.querySelector("#entry-panel").hidden = true;
     document.querySelector("#dialogue").hidden = true;
     document.querySelector(".mission-rail").hidden = true;
+    document.querySelector("#world-transition").hidden = true;
   });
   await page.waitForTimeout(50);
 
+  let mountedTotal = 0;
+  let edgeTotal = 0;
   for (const world of WORLDS) {
     await test.step(world.sceneId, async () => {
       await page.evaluate(async (worldId) => {
@@ -93,8 +108,8 @@ test("all nine deterministic layouts place four readable artworks on inherited c
           const guide = frame.userData.guideAnchor;
           const normal = frame.position.clone().set(0, 0, 1).applyQuaternion(frame.quaternion).normalize();
           const toGuide = frame.position.clone().set(guide[0], frame.position.y, guide[2]).sub(frame.position).normalize();
-          const supportVisible = frame.userData.supports?.every((support) => support.visible) === true;
-          const expectedGround = supportVisible
+          const freestanding = frame.userData.freestanding === true;
+          const expectedGround = freestanding
             ? layer.walkableGroundHeightAt(frame.position.x, frame.position.z, guide[1], 0.45) + 0.02
             : guide[1] + 0.02;
           const image = picture.material.map?.image;
@@ -123,7 +138,7 @@ test("all nine deterministic layouts place four readable artworks on inherited c
             ).intersectObject(layer.collider, true)[0];
             return obstruction ? [{ label, distance: obstruction.distance }] : [];
           });
-          const backingWallDistance = supportVisible ? null : layer.backingWallGap({
+          const backingWallDistance = freestanding ? null : layer.backingWallGap({
             x: frame.position.x,
             z: frame.position.z,
             groundY: frame.position.y,
@@ -148,7 +163,8 @@ test("all nine deterministic layouts place four readable artworks on inherited c
             maxZ: frame.position.z + extentZ,
             groundError: Math.abs(frame.position.y - expectedGround),
             facingDot: normal.dot(toGuide),
-            supportVisible,
+            freestanding,
+            displayZone: frame.userData.displayZone,
             minimumViewingDistance: frameCenter.distanceTo(guideEye),
             sightlineClear: obstructions.length === 0,
             obstructions,
@@ -188,6 +204,8 @@ test("all nine deterministic layouts place four readable artworks on inherited c
       expect(metrics.entries).toHaveLength(4);
       expect(metrics.focusedArtworkId).toBe(metrics.entries[0].id);
       expect(metrics.minimumClearance).toBeGreaterThan(0.15);
+      const mountedInScene = metrics.entries.filter((artwork) => !artwork.freestanding).length;
+      expect(mountedInScene, `${metrics.sceneId} strict backing count`).toBe(EXPECTED_BACKED_MOUNTS[metrics.sceneId]);
       for (const artwork of metrics.entries) {
         expect(artwork.id).toMatch(/^aic-\d+$/);
         expect(artwork.visible, `${artwork.id} visibility`).toBe(true);
@@ -202,13 +220,15 @@ test("all nine deterministic layouts place four readable artworks on inherited c
         expect(artwork.minZ).toBeGreaterThanOrEqual(metrics.bounds.minZ - 0.02);
         expect(artwork.maxZ).toBeLessThanOrEqual(metrics.bounds.maxZ + 0.02);
         expect(artwork.groundError).toBeLessThan(0.03);
-        expect(artwork.facingDot).toBeGreaterThan(artwork.supportVisible ? 0.995 : 0.6);
+        expect(artwork.displayZone).toBe(artwork.freestanding ? "edge" : "wall");
+        expect(artwork.facingDot).toBeGreaterThan(artwork.freestanding ? 0.995 : 0.6);
         expect(artwork.minimumViewingDistance, `${artwork.id} viewing distance`).toBeGreaterThanOrEqual(2.2);
         expect(artwork.sightlineClear, `${artwork.id} guide sightline`).toBe(true);
-        if (!artwork.supportVisible) {
+        if (!artwork.freestanding) {
+          mountedTotal += 1;
           expect(artwork.backingWallDistance, `${artwork.id} backing wall`).not.toBeNull();
           expect(artwork.backingWallDistance, `${artwork.id} backing wall gap`).toBeLessThanOrEqual(0.1);
-        }
+        } else edgeTotal += 1;
         expect(artwork.guide.every(Number.isFinite)).toBe(true);
         expect(artwork.lookAt.every(Number.isFinite)).toBe(true);
       }
@@ -273,6 +293,12 @@ test("all nine deterministic layouts place four readable artworks on inherited c
           engine.camera.lookAt(target);
           engine.camera.updateMatrixWorld(true);
           engine.renderer.render(engine.scene, engine.camera);
+          const app = document.querySelector("#app");
+          app?.removeAttribute("data-world-presentation");
+          if (app) app.dataset.narrativeStage = "world-exploration";
+          const canvas = engine.renderer.domElement;
+          canvas.style.visibility = "visible";
+          canvas.style.opacity = "1";
 
           return records.map((record) => {
             const center = record.frame.position.clone();
@@ -311,4 +337,6 @@ test("all nine deterministic layouts place four readable artworks on inherited c
       }
     });
   }
+  expect(mountedTotal).toBe(7);
+  expect(edgeTotal).toBe(29);
 });

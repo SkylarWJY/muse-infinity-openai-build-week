@@ -6,24 +6,31 @@ import { withTimeout } from "./withTimeout.js";
 const MOTION_KEYS = ["leftArmX", "rightArmX", "leftArmZ", "rightArmZ", "leftElbowX", "rightElbowX", "leftLegX", "rightLegX", "leftKneeX", "rightKneeX"];
 const ROTATION_UNIFORMS = ["leftArmMatrix", "rightArmMatrix", "leftElbowMatrix", "rightElbowMatrix", "leftLegMatrix", "rightLegMatrix", "leftKneeMatrix", "rightKneeMatrix"];
 const LOAD_TIMEOUT_MS = 15_000;
+const HEAD_CLEARANCE = 0.14;
 
 export class ArchivedAvatar {
-  constructor({ companion, height = 1.75, onStatus = () => {}, loader = new GLTFLoader(), loadTimeoutMs = LOAD_TIMEOUT_MS } = {}) {
+  constructor({ companion, height = 1.75, onStatus = () => {}, loader, loadTimeoutMs = LOAD_TIMEOUT_MS } = {}) {
     if (!companion) throw new Error("companion_required");
     this.companion = companion;
     this.height = height;
     this.onStatus = onStatus;
-    this.loader = loader;
+    this.nonPerson = isNonPersonSpatialAnchor(companion);
+    this.loader = this.nonPerson ? null : (loader === undefined ? new GLTFLoader() : loader);
     this.loadTimeoutMs = loadTimeoutMs;
     this.group = new THREE.Group();
     this.group.name = `archived-avatar-${companion.id}`;
     this.group.userData.actor = companion.fullName;
     this.group.userData.asset = companion.model;
     this.group.userData.motion = "idle";
+    this.group.userData.hidden = this.nonPerson;
+    this.group.userData.nonPerson = this.nonPerson;
     this.visual = new THREE.Group();
+    this.visual.visible = !this.nonPerson;
     this.group.add(this.visual);
-    this.fallback = new ProceduralAvatar({ coat: 0x263432, accent: colorNumber(companion.color), skin: 0x8f604d, scale: 0.82, name: companion.fullName });
-    this.visual.add(this.fallback.group);
+    this.fallback = this.nonPerson
+      ? null
+      : new ProceduralAvatar({ coat: 0x263432, accent: colorNumber(companion.color), skin: 0x8f604d, scale: 0.82, name: companion.fullName });
+    if (this.fallback) this.visual.add(this.fallback.group);
     this.model = null;
     this.ready = false;
     this.speed = 0;
@@ -40,6 +47,13 @@ export class ArchivedAvatar {
 
   async load() {
     const token = ++this.loadToken;
+    if (this.nonPerson) {
+      if (!this.disposed && token === this.loadToken) {
+        this.ready = true;
+        this.onStatus({ live: true, hidden: true, nonPerson: true, companion: this.companion });
+      }
+      return this;
+    }
     let candidateModel = null;
     try {
       const gltf = await withTimeout(this.loader.loadAsync(this.companion.model), this.loadTimeoutMs, "companion_timeout", {
@@ -88,6 +102,12 @@ export class ArchivedAvatar {
     return this;
   }
 
+  headWorldPosition(target = new THREE.Vector3()) {
+    const anchor = target?.isVector3 ? target : new THREE.Vector3();
+    if (!this.ready && this.fallback?.headWorldPosition) return this.fallback.headWorldPosition(anchor);
+    return this.group.localToWorld(anchor.set(0, Math.max(1.2, Number(this.height) || 1.75) + HEAD_CLEARANCE, 0));
+  }
+
   setMotion(speed, gesture = this.gesture) {
     this.speed = Number(speed) || 0;
     this.gesture = gesture;
@@ -98,6 +118,7 @@ export class ArchivedAvatar {
   }
 
   update(dt, elapsed) {
+    if (this.nonPerson) return;
     if (!this.ready) {
       this.fallback?.update(dt, elapsed);
       return;
@@ -122,6 +143,12 @@ export class ArchivedAvatar {
     this.ready = false;
     disposeAvatarTree(this.group);
   }
+}
+
+function isNonPersonSpatialAnchor(companion) {
+  const model = String(companion?.model || "").trim();
+  const provenance = String(companion?.provenance || "");
+  return !model && /\bnon-person\b/iu.test(provenance);
 }
 
 function disposeAvatarTree(root) {

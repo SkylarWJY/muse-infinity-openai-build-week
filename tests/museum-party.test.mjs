@@ -7,6 +7,8 @@ import { ArchivedAvatar } from "../src/render/ArchivedAvatar.js";
 import { GuideDirector } from "../src/render/GuideDirector.js";
 import {
   MuseumEngine,
+  projectWorldAnchorToViewport,
+  resolveActiveArtwork,
   resolveArtworkPartyStages,
   resolveCompanionMetrics,
   resolveGroundedPartyFormation,
@@ -15,7 +17,53 @@ import {
   resolvePreferredPartyFormations
 } from "../src/render/MuseumEngine.js";
 
-test("artwork staging gives every companion an independent grounded slot around the work", () => {
+test("companion head anchors project into viewport coordinates", () => {
+  const camera = new THREE.PerspectiveCamera(60, 2, 0.1, 100);
+  camera.position.set(0, 1.9, 5);
+  camera.lookAt(0, 1.9, 0);
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld(true);
+  const viewport = { left: 10, top: 20, width: 800, height: 400 };
+  const projected = projectWorldAnchorToViewport(new THREE.Vector3(0, 1.9, 0), camera, viewport);
+  assert.ok(projected);
+  assert.ok(Math.abs(projected.x - 410) < 0.0001);
+  assert.ok(Math.abs(projected.y - 220) < 0.0001);
+  assert.equal(projected.visible, true);
+
+  const actor = { height: 1.75, group: new THREE.Group() };
+  const engine = Object.create(MuseumEngine.prototype);
+  engine.companyDirectors = new Map([["frida", { avatar: actor }]]);
+  engine.camera = camera;
+  engine.container = { getBoundingClientRect: () => viewport };
+  actor.group.updateMatrixWorld(true);
+  const head = engine.companionScreenAnchor("frida");
+  assert.ok(head?.visible);
+  assert.ok(Math.abs(head.x - 410) < 0.0001);
+  assert.equal(engine.companionScreenAnchor("unknown"), null);
+});
+
+test("active artwork resolution rejects stale cross-scene route snapshots", () => {
+  const live = { id: "current-work", title: "Live current work" };
+  const currentSnapshot = { id: "current-work", title: "Current route snapshot" };
+  const staleSnapshot = { id: "previous-work", title: "Previous route snapshot" };
+
+  assert.strictEqual(resolveActiveArtwork("current-work", live, {
+    artworkId: "current-work",
+    pose: { artwork: currentSnapshot }
+  }), live, "the live world record should win when it is available");
+  assert.strictEqual(resolveActiveArtwork("current-work", null, {
+    artworkId: "current-work",
+    pose: { artwork: currentSnapshot }
+  }), currentSnapshot, "the current route may bridge a world-layer handoff");
+  assert.equal(resolveActiveArtwork("current-work", null, {
+    artworkId: "previous-work",
+    pose: { artwork: staleSnapshot }
+  }), null, "a previous scene route must never supply the current artwork");
+  assert.equal(resolveActiveArtwork("current-work", staleSnapshot, null), null,
+    "a mismatched world-layer record must be rejected");
+});
+
+test("artwork staging leaves the trigger and artwork sightline open while companions face the visitor", () => {
   const pose = {
     guideAnchor: [0, 0.1, 0],
     lookAt: [0, 1.58, -3]
@@ -31,9 +79,10 @@ test("artwork staging gives every companion an independent grounded slot around 
   assert.deepEqual(stages.map(({ companionId }) => companionId), order);
   assert.deepEqual(stages.map(({ sequenceIndex }) => sequenceIndex), [0, 1, 2]);
   assert.deepEqual(stages.map(({ y }) => y), [0.12, 0.12, 0.12]);
-  assert.ok(Math.abs(stages[0].x) < 0.001 && Math.abs(stages[0].z) < 0.001,
-    "the lead speaker should own the central evidence position");
-  assert.ok(stages[1].x * stages[2].x < 0, "listeners should stage on opposite sides");
+  assert.ok(stages.every(({ x, z }) => Math.hypot(x, z) >= 0.82),
+    "the visitor trigger must remain open");
+  assert.ok(stages.some(({ x }) => x < 0) && stages.some(({ x }) => x > 0),
+    "the conversation should arc across both sides of the visitor");
   for (let left = 0; left < stages.length; left += 1) {
     for (let right = left + 1; right < stages.length; right += 1) {
       assert.ok(Math.hypot(stages[left].x - stages[right].x, stages[left].z - stages[right].z) >= 0.7);
@@ -41,10 +90,12 @@ test("artwork staging gives every companion an independent grounded slot around 
   }
   assert.ok(stages.every(({ x, z, yaw }) => {
     const facing = { x: Math.sin(yaw), z: Math.cos(yaw) };
-    const distance = Math.hypot(-x, -3 - z);
-    const towardArtwork = { x: -x / distance, z: (-3 - z) / distance };
-    return facing.x * towardArtwork.x + facing.z * towardArtwork.z > 0.999;
-  }), "all companions should face the artwork rather than the visitor");
+    const distance = Math.hypot(-x, -z);
+    const towardVisitor = { x: -x / distance, z: -z / distance };
+    return facing.x * towardVisitor.x + facing.z * towardVisitor.z > 0.999;
+  }), "all companions should face the visitor");
+  assert.ok(stages.every(({ x, z }) => x !== 0 || z > 0.72),
+    "the central artwork sightline must stay clear");
 });
 
 test("artwork staging rotates the active speaker without changing the spatial contract", () => {
@@ -69,7 +120,7 @@ test("artwork staging rejects unsupported endpoints instead of falling back to a
   ), /artwork_party_stage_unavailable/);
 });
 
-test("company artwork navigation hands off on arrival and gates asking on the visitor", () => {
+test("company artwork navigation launches every independent route together and gates asking on the visitor", () => {
   const calls = [];
   const events = [];
   const actor = (id) => ({ companion: { id }, group: new THREE.Group(), setMotion() {} });
@@ -115,12 +166,19 @@ test("company artwork navigation hands off on arrival and gates asking on the vi
 
   const context = engine.navigateCompanyToArtwork("work-two", ["frida", "socrates", "monet"]);
   assert.equal(context.speakerId, "frida");
+  assert.deepEqual(context.visitorAnchor, [0, 0, 0]);
   assert.strictEqual(engine.director, directors.get("frida"));
-  assert.deepEqual(calls.filter(({ companionId }) => companionId).map(({ companionId }) => companionId), ["frida"]);
+  assert.deepEqual(calls.filter(({ companionId }) => companionId).map(({ companionId }) => companionId), ["frida", "socrates", "monet"]);
+  assert.ok(context.stages.every(({ x, z, yaw }) => {
+    const distance = Math.hypot(context.visitorAnchor[0] - x, context.visitorAnchor[2] - z);
+    const towardVisitorX = (context.visitorAnchor[0] - x) / distance;
+    const towardVisitorZ = (context.visitorAnchor[2] - z) / distance;
+    return Math.sin(yaw) * towardVisitorX + Math.cos(yaw) * towardVisitorZ > 0.999;
+  }), "the company must face the visitor's actual arrival point");
 
   directors.get("frida").state = "arriving";
   engine.handleCompanyDirectorState("frida", { state: "arriving", stopId: "work-two" });
-  assert.deepEqual(calls.filter(({ companionId }) => companionId).map(({ companionId }) => companionId), ["frida", "socrates"]);
+  assert.deepEqual(calls.filter(({ companionId }) => companionId).map(({ companionId }) => companionId), ["frida", "socrates", "monet"]);
   directors.get("socrates").state = "arriving";
   engine.handleCompanyDirectorState("socrates", { state: "arriving", stopId: "work-two" });
   assert.deepEqual(calls.filter(({ companionId }) => companionId).map(({ companionId }) => companionId), ["frida", "socrates", "monet"]);
@@ -132,7 +190,7 @@ test("company artwork navigation hands off on arrival and gates asking on the vi
   }
   assert.equal(events.some(({ state }) => state === "asking"), false, "the companions must not open a remote discussion");
 
-  engine.player.group.position.set(context.stages[0].x, 0, context.stages[0].z + 1.8);
+  engine.player.group.position.fromArray(context.visitorAnchor);
   engine.updateCompanyTour(0);
   const asking = events.filter(({ state }) => state === "asking");
   assert.equal(asking.length, 1);
@@ -143,7 +201,39 @@ test("company artwork navigation hands off on arrival and gates asking on the vi
   assert.equal(events.filter(({ state }) => state === "asking").length, 1, "business arrival must publish exactly once");
 });
 
-test("an intermediate safe waypoint stays with the same actor before handoff", () => {
+test("manual movement pauses shared travel without permanently disabling the visitor route", () => {
+  const engine = Object.create(MuseumEngine.prototype);
+  const motion = [];
+  engine.followGuide = true;
+  engine.keys = new Set(["KeyD"]);
+  engine.touchVector = new THREE.Vector2();
+  engine.cameraYaw = 0;
+  engine.director = { state: "walking", avatar: { group: new THREE.Group() } };
+  engine.companyTour = { visitorAnchor: [0, 0, 0] };
+  engine.player = {
+    group: new THREE.Group(),
+    setMotion: (speed) => motion.push(speed)
+  };
+  engine.player.group.position.set(0, 0, 3);
+  engine.activeWorld = { profile: { bounds: { minX: -10, maxX: 10, minZ: -10, maxZ: 10 } } };
+  engine.worldLayer = {
+    resolveHorizontalMove: (from, desired) => desired.clone(),
+    walkableGroundHeightAt: () => 0
+  };
+
+  engine.updatePlayer(0.1);
+  assert.equal(engine.followGuide, true, "manual input must not destroy shared travel");
+  assert.ok(engine.player.group.position.x > 0, "manual input should take immediate control");
+
+  engine.keys.clear();
+  const distanceBeforeResume = engine.player.group.position.distanceTo(new THREE.Vector3(0, 0, 0));
+  engine.updatePlayer(0.1);
+  assert.ok(engine.player.group.position.distanceTo(new THREE.Vector3(0, 0, 0)) < distanceBeforeResume,
+    "releasing input should resume travel toward the open visitor anchor");
+  assert.ok(motion.every(Number.isFinite));
+});
+
+test("an intermediate safe waypoint stays with the same actor while other routes remain independent", () => {
   const calls = [];
   const director = (companionId) => ({
     state: "idle",
@@ -176,14 +266,70 @@ test("an intermediate safe waypoint stays with the same actor before handoff", (
   };
 
   engine.launchCompanyMember(engine.companyTour, 0);
-  assert.deepEqual(calls, [{ companionId: "a", target: [1, 0, 0] }]);
+  engine.launchCompanyMember(engine.companyTour, 1);
+  assert.deepEqual(calls, [
+    { companionId: "a", target: [1, 0, 0] },
+    { companionId: "b", target: [3, 0, 0] }
+  ]);
   engine.handleCompanyDirectorState("a", { state: "arriving", stopId: "work" });
   assert.deepEqual(calls, [
     { companionId: "a", target: [1, 0, 0] },
+    { companionId: "b", target: [3, 0, 0] },
     { companionId: "a", target: [2, 0, 0] }
   ]);
   engine.handleCompanyDirectorState("a", { state: "arriving", stopId: "work" });
-  assert.deepEqual(calls.at(-1), { companionId: "b", target: [3, 0, 0] });
+  assert.equal(calls.length, 3, "finishing one route must not relaunch another companion");
+});
+
+test("finale hides artworks, stops navigation, and stages the company in a visitor-facing arc", () => {
+  const actors = ["monet", "frida", "socrates"].map((id) => ({
+    companion: { id },
+    group: new THREE.Group(),
+    setMotion() {}
+  }));
+  const directors = new Map(actors.map((actor) => [actor.companion.id, {
+    avatar: actor,
+    object: actor.group,
+    target: new THREE.Vector3(),
+    lookAt: new THREE.Vector3(),
+    state: "walking",
+    paused: false
+  }]));
+  const engine = Object.create(MuseumEngine.prototype);
+  Object.assign(engine, {
+    companyTourToken: 3,
+    companyTour: { token: 3 },
+    companySpeakingId: null,
+    activeStopId: "work",
+    activeSpeakerId: "monet",
+    guide: actors[0],
+    partyActors: actors.slice(1),
+    salonActors: [],
+    salonVisible: false,
+    companyDirectors: directors,
+    director: directors.get("monet"),
+    player: { group: new THREE.Group() },
+    activeWorld: { profile: { bounds: { minX: -10, maxX: 10, minZ: -10, maxZ: 10 } } },
+    followGuide: true,
+    worldLayer: {
+      artworkGroup: { visible: true },
+      setArtworksVisible(visible) { this.artworkGroup.visible = visible; },
+      walkableGroundHeightAt: () => 0
+    }
+  });
+  engine.player.group.rotation.y = 0;
+
+  const finale = engine.enterFinale();
+  assert.equal(engine.companyTour, null);
+  assert.equal(engine.worldLayer.artworkGroup.visible, false);
+  assert.equal(engine.followGuide, false);
+  assert.ok([...directors.values()].every((director) => director.state === "idle" && director.paused === true));
+  assert.equal(finale.stages.length, 3);
+  assert.ok(finale.stages.every(({ z }) => z > 0), "the arc must remain in front of the visitor");
+  assert.ok(finale.stages.every(({ x, z, yaw }) => {
+    const distance = Math.hypot(x, z);
+    return Math.sin(yaw) * (-x / distance) + Math.cos(yaw) * (-z / distance) > 0.999;
+  }));
 });
 
 test("party formation keeps the second and third companions in stable left and right slots", () => {

@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { AppView } from "../src/ui/AppView.js";
+import { getCompanion } from "../src/config/legacyAssets.js";
+import { AppView, preserveStationQuestionDraft } from "../src/ui/AppView.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -14,10 +15,49 @@ test("the opening identifies MUSE Infinity before asking the carried question", 
   ]);
 
   assert.match(html, /<h1 id="entry-title">MUSE&infin;<\/h1>/);
-  assert.match(html, /An immersive museum built around one question/);
+  assert.match(html, /Understanding is not something you can simply read/);
   assert.match(source, /"MUSE∞"/u);
   assert.match(source, /"What question are you carrying\?"/);
+  assert.match(html, /GPT-5\.6 curates real artworks and three AI interpretive lenses/);
+  assert.doesNotMatch(html, /Walk beside artists and thinkers/);
   assert.ok(source.indexOf("showLifeQuestion") < source.indexOf("showCompany"));
+});
+
+test("named artists and thinkers are presented only as AI interpretive lenses", async () => {
+  const [html, source, main] = await Promise.all([
+    readFile(path.join(ROOT, "index.html"), "utf8"),
+    readFile(path.join(ROOT, "src/ui/AppView.js"), "utf8"),
+    readFile(path.join(ROOT, "src/main.js"), "utf8")
+  ]);
+
+  assert.match(source, /Every named voice is an AI interpretation, including lenses based on living artists/);
+  assert.match(source, /not the historical figures or living artists themselves/);
+  assert.match(source, /SELECTED AI INTERPRETIVE LENSES/);
+  assert.match(main, /never the historical figures or living artists themselves/);
+  assert.doesNotMatch(source, /SELECTED HISTORICAL COMPANY/);
+  assert.doesNotMatch(html, /8 companions/);
+});
+
+test("speaker chrome presents the infinity perspective as a non-person AI lens", () => {
+  const view = {
+    speakerName: { textContent: "" },
+    speakerPortrait: {
+      src: "",
+      alt: "",
+      hidden: true,
+      removeAttribute(name) { if (name === "src") this.src = ""; }
+    }
+  };
+
+  const infinityLens = getCompanion("yayoi-kusama");
+  AppView.prototype.setSpeaker.call(view, infinityLens);
+  assert.equal(view.speakerName.textContent, "INFINITY & REPETITION · AI LENS");
+  assert.equal(view.speakerPortrait.alt, "Infinity & Repetition Lens AI interpretive lens");
+  assert.equal(view.speakerPortrait.src, "/assets/thumbs/yellow-polka-dot-infinity-room.jpg");
+  assert.doesNotMatch(`${view.speakerName.textContent} ${view.speakerPortrait.alt}`, /Yayoi|KUSAMA/iu);
+
+  AppView.prototype.setSpeaker.call(view, { id: "mira", name: "MIRA", fullName: "Mira", portrait: null });
+  assert.equal(view.speakerName.textContent, "MIRA");
 });
 
 test("the exploration chrome exposes four primary tools and keeps secondary tools in More", async () => {
@@ -27,7 +67,7 @@ test("the exploration chrome exposes four primary tools and keeps secondary tool
   assert.match(html, /<summary[\s\S]*?More/);
   assert.match(html, /class="tool-menu"[\s\S]*?Forge[\s\S]*?Salon[\s\S]*?Room[\s\S]*?Profile[\s\S]*?Evidence/);
   assert.doesNotMatch(html, /LEARNING PATH/);
-  assert.match(html, /id="follow-button"[^>]*hidden/);
+  assert.doesNotMatch(html, /id="follow-button"/);
 });
 
 test("setQuestionProgress reports inquiry and world completion independently", () => {
@@ -64,6 +104,31 @@ test("setQuestionProgress reports inquiry and world completion independently", (
   assert.equal(attributes.get("aria-valuemax"), "12");
 });
 
+test("question progress defaults to 24 works while keeping eight worlds", () => {
+  const view = progressView();
+
+  const state = AppView.prototype.setQuestionProgress.call(view, {
+    question: "What makes a life meaningful?"
+  });
+
+  assert.equal(state.total, 24);
+  assert.equal(state.worldsTotal, 8);
+  assert.equal(view.questionProgressMeter.attributes.get("aria-valuemax"), "24");
+});
+
+test("route updates do not count visited worlds as explored works", () => {
+  const source = AppView.prototype.renderRoute.toString();
+  assert.doesNotMatch(source, /Math\.max\([^)]*visitedIds\.size/);
+  assert.match(source, /explored:\s*progress\.explored\s*\|\|\s*0/);
+});
+
+test("all eight Atlas worlds remain selectable outside final and busy states", () => {
+  const source = AppView.prototype.renderAtlas.toString();
+  assert.match(source, /disabled:\s*answerOpen\s*\|\|\s*context\.busy/);
+  assert.doesNotMatch(source, /tourLocked/);
+  assert.doesNotMatch(source, /!unlocked/);
+});
+
 test("companion conversation renders and advances exactly one turn at a time", () => {
   const view = conversationView();
   const turns = [
@@ -76,40 +141,130 @@ test("companion conversation renders and advances exactly one turn at a time", (
   assert.equal(view.companionConversationLine.textContent, turns[0].text);
   assert.equal(view.companionConversationProgress.textContent, "1 / 2");
   assert.equal(view.companionConversationNext.textContent, "Next voice");
+  assert.equal(view.companionConversation.dataset.speakerId, "monet");
+  assert.deepEqual(view.inquiryBusyStates, [true]);
 
   const second = AppView.prototype.advanceCompanionConversation.call(view);
   assert.equal(second.turn.text, turns[1].text);
   assert.equal(view.companionConversationLine.textContent, turns[1].text);
   assert.equal(view.companionConversationProgress.textContent, "2 / 2");
   assert.equal(view.companionConversationNext.textContent, "Return to the painting");
+  assert.equal(view.companionConversation.dataset.speakerId, "socrates");
 
   const completed = AppView.prototype.advanceCompanionConversation.call(view);
   assert.equal(completed.complete, true);
   assert.equal(view.companionConversation.hidden, true);
   assert.equal(view.app.dataset.companionConversation, undefined);
+  assert.equal(view.companionConversation.dataset.speakerId, undefined);
+  assert.deepEqual(view.inquiryBusyStates, [true, false]);
 });
 
-test("the final answer includes a full-company look-back and completion statement", async () => {
+test("companion dialogue stays in the visual-novel flow without a projection loop", async () => {
+  const source = await readFile(path.join(ROOT, "src/ui/AppView.js"), "utf8");
+  assert.doesNotMatch(source, /conversationAnchor|anchorResolver|resolveConversationPlacement/);
+  assert.doesNotMatch(AppView.prototype.showCompanionConversation.toString(), /anchor/);
+});
+
+test("entry actions do not wait on render-starved timers", async () => {
+  const source = await readFile(path.join(ROOT, "src/ui/AppView.js"), "utf8");
+  assert.match(source, /const defer = \(name, \.\.\.args\) => queueMicrotask/);
+  assert.doesNotMatch(source, /setTimeout\(\(\) => call\(/);
+});
+
+test("setSpeaker stores the stable actor id used by the visual-novel dialogue", () => {
+  const image = { src: "", alt: "", hidden: true, removeAttribute(name) { if (name === "src") this.src = ""; } };
+  const view = {
+    dialogue: { hidden: false, dataset: {} },
+    speakerName: { textContent: "" },
+    speakerPortrait: image
+  };
+
+  AppView.prototype.setSpeaker.call(view, {
+    id: "van-gogh",
+    name: "VAN GOGH",
+    fullName: "Vincent van Gogh",
+    portrait: "/assets/portraits/van-gogh.jpg"
+  });
+
+  assert.equal(view.dialogue.dataset.speakerId, "van-gogh");
+  assert.match(view.speakerName.textContent, /VAN GOGH/);
+});
+
+test("hidden or transitioning dialogue clears stale speaker identity", () => {
+  const conversation = conversationView();
+  AppView.prototype.showCompanionConversation.call(conversation, [
+    { speakerId: "monet", speaker: "Claude Monet", text: "Look again." }
+  ]);
+  assert.equal(conversation.companionConversation.dataset.speakerId, "monet");
+  assert.equal(AppView.prototype.suspendCompanionConversation.call(conversation), true);
+  assert.equal(conversation.companionConversation.dataset.speakerId, undefined);
+
+  assert.match(AppView.prototype.presentEntry.toString(), /delete this\.dialogue\.dataset\.speakerId/);
+  assert.match(AppView.prototype.beginWorldTransition.toString(), /delete this\.dialogue\.dataset\.speakerId/);
+  assert.match(AppView.prototype.enterFinalWorld.toString(), /delete this\.dialogue\.dataset\.speakerId/);
+});
+
+test("every artwork question exposes a direct skip without fabricating a reply", async () => {
+  const source = await readFile(path.join(ROOT, "src/ui/AppView.js"), "utf8");
+  assert.match(source, /dataset:\s*\{ skipArtwork: "true" \}/);
+  assert.match(source, /call\("onSkipArtwork", \{ source: "station-question" \}\)/);
+  assert.match(source, /allowSkip = true/);
+  assert.match(source, /companionConversationSkip\.hidden = !allowSkip/);
+});
+
+test("an async rerender preserves only the current artwork question draft", () => {
+  const key = "threshold-conservatory:threshold-detail-1:aic-27992";
+  assert.equal(
+    preserveStationQuestionDraft(key, key, "How does this doorway redirect my attention?"),
+    "How does this doorway redirect my attention?"
+  );
+  assert.equal(preserveStationQuestionDraft(key, `${key}-next`, "stale question"), "");
+  assert.equal(preserveStationQuestionDraft("", key, "stale question"), "");
+  assert.equal(preserveStationQuestionDraft("", key, "", "Draft restored after walking"), "Draft restored after walking");
+  assert.equal(preserveStationQuestionDraft(key, key, "x".repeat(700)).length, 600);
+});
+
+test("the final answer returns the interpretive lenses and preserves learner ownership", async () => {
   const source = await readFile(path.join(ROOT, "src/ui/AppView.js"), "utf8");
   assert.match(source, /ending-company/);
-  assert.match(source, /Your whole company turns back/);
-  assert.match(source, /QUESTION EXPLORATION COMPLETE/);
+  assert.match(source, /Your chosen AI lenses turn toward you/);
+  assert.match(source, /answer this journey allowed you to form/);
+  assert.match(source, /YOUR QUESTION, RECOMPOSED/);
 });
 
 function conversationView() {
   const image = { src: "", alt: "", hidden: true, removeAttribute(name) { if (name === "src") this.src = ""; } };
   const view = {
     app: { dataset: {} },
-    companionConversation: { hidden: true },
+    companionConversation: { hidden: true, dataset: {} },
     companionConversationPortrait: image,
     companionConversationSpeaker: { textContent: "" },
     companionConversationLine: { textContent: "" },
     companionConversationProgress: { textContent: "" },
+    companionConversationSkip: { hidden: false },
     companionConversationNext: { textContent: "" },
     conversationTurns: [],
     conversationIndex: -1,
-    conversationCompleteLabel: "Continue"
+    conversationCompleteLabel: "Continue",
+    inquiryBusyStates: [],
+    setInquiryBusy(busy) { this.inquiryBusyStates.push(busy); }
   };
   view.renderCompanionConversationTurn = AppView.prototype.renderCompanionConversationTurn;
+  view.hideCompanionConversation = AppView.prototype.hideCompanionConversation;
   return view;
+}
+
+function progressView() {
+  const attributes = new Map();
+  return {
+    questionProgressQuestion: { textContent: "" },
+    questionProgressValue: { textContent: "" },
+    questionProgressCopy: { textContent: "" },
+    worldProgressValue: { textContent: "" },
+    questionProgressMeter: {
+      attributes,
+      setAttribute: (name, value) => attributes.set(name, value)
+    },
+    questionProgressFill: { style: { width: "" } }
+  };
 }

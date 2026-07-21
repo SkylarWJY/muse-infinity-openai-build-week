@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#eee9df" />
-    <meta name="description" content="MUSE Infinity is an immersive museum built around one question, explored with artists and thinkers across nine living worlds." />
+    <meta name="description" content="MUSE Infinity turns one real question into a walkable impossible museum, where AI interpretive lenses debate real artworks and your observations become a singular answer." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23eee9df'/%3E%3Cpath d='M14 49V15h9l9 17 9-17h9v34h-8V29L35 43h-6l-7-14v20z' fill='%2338203d'/%3E%3C/svg%3E" />
     <title>MUSE∞ | An immersive museum built around one question</title>
     <link rel="stylesheet" href="/styles.css" />
@@ -64,8 +64,8 @@
         <div class="mission-kicker">QUESTION EXPLORATION</div>
         <blockquote id="question-progress-question">Choose the question you will carry.</blockquote>
         <div class="question-progress-meta"><strong id="question-progress-value">0%</strong><span id="world-progress-value">0 / 8 WORLDS</span></div>
-        <div class="question-progress-meter" id="question-progress-meter" role="progressbar" aria-label="Question exploration" aria-valuemin="0" aria-valuemax="8" aria-valuenow="0"><i id="question-progress-fill"></i></div>
-        <p id="question-progress-copy">Your company has not entered the first world yet.</p>
+        <div class="question-progress-meter" id="question-progress-meter" role="progressbar" aria-label="Question exploration" aria-valuemin="0" aria-valuemax="24" aria-valuenow="0"><i id="question-progress-fill"></i></div>
+        <p id="question-progress-copy">Your chosen AI lenses have not entered the first chapter yet.</p>
         <ol id="route-list" hidden aria-hidden="true">
           <li data-route="0" class="available"><b>01</b><span>The Threshold Conservatory</span><small>NEXT</small></li>
           <li data-route="1" class="locked"><b>02</b><span>The Court of Light</span><small>LOCKED</small></li>
@@ -81,19 +81,47 @@
       <section class="entry-panel" id="entry-panel" data-stage="threshold" aria-labelledby="entry-title">
         <p class="eyebrow">00 / THRESHOLD</p>
         <h1 id="entry-title">MUSE&infin;</h1>
-        <p class="threshold-offer">An immersive museum built around one question</p>
-        <p class="entry-copy threshold-copy">Enter with a question. Walk beside artists and thinkers. Let eight worlds change how you see it.</p>
+        <p class="threshold-offer">Understanding is not something you can simply read.</p>
+        <p class="entry-copy threshold-copy">Bring a real question. GPT-5.6 curates real artworks and three AI interpretive lenses across time and space; their disagreements and your actual observations shape an answer only this journey can form.</p>
         <button type="button" class="entry-primary" data-entry-action="cross-threshold">Enter the museum <span aria-hidden="true">→</span></button>
-        <div class="entry-meta"><span id="model-badge">CURATED FALLBACK</span><span>8 process worlds · 8 companions · 1 answer world</span></div>
+        <div class="entry-meta"><span id="model-badge">CURATED FALLBACK</span><span>8 thought chapters · 3 AI interpretive lenses · 1 personalized answer world</span></div>
       </section>
 
       <section class="dialogue" id="dialogue" hidden aria-live="polite">
-        <div class="speaker"><img id="speaker-portrait" hidden alt=""/><span class="speaker-dot"></span><b id="speaker-name">MIRA</b><span id="guide-state">WALKING</span></div>
-        <h2 id="stop-title">Follow the guide</h2>
-        <p id="guide-line"></p>
-        <div class="inquiry-thread" id="inquiry-thread" hidden aria-live="polite"></div>
-        <div class="answers" id="answers"></div>
-        <button type="button" class="continue-button" id="continue-button" hidden>Continue <span aria-hidden="true">→</span></button>
+        <div class="dialogue-bubble" id="dialogue-bubble">
+          <div class="speaker"><img id="speaker-portrait" hidden alt=""/><span class="speaker-dot"></span><b id="speaker-name">MIRA</b><span id="guide-state">WALKING</span></div>
+          <p id="guide-line"></p>
+        </div>
+        <div class="dialogue-response" id="dialogue-response">
+          <h2 id="stop-title">Explore through your chosen AI lenses</h2>
+          <div class="inquiry-thread" id="inquiry-thread" hidden aria-live="polite"></div>
+          <div class="answers" id="answers"></div>
+          <button type="button" class="continue-button" id="continue-button" hidden>Continue <span aria-hidden="true">→</span></button>
+        </div>
+      </section>
+
+      <section class="artwork-story" id="artwork-story" hidden aria-live="polite" aria-atomic="true">
+        <header class="artwork-story-header">
+          <span>LIVING ARTWORK</span>
+          <strong id="artwork-story-title">Artwork story</strong>
+          <small id="artwork-story-status">READY</small>
+        </header>
+        <div class="artwork-story-disclosure" aria-label="Story source labels">
+          <span>CURATED FACT</span>
+          <span>IMAGINED REENACTMENT · NOT HISTORICAL TESTIMONY</span>
+        </div>
+        <p class="artwork-story-description" id="artwork-story-description"></p>
+        <div class="artwork-story-caption" id="artwork-story-caption" hidden>
+          <span id="artwork-story-cue-label">CURATED FACT</span>
+          <b id="artwork-story-speaker">MUSE</b>
+          <p id="artwork-story-line"></p>
+          <a id="artwork-story-source" hidden target="_blank" rel="noopener noreferrer">Art Institute of Chicago source</a>
+        </div>
+        <div class="artwork-story-actions" aria-label="Living artwork controls">
+          <button type="button" id="artwork-story-pause" data-story-action="pause" aria-label="Pause living artwork"><span aria-hidden="true">Ⅱ</span><span class="artwork-story-control-label">Pause</span></button>
+          <button type="button" id="artwork-story-skip" data-story-action="skip" aria-label="Skip living artwork story"><span aria-hidden="true">↠</span><span>Skip story</span></button>
+          <button type="button" id="artwork-story-replay" data-story-action="replay" aria-label="Replay living artwork story" hidden><span aria-hidden="true">↻</span><span>Replay</span></button>
+        </div>
       </section>
 
       <section class="companion-conversation" id="companion-conversation" hidden aria-live="polite" aria-atomic="true">
@@ -102,7 +130,7 @@
           <span class="conversation-line" id="companion-conversation-line"></span>
         </button>
         <div class="conversation-actions">
-          <button type="button" data-conversation-action="skip">Skip artwork</button>
+          <button type="button" id="companion-conversation-skip" data-conversation-action="skip">Skip artwork</button>
           <button type="button" id="companion-conversation-next" data-conversation-action="next">Next voice</button>
         </div>
       </section>
@@ -114,7 +142,6 @@
 
       <div class="movement-controls" id="movement-controls" aria-label="Movement controls">
         <div class="joystick" id="joystick" aria-label="Move"><span></span></div>
-        <button type="button" id="follow-button" aria-pressed="true" hidden><span aria-hidden="true">⌖</span><span>FOLLOW</span></button>
       </div>
 
       <footer class="statusbar">

@@ -15,13 +15,16 @@ const UP = new THREE.Vector3(0, 1, 0);
 const ACTIVE_ARTWORK_SCALE = 1.025;
 const MAX_REQUIRED_VIEW_DISTANCE = 4.5;
 const MIN_REQUIRED_STATION_TRAVEL = 1.5;
+const MIN_EDGE_VIEW_OFFSET = 2.2;
+const EXPECTED_BACKED_MOUNTS = 7;
+const EXPECTED_EDGE_DISPLAYS = 29;
 const REQUIRED_SCENE_IDS = new Set(EXHIBITION_SPINE.map((scene) => scene.id));
 const MINIMUM_WALL_MOUNTS = Object.freeze({
   "threshold-conservatory": 1,
-  "court-of-light": 0,
+  "court-of-light": 2,
   "water-and-light": 1,
   "sunset-frames": 0,
-  "burning-sky": 1,
+  "burning-sky": 2,
   "petal-transition": 1,
   "living-memory": 0,
   "infinite-repetition": 0,
@@ -59,6 +62,8 @@ test("every exhibition scene has four distinct local open-access artworks", () =
 
 test("all four artworks stay grounded, separated, bounded, and guide-facing in every real collider", async () => {
   const loader = new GLTFLoader();
+  let totalMounted = 0;
+  let totalEdgeDisplays = 0;
   for (const world of ARCHIVED_WORLDS) {
     const scene = new THREE.Scene();
     const layer = new WorldLayer(scene, {
@@ -171,11 +176,19 @@ test("all four artworks stay grounded, separated, bounded, and guide-facing in e
       assert.ok(Math.abs(guideY - layer.groundHeightAt(guideX, guideZ)) < 0.0001,
         `${world.sceneId}:${record.artwork.id} guide anchor is floating`);
 
-      const supportsVisible = frame.userData.supports.every((support) => support.visible);
-      const localFrameGroundY = supportsVisible
+      assert.equal(frame.userData.supports, undefined,
+        `${world.sceneId}:${record.artwork.id} must not render freestanding support posts`);
+      const freestanding = frame.userData.freestanding === true;
+      assert.equal(frame.userData.displayZone, freestanding ? "edge" : "wall",
+        `${world.sceneId}:${record.artwork.id} has an inaccurate display-zone label`);
+      const localFrameGroundY = freestanding
         ? layer.walkableGroundHeightAt(frame.position.x, frame.position.z, guideY, 0.45)
         : guideY;
-      if (supportsVisible) {
+      if (freestanding) {
+        totalEdgeDisplays += 1;
+        const viewOffset = Math.hypot(frame.position.x - guideX, frame.position.z - guideZ);
+        assert.ok(viewOffset >= MIN_EDGE_VIEW_OFFSET,
+          `${world.sceneId}:${record.artwork.id} sits inside the activity lane at ${viewOffset.toFixed(2)}m`);
         assert.equal(layer.hasGroundAt(frame.position.x, frame.position.z), true, `${world.sceneId}:${record.artwork.id} frame has no ground`);
         assert.ok(Number.isFinite(localFrameGroundY), `${world.sceneId}:${record.artwork.id} frame changed terrain layer`);
         assert.ok(Math.abs(frame.position.y - localFrameGroundY - 0.02) < 0.0001,
@@ -184,13 +197,14 @@ test("all four artworks stay grounded, separated, bounded, and guide-facing in e
           `${world.sceneId}:${record.artwork.id} freestanding frame crossed a terrain layer`);
       } else {
         mountedCount += 1;
+        totalMounted += 1;
         assert.ok(Math.abs(frame.position.y - guideY - 0.02) < 0.0001,
           `${world.sceneId}:${record.artwork.id} wall frame is not aligned to the guide sightline`);
       }
 
       const facing = new THREE.Vector3(0, 0, 1).applyAxisAngle(UP, frame.rotation.y);
       const towardGuide = new THREE.Vector3(guideX - frame.position.x, 0, guideZ - frame.position.z).normalize();
-      assert.ok(facing.dot(towardGuide) > (supportsVisible ? 0.995 : 0.6), `${world.sceneId}:${record.artwork.id} faces away from its guide`);
+      assert.ok(facing.dot(towardGuide) > (freestanding ? 0.995 : 0.6), `${world.sceneId}:${record.artwork.id} faces away from its guide`);
 
       const frameCenter = frame.position.clone();
       frameCenter.y += 1.48;
@@ -220,7 +234,7 @@ test("all four artworks stay grounded, separated, bounded, and guide-facing in e
           `${world.sceneId}:${record.artwork.id} ${label} is occluded at ${obstruction?.distance?.toFixed(2)}m of ${sightline.length().toFixed(2)}m`);
       }
 
-      if (!supportsVisible) {
+      if (!freestanding) {
         const backingWallGap = layer.backingWallGap({
           x: frame.position.x,
           z: frame.position.z,
@@ -243,6 +257,8 @@ test("all four artworks stay grounded, separated, bounded, and guide-facing in e
       `${world.sceneId} mounted ${mountedCount}/4 artworks; expected at least ${MINIMUM_WALL_MOUNTS[world.sceneId]}`);
     await layer.clear();
   }
+  assert.equal(totalMounted, EXPECTED_BACKED_MOUNTS, "strict collider-backed mount count");
+  assert.equal(totalEdgeDisplays, EXPECTED_EDGE_DISPLAYS, "support-free activity-edge fallback count");
 });
 
 test("portrait artwork geometry preserves the source texture aspect ratio", async () => {

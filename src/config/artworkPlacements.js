@@ -12,16 +12,16 @@ const placement = (x, z, groundY, yaw, guideAnchor, freestanding) => Object.free
 // avoids repeating expensive full-scene raycast searches during every world switch.
 const PLACEMENTS = Object.freeze({
   "threshold-conservatory": Object.freeze([
-    placement(0.48, -8.16, 0.08206, -1.3403, [-3.52798, 0.1135, -7.22031], true),
-    placement(0.48, -16.22667, 0.48687, -Math.PI / 2, [-2.72, 0.06254, -16.22667], true),
-    placement(0.48, -22.69333, 0.40306, -Math.PI / 2, [-2.72, -0.01244, -22.69333], true),
+    placement(0.80129, -8.23513, 0.08206, -1.3403, [-3.52798, 0.1135, -7.22031], true),
+    placement(1.48, -16.22667, 0.48687, -Math.PI / 2, [-2.72, 0.06254, -16.22667], true),
+    placement(1.48, -22.69333, 0.40306, -Math.PI / 2, [-2.72, -0.01244, -22.69333], true),
     placement(6.96459, -34.99974, 1.5362, -1.56419, [-12, 1.5162, -35], false)
   ]),
   "court-of-light": Object.freeze([
-    placement(-1.228, -0.274, 0.61097, Math.PI / 2, [1.972, 0.24479, -0.274], true),
-    placement(1.4, -7, 0.11851, -Math.PI / 2, [-1, 0.23623, -7], true),
-    placement(1.4, -11, 0.28084, -Math.PI / 2, [-1, 0.12988, -11], true),
-    placement(0.2, -12.92154, 0.60536, -2.61799, [-1, 0.63014, -15], true)
+    placement(-2.228, -0.274, 0.61097, Math.PI / 2, [1.972, 0.24479, -0.274], true),
+    placement(2.4, -7, 0.11851, -Math.PI / 2, [-1, 0.23623, -7], true),
+    placement(-5.50056, -4.05744, 0.94289, -0.01408, [-5.54281, 0.92289, -1.05774], false),
+    placement(-8.652, -6.696, 0.84676, -1.56453, [-12.25193, 0.82676, -6.67346], false)
   ]),
   "water-and-light": Object.freeze([
     placement(4.20706, -30.60294, 0.28767, -1.92786, [2.08738, 0.22819, -31.39369], true),
@@ -30,15 +30,15 @@ const PLACEMENTS = Object.freeze({
     placement(0.73883, -11.68178, -0.72537, 2.87979, [1.36, -0.65215, -14], true)
   ]),
   "sunset-frames": Object.freeze([
-    placement(-3.87, -2.36, 1.87798, 2.7468, [-2.87, 1.86188, -4.76], true),
-    placement(0.48, -12.82667, 0.46716, -Math.PI / 2, [-2.72, 0.56936, -12.82667], true),
-    placement(0.48, -19.29333, 0.49476, -Math.PI / 2, [-2.72, 0.43472, -19.29333], true),
-    placement(0.48, -25.76, 0.31838, -Math.PI / 2, [-2.72, 0.54284, -25.76], true)
+    placement(-4.25462, -1.43692, 1.87798, 2.7468, [-2.87, 1.86188, -4.76], true),
+    placement(1.48, -12.82667, 0.46716, -Math.PI / 2, [-2.72, 0.56936, -12.82667], true),
+    placement(1.48, -19.29333, 0.49476, -Math.PI / 2, [-2.72, 0.43472, -19.29333], true),
+    placement(1.48, -25.76, 0.31838, -Math.PI / 2, [-2.72, 0.54284, -25.76], true)
   ]),
   "burning-sky": Object.freeze([
     placement(4.4, 2.8, 0.00884, -Math.PI / 2, [1.8, 0, 2.8], true),
     placement(0.29989, 5.98774, 0.072696, 1.88241, [4.3, 0.02156, 5.4], false),
-    placement(3.043, 9, 0.00405, Math.PI, [3.043, 0.05224, 6.8], true),
+    placement(-0.89355, 2.68792, 0.06383, 2.03976, [1.24734, 0.04383, 1.60321], false),
     placement(1.62117, -5.18178, 0.02247, -2.87979, [1, 0.38432, -7.5], true)
   ]),
   "petal-transition": Object.freeze([

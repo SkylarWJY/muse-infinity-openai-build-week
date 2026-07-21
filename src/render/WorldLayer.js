@@ -23,8 +23,28 @@ const HORIZONTAL_COLLISION_LOOKAHEAD = 1.5;
 const HORIZONTAL_CACHE_DIRECTION_DOT = 0.998;
 const HORIZONTAL_CACHE_LATERAL_TOLERANCE = 0.04;
 const SPLAT_PRESENTATION_STABLE_CHECKS = 3;
+const PAGED_SPLAT_PRESENTATION_TIMEOUT_MS = 30_000;
+const FRAME_FINISHES = Object.freeze({
+  "warm-wood": Object.freeze({ color: 0x745746, mat: 0xeee6d8, roughness: 0.78, metalness: 0.03 }),
+  "aged-brass": Object.freeze({ color: 0x9a8055, mat: 0xeee6d8, roughness: 0.48, metalness: 0.42 }),
+  "warm-white": Object.freeze({ color: 0xc7bba7, mat: 0xf2ebdf, roughness: 0.84, metalness: 0.02 }),
+  sage: Object.freeze({ color: 0x66766a, mat: 0xe9e5da, roughness: 0.82, metalness: 0.03 }),
+  plum: Object.freeze({ color: 0x725a67, mat: 0xeee3df, roughness: 0.8, metalness: 0.03 })
+});
+const SCENE_FRAME_FINISHES = Object.freeze({
+  "threshold-conservatory": Object.freeze(["sage", "sage", "warm-wood", "aged-brass"]),
+  "court-of-light": Object.freeze(["plum", "plum", "warm-white", "aged-brass"]),
+  "water-and-light": Object.freeze(["sage", "warm-white", "sage", "aged-brass"]),
+  "sunset-frames": Object.freeze(["warm-wood", "aged-brass", "warm-wood", "plum"]),
+  "burning-sky": Object.freeze(["aged-brass", "warm-wood", "aged-brass", "plum"]),
+  "petal-transition": Object.freeze(["warm-wood", "warm-white", "warm-wood", "aged-brass"]),
+  "living-memory": Object.freeze(["plum", "warm-wood", "plum", "aged-brass"]),
+  "infinite-repetition": Object.freeze(["plum", "aged-brass", "plum", "warm-wood"]),
+  "personal-dream-world": Object.freeze(["warm-white", "aged-brass", "warm-white", "plum"])
+});
+const DEFAULT_FRAME_FINISHES = Object.freeze(["warm-wood", "aged-brass", "sage", "plum"]);
 
-export function resolveSceneQuality({ mobile = false, mode = "high" } = {}) {
+export function resolveSceneQuality({ mobile = false, mode = "balanced" } = {}) {
   if (mode === "balanced") {
     return mobile
       ? quality(1.25, 400_000, 1.25, 1.5, false, 1_048_576, 150)
@@ -59,8 +79,57 @@ export function currentSceneQuality() {
   const requested = typeof window !== "undefined"
     ? new URLSearchParams(window.location.search).get("quality")
     : null;
-  const mode = ["high", "balanced", "performance"].includes(requested) ? requested : "high";
+  const mode = ["high", "balanced", "performance"].includes(requested) ? requested : "balanced";
   return resolveSceneQuality({ mobile, mode });
+}
+
+export function resolveArtworkFramePalette(world = {}, artworkIndex = 0, artworkId = "") {
+  const sceneId = String(world?.sceneId || "");
+  const sequence = SCENE_FRAME_FINISHES[sceneId] || DEFAULT_FRAME_FINISHES;
+  const index = positiveModulo(Math.trunc(Number(artworkIndex) || 0), sequence.length);
+  const family = sequence[index];
+  const finish = FRAME_FINISHES[family];
+  const environmentColor = validHexColor(world?.palette?.wall, world?.palette?.floor, 0xd8d0c4);
+  const environmentMix = [0.07, 0.11, 0.05, 0.09][index];
+  const variation = (stableStringHash(`${sceneId}:${artworkId || index}`) % 3 - 1) * 0.012;
+  const frameColor = constrainDisplayColor(
+    shiftDisplayLightness(mixDisplayColors(finish.color, environmentColor, environmentMix), variation),
+    { minLightness: 0.3, maxLightness: 0.7, maxSaturation: 0.42 }
+  );
+  let matColor = constrainDisplayColor(
+    mixDisplayColors(finish.mat, validHexColor(world?.palette?.sky, environmentColor), 0.06),
+    { minLightness: 0.84, maxLightness: 0.94, maxSaturation: 0.28 }
+  );
+  matColor = ensureMatteContrast(frameColor, matColor, 0.18);
+  const restrainedAccent = constrainDisplayColor(
+    validHexColor(world?.palette?.accent, finish.color),
+    { minLightness: 0.32, maxLightness: 0.68, maxSaturation: 0.46 }
+  );
+  const activeColor = constrainDisplayColor(
+    mixDisplayColors(frameColor, restrainedAccent, 0.22),
+    { minLightness: 0.32, maxLightness: 0.7, maxSaturation: 0.46 }
+  );
+
+  return Object.freeze({
+    family,
+    frameColor,
+    matColor,
+    activeColor,
+    frameRoughness: finish.roughness,
+    frameMetalness: finish.metalness,
+    matRoughness: 0.94,
+    matMetalness: 0
+  });
+}
+
+export function resolveSceneBackdrop(world = {}) {
+  const sky = validHexColor(world?.palette?.sky, 0x59615e);
+  const wall = validHexColor(world?.palette?.wall, world?.palette?.floor, sky);
+  return constrainDisplayColor(mixDisplayColors(sky, wall, 0.42), {
+    minLightness: 0.14,
+    maxLightness: 0.72,
+    maxSaturation: 0.22
+  });
 }
 
 export class WorldLayer {
@@ -120,7 +189,7 @@ export class WorldLayer {
     this.groundCache.clear();
     if (token !== this.buildToken) return false;
     this.activeWorld = world;
-    this.scene.background = new THREE.Color(world.palette.sky);
+    this.scene.background = new THREE.Color(resolveSceneBackdrop(world));
     this.scene.fog = new THREE.Fog(world.palette.sky, 22, 72);
     this.buildFloor(world);
     this.buildArchitecture(world);
@@ -144,6 +213,7 @@ export class WorldLayer {
     if (token !== this.buildToken) return false;
     this.layoutArtworks(world);
     if (live) {
+      this.lastArchiveError = null;
       this.onStatus({ type: this.archive?.type || world.render, live: true, pending: false, world, message: `${world.name} · high-fidelity archive live` });
       return true;
     }
@@ -233,26 +303,38 @@ export class WorldLayer {
       frame.name = `artwork-${artwork.id}`;
       frame.userData.stopId = index === 0 ? stop.id : null;
       frame.userData.artwork = artwork;
+      const framePalette = resolveArtworkFramePalette(world, index, artwork.id);
+      frame.userData.framePalette = framePalette;
 
       const border = new THREE.Mesh(
         new THREE.BoxGeometry(canvasWidth + 0.24, canvasHeight + 0.24, 0.07),
-        new THREE.MeshBasicMaterial({ color: 0x4a3322, toneMapped: false })
+        new THREE.MeshStandardMaterial({
+          color: framePalette.frameColor,
+          roughness: framePalette.frameRoughness,
+          metalness: framePalette.frameMetalness,
+          toneMapped: false
+        })
       );
       border.position.set(0, 1.48, 0.04);
       const mat = new THREE.Mesh(
         new THREE.PlaneGeometry(canvasWidth + 0.14, canvasHeight + 0.14),
-        new THREE.MeshBasicMaterial({ color: 0xf3efe6, toneMapped: false })
+        new THREE.MeshStandardMaterial({
+          color: framePalette.matColor,
+          roughness: framePalette.matRoughness,
+          metalness: framePalette.matMetalness,
+          toneMapped: false
+        })
       );
       mat.position.set(0, 1.48, 0.081);
       const picture = new THREE.Mesh(
         new THREE.PlaneGeometry(canvasWidth, canvasHeight),
-        new THREE.MeshBasicMaterial({ map: texture, color: texture ? 0xffffff : world.palette.accent, toneMapped: false })
+        new THREE.MeshBasicMaterial({ map: texture, color: texture ? 0xffffff : framePalette.activeColor, toneMapped: false })
       );
       picture.position.set(0, 1.48, 0.086);
       picture.userData.artwork = artwork;
       frame.add(border, mat, picture);
       this.artworkGroup.add(frame);
-      this.artworks.set(key, { key, index, stopId: index === 0 ? stop.id : null, artwork, frame, picture, border, mat });
+      this.artworks.set(key, { key, index, stopId: index === 0 ? stop.id : null, artwork, frame, picture, border, mat, palette: framePalette });
       if (index === 0) this.onArtworkReady(stop.id, frame);
     });
     this.layoutArtworks(world);
@@ -290,18 +372,16 @@ export class WorldLayer {
       record.frame.rotation.y = placement.yaw;
       record.frame.userData.guideAnchor = [...placement.guideAnchor];
       record.frame.userData.lookAt = [...placement.lookAt];
-      if (!record.frame.userData.supports) {
-        const left = artworkSupport();
-        const right = artworkSupport();
-        left.position.set(-0.42, 0.64, 0);
-        right.position.set(0.42, 0.64, 0);
-        record.frame.add(left, right);
-        record.frame.userData.supports = [left, right];
-      }
-      for (const support of record.frame.userData.supports) support.visible = placement.freestanding;
+      record.frame.userData.freestanding = placement.freestanding;
+      record.frame.userData.displayZone = placement.freestanding ? "edge" : "wall";
       record.frame.updateMatrixWorld(true);
       occupied.push(placement);
     }
+  }
+
+  setArtworksVisible(visible = true) {
+    this.artworkGroup.visible = Boolean(visible);
+    return this.artworkGroup.visible;
   }
 
   resolveAuthoredArtworkPlacement(source, visibilityProbe = defaultVisibilityProbe()) {
@@ -867,10 +947,20 @@ export class WorldLayer {
     };
   }
 
+  artworkAnchorMatrix(artworkId) {
+    const id = String(artworkId || "").trim();
+    if (!id) return null;
+    const record = [...this.artworks.values()].find((candidate) => candidate.artwork.id === id);
+    if (!record?.frame || record.frame.visible === false || record.frame.userData.placementError) return null;
+    record.frame.updateWorldMatrix(true, false);
+    return record.frame.matrixWorld.clone();
+  }
+
   highlight(stopId, effect = "focus") {
     for (const [id, artwork] of this.artworks) {
       const active = id === stopId || artwork.stopId === stopId || artwork.artwork.id === stopId;
-      artwork.border.material.color.set(active ? this.activeWorld.palette.accent : 0x4a3322);
+      const palette = artwork.palette || resolveArtworkFramePalette(this.activeWorld, artwork.index, artwork.artwork.id);
+      artwork.border.material.color.set(active ? palette.activeColor : palette.frameColor);
       artwork.border.material.opacity = active && effect === "echo" ? 0.82 : 1;
       artwork.border.material.transparent = artwork.border.material.opacity < 1;
       artwork.frame.scale.setScalar(active ? ACTIVE_ARTWORK_SCALE : 1);
@@ -986,17 +1076,19 @@ export class WorldLayer {
       await waitForSplatFrame(
         spark,
         splat,
-        paged ? 15_000 : 45_000,
+        paged ? PAGED_SPLAT_PRESENTATION_TIMEOUT_MS : 45_000,
         () => token !== this.buildToken || this.archive !== archived,
         {
-          minimumActiveSplats: presentationSplatThreshold(this.quality)
+          minimumActiveSplats: presentationSplatThreshold(this.quality),
+          minimumLoadedSplats: presentationLoadedSplatThreshold(this.quality)
         }
       );
     } catch (error) {
       error.archiveMetrics = {
         activeSplats: Number(spark.activeSplats) || 0,
         loadedSplats: Number(splat.paged?.numSplats || splat.numSplats) || 0,
-        requiredActiveSplats: presentationSplatThreshold(this.quality)
+        requiredActiveSplats: presentationSplatThreshold(this.quality),
+        requiredLoadedSplats: presentationLoadedSplatThreshold(this.quality)
       };
       if (this.archive === archived) {
         this.archive = null;
@@ -1053,7 +1145,7 @@ export class WorldLayer {
   revealArchive() {
     this.scenery.visible = false;
     this.artworkGroup.visible = true;
-    this.scene.background = new THREE.Color(0x000000);
+    this.scene.background = new THREE.Color(resolveSceneBackdrop(this.activeWorld));
     this.scene.fog = null;
     if (this.renderer) {
       this.renderer.toneMapping = THREE.NoToneMapping;
@@ -1305,21 +1397,21 @@ export async function waitForSplatFrame(
   splat,
   timeoutMs,
   cancelled = () => false,
-  { minimumActiveSplats = 1 } = {}
+  { minimumActiveSplats = 1, minimumLoadedSplats = 1 } = {}
 ) {
   const deadline = Date.now() + timeoutMs;
   let stableChecks = 0;
   while (Date.now() < deadline) {
     if (cancelled()) throw new Error("splat_frame_cancelled");
     if (hasRenderableSplatFrame(spark, splat)) {
-      stableChecks = hasPresentationReadySplatFrame(spark, splat, minimumActiveSplats)
+      stableChecks = hasPresentationReadySplatFrame(spark, splat, minimumActiveSplats, minimumLoadedSplats)
         ? stableChecks + 1
         : 0;
       if (stableChecks >= SPLAT_PRESENTATION_STABLE_CHECKS) return;
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  while (hasPresentationReadySplatFrame(spark, splat, minimumActiveSplats)) {
+  while (hasPresentationReadySplatFrame(spark, splat, minimumActiveSplats, minimumLoadedSplats)) {
     stableChecks += 1;
     if (stableChecks >= SPLAT_PRESENTATION_STABLE_CHECKS) return;
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -1336,14 +1428,84 @@ export function hasRenderableSplatFrame(spark, splat) {
   return loadedSplats > 0 && (spark?.activeSplats || 0) > 0;
 }
 
-export function hasPresentationReadySplatFrame(spark, splat, minimumActiveSplats = 1) {
-  const threshold = Math.max(1, Number(minimumActiveSplats) || 1);
-  return hasRenderableSplatFrame(spark, splat) && (spark?.activeSplats || 0) >= threshold;
+export function hasPresentationReadySplatFrame(spark, splat, minimumActiveSplats = 1, minimumLoadedSplats = 1) {
+  const activeThreshold = Math.max(1, Number(minimumActiveSplats) || 1);
+  const loadedThreshold = Math.max(1, Number(minimumLoadedSplats) || 1);
+  const instance = spark?.lodInstances?.get?.(splat);
+  const loadedSplats = splat?.paged?.numSplats || instance?.numSplats || splat?.numSplats || 0;
+  return hasRenderableSplatFrame(spark, splat)
+    && (spark?.activeSplats || 0) >= activeThreshold
+    && loadedSplats >= loadedThreshold;
 }
 
 export function presentationSplatThreshold(quality = {}) {
   const target = Math.max(1, Number(quality.lodSplatCount) || 1);
-  return Math.round(Math.min(135_000, Math.max(40_000, target * 0.03)));
+  return Math.round(Math.min(60_000, Math.max(40_000, target * 0.01)));
+}
+
+export function presentationLoadedSplatThreshold(quality = {}) {
+  const target = Math.max(1, Number(quality.lodSplatCount) || 1);
+  return Math.round(Math.min(500_000, Math.max(100_000, target * 0.1)));
+}
+
+function validHexColor(...candidates) {
+  const match = candidates.find((value) => Number.isInteger(value) && value >= 0 && value <= 0xffffff);
+  return match ?? 0x59615e;
+}
+
+function mixDisplayColors(left, right, amount) {
+  return new THREE.Color(validHexColor(left))
+    .lerp(new THREE.Color(validHexColor(right)), clamp(Number(amount) || 0, 0, 1))
+    .getHex(THREE.SRGBColorSpace);
+}
+
+function constrainDisplayColor(color, {
+  minLightness = 0,
+  maxLightness = 1,
+  maxSaturation = 1
+} = {}) {
+  const value = new THREE.Color(validHexColor(color));
+  const hsl = {};
+  value.getHSL(hsl, THREE.SRGBColorSpace);
+  value.setHSL(
+    hsl.h,
+    Math.min(maxSaturation, hsl.s),
+    clamp(hsl.l, minLightness, maxLightness),
+    THREE.SRGBColorSpace
+  );
+  return value.getHex(THREE.SRGBColorSpace);
+}
+
+function shiftDisplayLightness(color, amount) {
+  const value = new THREE.Color(validHexColor(color));
+  const hsl = {};
+  value.getHSL(hsl, THREE.SRGBColorSpace);
+  value.setHSL(hsl.h, hsl.s, clamp(hsl.l + amount, 0, 1), THREE.SRGBColorSpace);
+  return value.getHex(THREE.SRGBColorSpace);
+}
+
+function ensureMatteContrast(frameColor, matColor, minimumDifference) {
+  const frameHsl = {};
+  const matHsl = {};
+  new THREE.Color(frameColor).getHSL(frameHsl, THREE.SRGBColorSpace);
+  const matte = new THREE.Color(matColor);
+  matte.getHSL(matHsl, THREE.SRGBColorSpace);
+  const targetLightness = Math.max(matHsl.l, Math.min(0.94, frameHsl.l + minimumDifference));
+  matte.setHSL(matHsl.h, matHsl.s, targetLightness, THREE.SRGBColorSpace);
+  return matte.getHex(THREE.SRGBColorSpace);
+}
+
+function stableStringHash(value) {
+  let hash = 2166136261;
+  for (const character of String(value)) {
+    hash ^= character.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function positiveModulo(value, divisor) {
+  return ((value % divisor) + divisor) % divisor;
 }
 
 function artworkAspect(texture) {
@@ -1362,13 +1524,6 @@ function artworkVisibilityProbe(border) {
 
 function defaultVisibilityProbe() {
   return { halfWidth: 0.7, halfHeight: 0.7 };
-}
-
-function artworkSupport() {
-  return new THREE.Mesh(
-    new THREE.BoxGeometry(0.035, 1.28, 0.035),
-    new THREE.MeshBasicMaterial({ color: 0x30271f, toneMapped: false })
-  );
 }
 
 function insideBounds(x, z, bounds, inset = 0) {

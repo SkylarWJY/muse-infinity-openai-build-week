@@ -13,7 +13,8 @@ const ROOT = path.resolve(import.meta.dirname, "..");
 const ARTWORK_EDGE_CLEARANCE = 1;
 const PERSON_RADIUS = 0.32;
 const ENTRANCE_HALF_WIDTH = 0.45;
-const ROUTE_HALF_WIDTH = 0.25;
+const ROUTE_GROUND_HALF_WIDTH = 0.25;
+const ROUTE_ARTWORK_CLEARANCE = 0.45;
 const GROUND_SAMPLE_SPACING = 0.3;
 const MAX_GROUND_STEP = 0.35;
 const EPSILON = 1e-7;
@@ -21,6 +22,21 @@ const EPSILON = 1e-7;
 globalThis.ProgressEvent ??= class ProgressEvent {
   constructor(type, init = {}) { Object.assign(this, { type }, init); }
 };
+
+test("Monet starts on the raised walkway with a shallower camera composition", async () => {
+  const galleries = await loadGalleries();
+  const gallery = galleries.find(({ world }) => world.sceneId === "water-and-light");
+  assert.ok(gallery);
+  const { world, layer } = gallery;
+  const { player, occupants } = nominalInitialPositions(world, layer);
+  assert.ok(Math.abs(world.profile.spawn.x - 3.162) < 0.0001);
+  assert.equal(world.profile.cameraPitch, -0.06);
+  assert.equal(world.profile.cameraDistance, 5.2);
+  assert.ok(player.x >= 2.65 && player.y >= 0.15,
+    `visitor must start on the walkway, received ${player.x.toFixed(2)},${player.y.toFixed(2)}`);
+  assert.ok(occupants.every(({ position }) => position.y >= 0.1),
+    "the initial company must not be staged in the pond");
+});
 
 test("all nine galleries preserve four artworks with at least 1m between frame edges", async () => {
   const galleries = await loadGalleries();
@@ -97,7 +113,7 @@ test("gallery entrances keep the visitor and three companions outside inflated f
   assert.deepEqual(failures, [], failures.join("\n"));
 });
 
-test("authored guide anchors form continuous collider-grounded segments in artwork order", async () => {
+test("authored guide routes keep a 0.9m artwork corridor over continuous collider ground", async () => {
   const galleries = await loadGalleries();
   const failures = [];
 
@@ -117,7 +133,7 @@ test("authored guide anchors form continuous collider-grounded segments in artwo
         from,
         to,
         groundAt: (x, z, referenceY, maxDelta) => layer.walkableGroundHeightAt(x, z, referenceY, maxDelta),
-        halfWidth: ROUTE_HALF_WIDTH,
+        halfWidth: ROUTE_GROUND_HALF_WIDTH,
         spacing: GROUND_SAMPLE_SPACING,
         maxStep: MAX_GROUND_STEP
       });
@@ -130,11 +146,11 @@ test("authored guide anchors form continuous collider-grounded segments in artwo
 
       for (let artworkIndex = 0; artworkIndex < footprints.length; artworkIndex += 1) {
         const clearance = segmentPolygonClearance(from, to, footprints[artworkIndex]);
-        if (clearance + EPSILON < ROUTE_HALF_WIDTH) {
+        if (clearance + EPSILON < ROUTE_ARTWORK_CLEARANCE) {
           failures.push(
             `${world.sceneId} route ${segmentIndex === 0 ? "spawn" : `artwork ${segmentIndex}`}`
             + ` -> artwork ${segmentIndex + 1} passes ${clearance.toFixed(2)}m from artwork `
-            + `${artworkIndex + 1}; needs ${ROUTE_HALF_WIDTH.toFixed(2)}m`
+            + `${artworkIndex + 1}; needs ${ROUTE_ARTWORK_CLEARANCE.toFixed(2)}m`
           );
         }
       }

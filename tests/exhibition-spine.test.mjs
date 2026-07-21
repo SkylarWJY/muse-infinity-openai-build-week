@@ -57,6 +57,13 @@ test("desktop scene quality restores the source-detail budget", () => {
   assert.ok(mobile.maxPagedSplats >= mobile.lodSplatCount);
 });
 
+test("scene quality defaults to the practical balanced budget", () => {
+  assert.deepEqual(resolveSceneQuality(), resolveSceneQuality({ mobile: false, mode: "balanced" }));
+  assert.equal(resolveSceneQuality().devicePixelRatioCap, 1.5);
+  assert.equal(resolveSceneQuality().lodSplatCount, 1_000_000);
+  assert.equal(resolveSceneQuality().pagedExtSplats, false);
+});
+
 test("answer-world meshes preserve 8K texture detail below GitHub's file limit", () => {
   const expected = new Map([
     ["/assets/worlds/yellow-infinity-room-texture-mesh.glb", 598_495],

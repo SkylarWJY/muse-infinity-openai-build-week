@@ -1,19 +1,28 @@
 # MUSE: Nine Worlds, One Living Question
 
-MUSE turns one life question into an embodied inquiry across a complete nine-world
-exhibition. The visitor chooses up to three historical companions, walks
-with the whole selected company through eight ordered process worlds, studies three required
-artworks in each world, records one scene reflection, convenes the company, and enters a gated
-ninth world only after forming a manifesto.
+MUSE turns a question someone genuinely carries into a walkable "impossible museum." GPT-5.6
+curates real artworks into a bounded journey; up to three AI interpretive companions bring
+cross-temporal artistic and philosophical lenses into the same room, disagree around what the
+visitor actually notices, and carry those observations into an answer concept that could exist
+only after this walk.
+
+The eight-world spine is the Education deepening of the original MUSE Infinity idea, not a
+checklist of lessons. Its three artwork encounters, evidence chain, contradiction choice and
+second GPT transformation make the original arc inspectable: cross space and time, let
+disagreement create thought, then enter the concept shaped by the visitor's own attention.
 
 The high-fidelity spatial environments and embodied characters are the main interaction, not a
 thumbnail gallery. GPT-5.6 supplies bounded curation, provisional synthesis and a
-decision-locked transformation; deterministic code owns the nine-scene order, asset IDs,
+decision-locked transformation; deterministic code owns canonical scene identities and digest order, asset IDs,
 movement, coordinates, grounding, rendering and gates.
 
 Built with Codex for the **Education** track of
 [OpenAI Build Week](https://openai.com/zh-Hans-CN/build-week/).
 Public repository: <https://github.com/baizhiyuan/muse>
+
+This version preserves the original product thesis and extends it with an observable learning
+method. See the original [MUSE Infinity story](https://github.com/SkylarWJY/muse-infinity/blob/main/README.md#L55-L76)
+and [product specification](https://github.com/SkylarWJY/muse-infinity/blob/main/docs/LATEST_PRODUCT_SPEC.md#L3-L21).
 
 <table>
   <tr>
@@ -35,14 +44,15 @@ Public repository: <https://github.com/baizhiyuan/muse>
 
 ## The complete MUSE flow
 
-The experience follows ten narrative beats without compressing them into a shorter route:
+The implementation follows ten state-machine beats, but the visitor-facing story remains one
+continuous arc from a real question to a personal answer:
 
 ```text
 threshold
   -> life_question
   -> companion_selection
   -> ai_curation
-  -> world_exploration (eight ordered worlds)
+  -> world_exploration (eight canonical worlds, freely navigable)
   -> summoning
   -> roundtable
   -> decision
@@ -52,30 +62,37 @@ threshold
 ```
 
 1. Cross the threshold and ask the life question the museum should hold.
-2. Invite one to three companions from eight historical interpretations: Monet,
-   Van Gogh, Socrates, Frida Kahlo, Picasso, Freud, Qi Baishi and Yayoi Kusama.
-3. Let GPT-5.6, or the validated curated fallback, bind that question to the fixed
-   eight-world exhibition spine.
-4. Walk every process world in order with all selected companions physically present. Each
+2. Choose one to three AI interpretive companions from eight bounded lenses associated with
+   Monet, Van Gogh, Socrates, Frida Kahlo, Picasso, Freud, Qi Baishi and infinity/repetition.
+   These are generated interpretations, never authentic quotations, endorsements or the named
+   people speaking.
+3. Let GPT-5.6, or the visibly labeled curated fallback, bind that question to the fixed
+   eight-world exhibition spine. The model shapes the inquiry, not the scene identities or
+   geometry.
+4. Explore the process worlds with the selected interpretive companions physically present. Each
    world contains four globally unique Art Institute of Chicago Open Access works; the first
-   three are required stations and the fourth remains available in the scene. Companion roles
-   rotate by station. The next speaker departs first, and the other independent actors follow
-   on staggered timings to separated, collider-grounded listening positions. After arrival and
-   facing synchronize, the company develops three evidence-based interpretations before the
-   visitor records a bounded choice or a short observation. Completing all three stations opens
-   one scene reflection, which is the single record carried into the eight-scene digest. Frames
+   three form the evidence route and the fourth remains available in the scene. Companion roles
+   rotate by station. All independent actors leave together for separated, collider-grounded,
+   visitor-facing conversation positions. After arrival and
+   facing synchronize, the companions develop distinct, evidence-based interpretations before the
+   visitor records a bounded choice or a short observation. A visitor may skip a work without
+   creating evidence; resolving all three stations with at least one real observation opens
+   one scene reflection, which is the single record carried forward. This mechanic deepens the
+   encounter; it is not presented as completing a classroom task. Frames
    are spaced along validated routes and use a real collider-backed wall only when the full
-   frame passes the backing check; otherwise their supports remain visible.
-5. Review all eight scene reflections at Summoning, then convene the selected company at the
-   Roundtable for a provisional evidence-grounded concept.
-6. Choose the unresolved axis between perception, emotion and invention. On the live path,
+   frame passes the backing check; otherwise the display is moved to a scene edge without legs.
+5. Review the carried observations at Summoning, then convene the AI interpretive companions at
+   the Roundtable. GPT-5.6 must cite evidence from encounters that actually occurred before it
+   can form a provisional concept.
+6. Choose the unresolved contradiction between perception, emotion and invention. On the live path,
    that choice starts a second GPT-5.6 Responses API request with a strict
    transformed-concept schema. It locks the chosen axis and instructs GPT to materially revise
    the title, synthesis, principle and visual prompt before Transformation can complete and
    the Manifesto can be published. No-key mode applies the matching validated curated
    transformation.
 7. Enter **Your Dream World**, the separately gated ninth scene. It is not available in Atlas
-   and there is no manual Van Gogh/Infinity ending chooser.
+   and there is no manual Van Gogh/Infinity ending chooser. The Finale hides the artwork group
+   and stages the whole selected company facing the visitor for a ceremonial close.
 
 Every process station is also gated on a successfully initialized inherited MUSE world asset.
 A full-viewport transition veil shows that world's 1672 x 941 scene poster while the RAD/GLB,
@@ -91,9 +108,9 @@ manifesto without committing final-world entry.
 The complete curated path works without credentials. Missing credentials are reported
 honestly: local assets and validated contracts remain active, and no paid request is sent.
 
-Sound follows that same ten-beat progression. A new four-profile score is synthesized at
-runtime with deterministic Web Audio oscillators and crossfades; it contains no samples or
-reference audio. Visible guide and companion lines are narrated in sequence with the expressive
+Sound follows that same ten-beat progression. Three reviewed public-domain recordings inherited
+from MUSE Infinity score the threshold, exploration and salon acts, with a quiet deterministic
+Web Audio texture underneath. Visible guide and companion lines are narrated one turn at a time with the expressive
 MiniMax `speech-2.8-turbo` cast when configured, official OpenAI `gpt-4o-mini-tts` as the server
 fallback, and browser `SpeechSynthesis` as the final speech-only fallback. The same text always
 remains visible. Narration automatically lowers the score and does not replace the separate
@@ -112,11 +129,16 @@ The first eight worlds are the process. The ninth is the answer and cannot be en
 | 5 | INTENSITY | The Studio of the Burning Sky | Van Gogh Inspired Gallery Interior | Vincent van Gogh | Quality RAD from 3.84M-splat SPZ |
 | 6 | TRANSFORMATION | The Petal Transition Hall | Sunlit Palace Gardens | Qi Baishi | Quality RAD from 4.32M-splat SPZ |
 | 7 | IDENTITY | The Courtyard of Living Memory | Mexican Courtyard Bedroom Fantasy | Frida Kahlo | Quality RAD from 4.32M-splat SPZ |
-| 8 | INFINITY | The Infinite Repetition Chamber | Yellow Polka Dot Infinity Room | Yayoi Kusama | 8K texture GLB; 1.92M-splat fallback |
+| 8 | INFINITY | The Infinite Repetition Chamber | Yellow Polka Dot Infinity Room | Infinity and repetition; AI interpretive lens | 8K texture GLB; 1.92M-splat fallback |
 | 9 | ANSWER | Your Dream World | Fantasy Realm of Shimmering Spheres | Visitor + selected company | 8K texture GLB |
 
 Bright Gallery is a noncanonical local asset. It is not the threshold, a
 process scene, the default route or the final answer in this nine-scene build.
+
+Yayoi Kusama is living. MUSE does not present the infinity/repetition lens, avatar, text or
+synthetic voice as Kusama herself speaking, approving the experience or offering historical
+testimony. This follows the representation boundary in the
+[original product specification](https://github.com/SkylarWJY/muse-infinity/blob/main/docs/LATEST_PRODUCT_SPEC.md#L76-L79).
 
 ## High-fidelity world delivery
 
@@ -132,10 +154,12 @@ stay below GitHub's 100 MB per-file limit:
 - `yellow-infinity-room-texture-mesh.glb`: **73,136,900 bytes**;
 - `fantasy-shimmering-spheres-texture-mesh.glb`: **93,404,352 bytes**.
 
-Default high quality uses DPR 2 and a 4.32M Spark LOD target on desktop, DPR 1.5 and a 750K
-target on mobile, `lodRenderScale: 1`, `lodScale: 2`, and no tone mapping that would alter the
-source colors. `?quality=balanced` and `?quality=performance` provide explicit lower GPU
-budgets without replacing the source files. Only one decoded world is retained at a time.
+The default `balanced` tier uses DPR 1.5 and a 1M Spark LOD target on desktop, DPR 1.25 and a
+400K target on mobile, preserving the source assets while avoiding a multi-million-splat startup
+budget on typical judging devices. `?quality=high` restores DPR 2 / 4.32M on desktop and DPR 1.5 /
+750K on mobile for recording or verified high-end hardware; `?quality=performance` is the
+lower-budget fallback. No tier applies tone mapping that would alter source colors, and only one
+decoded world is retained at a time.
 
 The local server supports HTTP byte ranges (`206`, `Content-Range`, `Accept-Ranges`) and
 immutable asset caching for the large RAD/SPZ/GLB files. Hidden collider meshes
@@ -152,41 +176,45 @@ terminal disposal, including client-aborted archive streams.
 Exact byte counts, SHA-256 hashes, original source sizes, colliders and reproduction commands
 are in [docs/PROVENANCE.md](docs/PROVENANCE.md).
 
-## Rigged learner asset
+## Learner avatars
 
-The learner was regenerated from a strict GPT Image 2 T-pose source and a Tripo-generated
-four-view turnaround, then reconstructed with Tripo v3.1. The deployed 5,009,688-byte GLB has
-21,672 vertices, 37,659 triangles, a semantic 41-joint biped and baked wait/walk clips. Dense
-offline QA checks skin regions, mesh deformation, foot contact, knee motion and limb
-separation across 832 animation samples. The only correction was removal of a low invalid
-leg-twist influence from 24 upper-torso and shoulder vertices before deployment; runtime code does not rewrite
-skin weights. See [the production pipeline](docs/CHARACTER_PIPELINE.md) and
+The default visitor is the user-provided little-girl Tripo export, optimized from 58,341,140
+bytes to a browser-ready 2,066,968-byte GLB with 56,770 vertices and 88,379 triangles. It has
+no skin or baked clips, so the runtime applies the same bounded shader-limb articulation used
+for static interpretive-companion assets while root motion follows the real collider. Its source and
+output hashes are locked in [the learner-girl manifest](assets/generated/learner-girl/manifest.json).
+
+The prior adult learner remains available as the `original` profile. It was reconstructed from
+a strict GPT Image 2 T-pose source and Tripo four-view turnaround; its 5,009,688-byte GLB has a
+semantic 41-joint biped and baked wait/walk clips. Dense offline QA covers skin regions,
+deformation, foot contact, knee motion and limb separation across 832 samples. See
+[the production pipeline](docs/CHARACTER_PIPELINE.md) and
 [the v2 manifest](assets/generated/learner-v2/manifest.json).
 
 ## Scene-specific ambient life
 
-Every canonical world has a restrained deterministic ambient layer: garden butterflies and
-birds, authored water-garden koi and dragonflies, distant crow silhouettes, tropical courtyard
-life, abstract infinity dots or answer-world fireflies. Threshold, Sunset and Petal use a
-checked-in high-detail white rock-dove GLB: its source image was generated with GPT Image 2
-through Tripo's hosted image task, then Tripo v3.1 produced the PBR mesh. The GLB has no skin or
-baked animation clip, but independent PBR vertex-shader deformation visibly flaps its wing
-regions while deterministic paths provide heading, pitch and bank. It is therefore runtime
-shader-articulated, not falsely represented as a skeletally animated bird. A concrete procedural
-white-dove fallback appears only if the detailed GLB cannot load. Other small distant life uses
-code-native articulated geometry and efficient point fields. World switches dispose the old
-cast, and dynamic point fields use a stable authored activity bound instead of a stale first-frame
-bound.
+Visible ambient life is deliberately narrower than earlier prototypes. The old procedural birds,
+butterflies, dragonflies, koi and the unskinned, clipless white-dove GLB have been removed from
+the visible scene configuration. Only the abstract infinity dots and answer-world fireflies
+remain. The retired dove manifest stays in the provenance ledger; it is not evidence of a
+currently deployed ambient character.
+
+Any future concrete ambient subject must pass the complete gate recorded in code: GPT Image 2
+reference, identity-consistent multiview, Tripo GLB reconstruction, a named embedded animation
+clip and approved visual QA. Unapproved, missing or static candidates remain invisible and have
+no procedural primitive fallback.
 `window.__MUSE_METRICS__.ambient` reports the active scene, kinds, count and motion state.
-See the [complete dove production manifest](assets/generated/ambient-avian-v1/manifest.json).
+See the [retired dove production manifest](assets/generated/ambient-avian-v1/manifest.json) and
+[current public build evidence](docs/BUILD_PROCESS_EVIDENCE.md).
 
 ## GPT-5.6 model and provider boundary
 
 Every language and judgment request is locked to GPT-5.6 (`gpt-5.6` or the explicitly allowed
-`gpt-5.6-sol`). The server accepts exactly two HTTPS origins: the official OpenAI Platform at
+`gpt-5.6-sol`). The server accepts exactly two remote HTTPS origins: the official OpenAI Platform at
 `https://api.openai.com`, or the disclosed authorized OpenAI-compatible gateway at
-`https://api.baizhiyuan.cloud`. The compatible gateway is reasoning-only. OpenAI Realtime and
-OpenAI TTS are enabled only when the official origin is configured; this prevents a compatible
+`https://api.baizhiyuan.cloud`. Local development may explicitly reuse the current user's
+`~/.codex/auth.json` and selected loopback `/v1` Responses provider. Compatible providers are
+reasoning-only. OpenAI Realtime and OpenAI TTS are enabled only when the official origin is configured; this prevents a compatible
 Responses endpoint from being misrepresented as support for unrelated speech endpoints. No
 alternate reasoning-model family or open provider registry is supported.
 
@@ -223,7 +251,8 @@ alternate reasoning-model family or open provider registry is supported.
 - **Fallback:** unavailable, invalid or incomplete output is labeled `CURATED DEMO` and uses
   the same contracts and gates.
 
-Tripo is used only in the offline character and white-dove asset-production workflows. World
+Tripo is used only in offline asset-production workflows; the recorded white-dove result is no
+longer visible in the current ambient configuration. World
 Labs produced the inherited prepared spatial assets and also has an optional admin-gated Forge
 endpoint for isolated spatial variations; Forge is outside the canonical journey and performs
 no language reasoning. The competition's
@@ -243,6 +272,59 @@ The final claim is intentionally precise: **GPT personalizes the concept** (`wor
 pre-generated Shimmering Spheres realization**. MUSE does not claim that GPT generates new
 final geometry during the session.
 
+## Three distinct AI production chains
+
+MUSE keeps runtime reasoning, offline asset production and software engineering separate so
+the demo never credits one tool for another tool's output.
+
+1. **GPT-5.6 runtime core:** visitor question -> strict structured curation over the known
+   eight-world spine -> artwork-fact-grounded dialogue -> Roundtable over the carried evidence
+   -> a second, contradiction-triggered concept transformation. The UI visibly distinguishes
+   `GPT-5.6 · OPENAI LIVE` from `CURATED FALLBACK` / `CURATED DEMO`; fallback content is never
+   presented as a live model response.
+2. **GPT Image 2 offline references:** GPT Image 2 creates images, not GLBs. The retained adult
+   learner follows GPT Image 2 T-pose/reference -> Tripo four-view turnaround -> Tripo v3.1
+   `multiview_to_model` -> GLB -> rig/animation -> offline QA. The retired white-dove experiment
+   followed the image/reference and Tripo reconstruction boundary but produced no embedded clip,
+   so it is not visible now. The default little-girl learner is
+   a user-provided Tripo model and is not credited to GPT Image 2. See
+   [the character pipeline](docs/CHARACTER_PIPELINE.md) and the
+   [GPT Image 2 model documentation](https://developers.openai.com/api/docs/models/gpt-image-2).
+3. **Codex / OMX engineering:** Deep Interview -> consensus plan -> implementation -> targeted
+   tests -> adversarial QA -> review. A redacted record of user-input summaries, constraints,
+   rejected candidates, test repairs and remaining gates is published in
+   [docs/BUILD_PROCESS_EVIDENCE.md](docs/BUILD_PROCESS_EVIDENCE.md); it excludes hidden
+   chain-of-thought, credentials and private runtime logs.
+
+All eight local living-artwork v1 visuals failed visual QA. Production lookup is approved-only,
+therefore every v1 visual is runtime-ineligible and the rejected-visual loader path makes zero
+calls. Their files remain inspectable evidence, not deployed dynamic artworks.
+
+For `aic-111436`, an image-conditioned Marble candidate was rejected. A second text-conditioned
+Marble candidate earned a 9/10 preliminary Hermes static review and is only
+`approved-for-browser-qa`; it is not production-approved or deployed. The current experiment is
+an evidence-triggered, five-second frame portal inspired by Musée du Monde: it opens from the
+painting, performs a bounded camera passage and returns fully to the frame. It remains isolated
+behind the browser-QA path until desktop, mobile, reduced-motion, frame-return and an independent
+visual review pass. Exact World IDs, credit use and local paths are in
+[docs/BUILD_PROCESS_EVIDENCE.md](docs/BUILD_PROCESS_EVIDENCE.md).
+
+## Three-minute demonstration
+
+The planned 2:58 submission cut keeps about 85% of its duration on the real visitor experience:
+question, three interpretive lenses, bounded curation, one full artwork encounter, the
+eight-chapter thought spine, evidence-grounded Roundtable, contradiction transformation and
+the ninth-world reveal. GPT Image 2, Codex, tests and QA appear only in the final 17-second
+making-of, followed by the bounded closing claim: **GPT-5.6 personalized concept - prepared
+spatial realization**. This is designed to satisfy the
+[Build Week video requirement](https://openai.devpost.com/rules) to explain both Codex and
+GPT-5.6 without displacing the product demonstration.
+
+The exact shot timings, current four-quadrant release record, two-loop closeout and optional
+Shotcraft constraints are in [docs/SUBMISSION.md](docs/SUBMISSION.md). Shotcraft is not installed
+or part of the MUSE runtime; it may be used in an isolated Remotion directory only after the
+real WebGL master recording is locked.
+
 ## Run locally
 
 Requirements: Node.js 20.12 or newer.
@@ -256,6 +338,9 @@ npm start
 Open <http://127.0.0.1:4175>. `.env` is optional for the complete curated path.
 
 ```bash
+# Optional: override stale OPENAI_* values with ~/.codex/auth.json and config.toml
+MUSE_OPENAI_CONFIG=codex
+# Otherwise configure the remote provider directly
 OPENAI_API_KEY=...
 # Exact allowlist: official OpenAI, or the authorized reasoning-only gateway
 OPENAI_BASE_URL=https://api.openai.com
@@ -270,7 +355,9 @@ HOST=127.0.0.1
 ```
 
 Secrets remain server-side. `OPENAI_API_KEY` is sent only to the configured allowlisted GPT
-origin; `MINIMAX_API_KEY` is sent only to MiniMax's documented T2A endpoint.
+origin. In Codex mode the auth file must be owned by the current user and inaccessible to group
+or other users, and only an exact loopback `/v1` Responses provider is accepted.
+`MINIMAX_API_KEY` is sent only to MiniMax's documented T2A endpoint.
 Set `HOST=0.0.0.0` only for container or hosted deployment. All nine canonical worlds load
 from local assets and do not require a world-generation service.
 
@@ -304,14 +391,13 @@ a crash; file edits do not trigger restarts because static assets are read per r
 
 - `W A S D` or arrow keys: walk and turn.
 - Pointer drag: look around.
-- Follow control: let the camera follow the active station speaker.
 - Mobile joystick: move without a keyboard.
-- Sound: enable or mute the original procedural score and synthetic guide narration.
+- Sound: enable or mute the public-domain museum score, ambient texture and synthetic guide narration.
 - Voice: start or stop the live microphone conversation; this is independent of passive
   guide narration.
-- Atlas: inspect the eight process worlds without recording progress. The ninth world is
-  deliberately excluded.
-- URL quality control: `?quality=high`, `?quality=balanced` or `?quality=performance`.
+- Atlas: jump freely among all eight process worlds without fabricating visit evidence. The
+  ninth world is deliberately excluded.
+- URL quality control: `?quality=balanced` (default), `?quality=high` or `?quality=performance`.
 
 ## Architecture
 
@@ -325,10 +411,10 @@ src/main.js                              server.mjs
     independent GuideDirector per companion
     ArchivedAvatar / LearnerAvatar
     WorldLayer -> Spark paged RAD / SPZ fallback / 8K GLB / collider
-    artworkPlacements -> nine-world wall and stand anchors
-    sceneCollections -> 36 local AIC Open Access images
+    artworkPlacements -> wall and leg-free edge-display anchors
+    sceneCollections -> 36 local AIC images (32 process, 4 provenance-only Finale records)
   AmbientLife / transition veil          Responses dialogue / Realtime WebRTC
-  ProceduralSoundscape / Narration       MiniMax / official OpenAI speech rendering
+  MuseumScore / ambient texture          MiniMax / official OpenAI narration
   AppView / Profile / Voice / API
 ```
 
@@ -367,18 +453,24 @@ Bundled generated and third-party assets retain their applicable source terms; s
 ## Build Week development record
 
 The core MUSE concept, nine prepared spatial worlds, collider files, scene images, thumbnails,
-historical-character assets and portraits are pre-Submission Period materials controlled by
+interpretive-companion assets and portraits are pre-Submission Period materials controlled by
 the entrant or lawfully sourced under the terms recorded in this repository. During the
 Submission Period, Codex was used to implement and verify the
 strict ten-beat/8+1 journey, three-station scene tours, GPT-5.6 curation and two-stage synthesis,
 independent embodied party movement, artwork correspondence, high-resolution readiness
-transitions, conditional OpenAI Realtime plus MiniMax/OpenAI narration, procedural music,
-generated white-dove ambient life, responsive UI and automated test coverage.
+transitions, conditional OpenAI Realtime plus MiniMax/OpenAI narration, public-domain music,
+ambient approval gates, abstract dots/fireflies, responsive UI and automated test coverage.
 
 This record follows the [OpenAI Build Week Official Rules](https://openai.devpost.com/rules):
 the Project Requirements permit third-party SDKs, APIs and data when the entrant is authorized
 under their terms; existing projects identify Submission Period work; demo music must be
 authorized; and this README identifies the Codex and GPT-5.6 contribution.
+
+The repository did not historically use a documented four-quadrant planning method. Starting
+with the current release closeout, known knowns, known unknowns, recovered repository evidence
+and newly exposed risks are tracked explicitly in
+[the submission plan](docs/SUBMISSION.md#release-closeout-two-loops-maximum). This is a current
+practice, not a retrospective claim about earlier development.
 
 Repository evidence includes Submission Period commits `62a7f59`, `9ab9062`, `7602267` and
 `55fdeed`, plus Codex `/feedback` session

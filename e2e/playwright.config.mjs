@@ -15,6 +15,7 @@ export default defineConfig({
   use: {
     baseURL,
     headless: true,
+    actionTimeout: 15_000,
     screenshot: "only-on-failure",
     trace: "off"
   },

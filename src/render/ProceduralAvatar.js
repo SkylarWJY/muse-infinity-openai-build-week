@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 const MAT = (color, roughness = 0.7, metalness = 0.04) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
+const HEAD_CLEARANCE = 0.36;
 
 export class ProceduralAvatar {
   constructor({ coat = 0x232725, accent = 0xd8ff42, skin = 0x9a6751, scale = 1, name = "Mira" } = {}) {
@@ -106,6 +107,13 @@ export class ProceduralAvatar {
     const badge = mesh(new THREE.BoxGeometry(0.13, 0.16, 0.025), accentMat, [0.205, 1.55, 0.3], [0, 0, -0.1]);
     const badgeClip = mesh(new THREE.BoxGeometry(0.035, 0.028, 0.018), metalMat, [0.205, 1.65, 0.315]);
     this.bodyRoot.add(badge, badgeClip);
+  }
+
+  headWorldPosition(target = new THREE.Vector3()) {
+    const anchor = target?.isVector3 ? target : new THREE.Vector3();
+    const head = this.parts.head;
+    if (head?.localToWorld) return head.localToWorld(anchor.set(0, HEAD_CLEARANCE, 0));
+    return this.group.localToWorld(anchor.set(0, 2.44, 0));
   }
 
   buildBackpack(shellMat, flapMat, accentMat, metalMat) {

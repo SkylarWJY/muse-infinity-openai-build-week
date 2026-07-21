@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "status": "rejected-visual-qa",
+  "artworkId": "aic-111436",
+  "provider": {
+    "name": "World Labs World API",
+    "model": "marble-1.1",
+    "api": "https://api.worldlabs.ai/marble/v1",
+    "documentation": "https://docs.worldlabs.ai/api"
+  },
+  "startedAt": "2026-07-21T16:51:18.702Z",
+  "completedAt": "2026-07-21T16:56:54.323Z",
+  "source": {
+    "type": "image",
+    "path": "assets/art/collection/aic-111436.jpg",
+    "sha256": "1b0679b1534163f79c5c8b5a96632e67555ee88f67ee5278d19a7b96bf0e952c",
+    "bytes": 697660,
+    "promptPath": "assets/generated/living-artworks-v2/prompts/aic-111436-marble.txt",
+    "prompt": "A physically real, intimate late-nineteenth-century still-life room reconstructed from Paul Cezanne's The Basket of Apples. Treat the supplied image as a strict front camera and composition plate. Preserve the painting's deliberately unstable spatial logic: two disjoint tilted table edges, the forward-pitching wicker basket on a slab, the leaning dark-green bottle, the sculptural striped white linen, bread plate, blue-green plaster wall, and every remaining fruit position. Do not normalize or correct the impossible perspective. Build convincing shallow space immediately behind the tabletop, with museum-grade worn wicker, matte wax-bloom heirloom fruit, subtle bruising, aged glass, glazed ceramic, crusty bread, scuffed wood, heavy woven linen fibers, natural cloth weight, and accurate contact shadows. Soft north-window illumination from upper left, deep focus, restrained color, no cinematic bokeh, no people, no frame, no text, no added props. The front-center vermilion apple is intentionally absent, leaving a natural depression in the foreground cloth for a separately animated hero apple.",
+    "mediaAssetId": "97b166c1-fcb4-4367-99c6-8e8cbddf495d"
+  },
+  "generation": {
+    "operationId": "40957cdf-6ae8-49c8-8cc5-4b4f76ee5119",
+    "worldId": "a4b12eab-863e-4a96-b5d0-7136017cbad8",
+    "worldMarbleUrl": "https://marble.worldlabs.ai/world/a4b12eab-863e-4a96-b5d0-7136017cbad8",
+    "caption": "The scene is a physically real, intimate late-nineteenth-century still life room, meticulously reconstructed to replicate the painting style of Paul Cézanne, preserving its deliberately unstable spatial logic. The overall tone is quiet and contemplative, captured with deep focus and restrained color, bathed in soft north-window illumination from the upper left. A heavy, worn wicker basket, filled with matte wax-bloom heirloom fruits, including subtle bruising on some pieces, sits tilted forward on a slab at the left side of the scene. To the right of the basket, a dark-green bottle, made of aged glass, leans precariously on the tabletop, its form rendered with a natural weight. The tabletop itself features two distinct, tilted edges, defying conventional perspective, creating a visually compelling, impossible arrangement. A substantial piece of sculptural, striped white linen, heavy and woven, drapes across the table, with natural cloth weight and intricate folds, forming a natural depression in the foreground cloth where a hero apple, intended for animation, would reside. On the right, a glazed ceramic bread plate holds crusty bread, positioned on the unstable tabletop. Scattered around the linen and on the table are numerous apples and pears, each fruit positioned precisely as in the original painting, maintaining its unique place in the composition. The background consists of a blue-green plaster wall, extending behind the tabletop, rendered with subtle textures and variations in color, creating a shallow space immediately behind the still life arrangement. The floor beneath the table is crafted from scuffed wood, reflecting the aged quality of the setting. Every element casts accurate contact shadows, enhancing the realism of this carefully constructed, painterly environment. ",
+    "request": {
+      "display_name": "MUSE Living Artwork - The Basket of Apples",
+      "model": "marble-1.1",
+      "world_prompt": {
+        "type": "image",
+        "image_prompt": {
+          "source": "media_asset",
+          "media_asset_id": "97b166c1-fcb4-4367-99c6-8e8cbddf495d"
+        },
+        "text_prompt": "A physically real, intimate late-nineteenth-century still-life room reconstructed from Paul Cezanne's The Basket of Apples. Treat the supplied image as a strict front camera and composition plate. Preserve the painting's deliberately unstable spatial logic: two disjoint tilted table edges, the forward-pitching wicker basket on a slab, the leaning dark-green bottle, the sculptural striped white linen, bread plate, blue-green plaster wall, and every remaining fruit position. Do not normalize or correct the impossible perspective. Build convincing shallow space immediately behind the tabletop, with museum-grade worn wicker, matte wax-bloom heirloom fruit, subtle bruising, aged glass, glazed ceramic, crusty bread, scuffed wood, heavy woven linen fibers, natural cloth weight, and accurate contact shadows. Soft north-window illumination from upper left, deep focus, restrained color, no cinematic bokeh, no people, no frame, no text, no added props. The front-center vermilion apple is intentionally absent, leaving a natural depression in the foreground cloth for a separately animated hero apple.",
+        "is_pano": false
+      }
+    }
+  },
+  "credits": {
+    "before": 37260,
+    "after": 35680,
+    "consumed": 1580
+  },
+  "files": [
+    {
+      "path": "world-100k.spz",
+      "bytes": 1321275,
+      "sha256": "a8654d495c44dc2d38165bc33d21e086f873d8e9e2637e9d0638face79c13604",
+      "contentType": "application/octet-stream"
+    },
+    {
+      "path": "world-500k.spz",
+      "bytes": 7627992,
+      "sha256": "b1e57733948920d294b5da71bd55389acb8fb4b5e3b900e0f62802a344a3c742",
+      "contentType": "application/octet-stream"
+    },
+    {
+      "path": "collider.glb",
+      "bytes": 6211276,
+      "sha256": "ece6c073bdc5f5921d87718595a87f48362d1a87d14d9dcd7a6852c9e96582bd",
+      "contentType": "model/gltf-binary"
+    },
+    {
+      "path": "pano.png",
+      "bytes": 12540560,
+      "sha256": "975db8a3543a39a171be6d3f61aa0af8e21299b1d5f278295aa52a686d790d0b",
+      "contentType": "image/png"
+    },
+    {
+      "path": "thumbnail.webp",
+      "bytes": 32914,
+      "sha256": "7aad4ae6d9f62835c4b36456433fac925c20f5c5c97d5d783a7ba3264ea65487",
+      "contentType": "image/webp"
+    }
+  ],
+  "integration": {
+    "visualAsset": null,
+    "candidateVisualAsset": "world-500k.spz",
+    "colliderAsset": "collider.glb",
+    "note": "The SPZ is the visual environment. The collider GLB is not a visual-quality mesh. A separate Tripo hero asset is still required for independent object animation."
+  },
+  "visualQa": {
+    "status": "rejected",
+    "reviewedAt": "2026-07-21T17:00:00.000Z",
+    "evidence": [
+      "thumbnail.webp",
+      "pano.png"
+    ],
+    "reasons": [
+      "Materials retain visible painterly brush treatment instead of the requested photoreal reconstruction.",
+      "The generated room dilutes the impossible tabletop composition with unrelated furniture and architecture.",
+      "The static world does not provide the independent hero apple and cloth motion required by the story."
+    ],
+    "directive": "Do not integrate this candidate. Use a photoreal source plate and a separately generated Tripo hero before repeating visual QA."
+  }
+}

@@ -4,7 +4,14 @@ import fs from "node:fs";
 import { createHash } from "node:crypto";
 import * as THREE from "three";
 import { DEFAULT_LEARNER_AVATAR_ID, LEARNER_AVATARS, getLearnerAvatar } from "../src/config/learnerAvatars.js";
-import { LEARNER_ASSET, LearnerAvatar, clampLearnerProceduralSpeed, learnerMotionForSpeed, resolveLearnerClips } from "../src/render/LearnerAvatar.js";
+import {
+  LEARNER_ASSET,
+  LearnerAvatar,
+  clampLearnerProceduralSpeed,
+  learnerMotionForSpeed,
+  resolveLearnerClips,
+  resolveLearnerMotionPose
+} from "../src/render/LearnerAvatar.js";
 
 const DEFAULT_AVATAR = getLearnerAvatar(DEFAULT_LEARNER_AVATAR_ID);
 const ORIGINAL_AVATAR = getLearnerAvatar("original");
@@ -21,7 +28,13 @@ test("the learner avatar registry defaults to the switchable little-girl profile
   assert.deepEqual(DEFAULT_AVATAR.motionProfile, {
     legUpperY: -0.42,
     legBlendWidth: 0.1,
-    footSeparation: 0.012,
+    legSwingScale: 0.55,
+    kneeBendScale: 0.35,
+    armSwingScale: 0,
+    elbowBendScale: 0,
+    bobScale: 0.35,
+    leanScale: 0.35,
+    footSeparation: 0,
     maxSpeed: 1.33
   });
   assert.equal(Object.isFrozen(DEFAULT_AVATAR.motionProfile), true);
@@ -172,10 +185,11 @@ test("learner avatars articulate static meshes and can switch to the retained sk
   avatar.update(1 / 60, 0.35);
   assert.equal(avatar.group.userData.motion, "walk");
   assert.notEqual(avatar.model.position.y, startY);
-  assert.equal(Math.sign(avatar.motionAngles.leftArmX), -Math.sign(avatar.motionAngles.rightArmX));
+  assert.equal(avatar.motionAngles.leftArmX, 0);
+  assert.equal(avatar.motionAngles.rightArmX, 0);
   assert.equal(Math.sign(avatar.motionAngles.leftLegX), -Math.sign(avatar.motionAngles.rightLegX));
   assert.ok(avatar.motionAngles.leftKneeX > 0 || avatar.motionAngles.rightKneeX > 0);
-  assert.ok(avatar.motionUniforms.footSeparation.value > 0);
+  assert.equal(avatar.motionUniforms.footSeparation.value, 0);
 
   await avatar.setAvatar("original");
   assert.deepEqual(requestedAssets, [DEFAULT_AVATAR.asset, ORIGINAL_AVATAR.asset]);
@@ -193,6 +207,28 @@ test("procedural learner motion cannot exceed the museum walking envelope", () =
   assert.equal(clampLearnerProceduralSpeed(-4), -1.33);
   assert.equal(clampLearnerProceduralSpeed(0.7), 0.7);
   assert.equal(clampLearnerProceduralSpeed(Number.NaN), 0);
+});
+
+test("the static little-girl gait stays inside its conservative visual envelope", () => {
+  const atMuseumPeak = resolveLearnerMotionPose({
+    speed: 1.33,
+    elapsed: 0.262,
+    profile: DEFAULT_AVATAR.motionProfile
+  });
+  const fromExternalOverspeed = resolveLearnerMotionPose({
+    speed: 8,
+    elapsed: 0.262,
+    profile: DEFAULT_AVATAR.motionProfile
+  });
+
+  assert.deepEqual(fromExternalOverspeed, atMuseumPeak);
+  assert.ok(Math.abs(atMuseumPeak.leftLegX) <= 0.294);
+  assert.ok(Math.abs(atMuseumPeak.rightLegX) <= 0.294);
+  assert.ok(atMuseumPeak.leftKneeX <= 0.109);
+  assert.ok(atMuseumPeak.rightKneeX <= 0.109);
+  for (const key of ["leftArmX", "rightArmX", "leftArmZ", "rightArmZ", "leftElbowX", "rightElbowX"]) {
+    assert.equal(atMuseumPeak[key], 0, key);
+  }
 });
 
 test("the last avatar selection wins when an earlier switch resolves late", async () => {

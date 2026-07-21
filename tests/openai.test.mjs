@@ -145,6 +145,37 @@ test("the explicitly authorized Codex gateway can run the allowlisted GPT-5.6-so
   assert.equal(result.model_source, "openai-compatible-gateway");
 });
 
+test("an explicitly loaded local Codex provider can run Responses but not Realtime or narration", async () => {
+  let request;
+  const service = new OpenAIService({
+    apiKey: "local-codex-key",
+    baseUrl: "http://127.0.0.1:19090/v1",
+    model: "gpt-5.6-sol",
+    allowLocalCodexProvider: true,
+    fetchImpl: async (url, options) => {
+      request = { url, headers: options.headers, redirect: options.redirect, body: JSON.parse(options.body) };
+      return {
+        ok: true,
+        json: async () => ({
+          model: "gpt-5.6-sol",
+          output_text: JSON.stringify(createFallbackLesson("notice relation"))
+        })
+      };
+    }
+  });
+
+  const result = await service.createLesson("notice relation", "session-local-codex");
+  assert.equal(request.url, "http://127.0.0.1:19090/v1/responses");
+  assert.equal(request.redirect, "error");
+  assert.equal(request.headers.Authorization, "Bearer local-codex-key");
+  assert.equal(request.body.model, "gpt-5.6-sol");
+  assert.equal(service.gateway, "codex-local");
+  assert.equal(service.realtimeConfigured, false);
+  assert.equal(service.narrationConfigured, false);
+  assert.equal(result.gateway, "codex-local");
+  assert.equal(result.model_source, "codex-config");
+});
+
 test("gateway and model injection stay inside the explicit HTTPS allowlists", () => {
   for (const baseUrl of [
     "http://api.baizhiyuan.cloud",
@@ -161,6 +192,23 @@ test("gateway and model injection stay inside the explicit HTTPS allowlists", ()
   });
   assert.equal(service.gateway, "official");
   assert.equal(service.model, "gpt-5.6");
+
+  for (const [baseUrl, responseUrl] of [
+    ["http://127.0.0.1/v1", "http://127.0.0.1/v1/responses"],
+    ["http://127.0.0.1:19090/v1", "http://127.0.0.1:19090/v1/responses"],
+    ["http://[::1]:19090/v1", "http://[::1]:19090/v1/responses"]
+  ]) {
+    const endpoints = resolveOpenAIEndpoints(baseUrl, { allowLocalCodexProvider: true });
+    assert.equal(endpoints.local, true, baseUrl);
+    assert.equal(endpoints.responses, responseUrl, baseUrl);
+  }
+
+  for (const baseUrl of [
+    "http://127.0.0.1.evil.example:19090/v1",
+    "http://127.0.0.1:19090/admin",
+    "http://localhost:19090/v1",
+    "http://192.168.1.20:19090/v1"
+  ]) assert.deepEqual(resolveOpenAIEndpoints(baseUrl, { allowLocalCodexProvider: true }), OPENAI_ENDPOINTS, baseUrl);
 });
 
 test("the official OpenAI response may report the fixed GPT-5.6 model", async () => {
@@ -262,7 +310,7 @@ test("billable provider POSTs are single-shot even on transient responses", asyn
   assert.equal(result.reason, "rate_limited");
 });
 
-test("live final synthesis uses GPT-5.6, all eight scenes and selected historical perspectives", async () => {
+test("live final synthesis uses GPT-5.6, all eight scenes and selected AI interpretive lenses", async () => {
   const session = completedSession();
   session.station_evidence = completeStationEvidence();
   const salon = createFallbackSalon(createSessionDigest(session));
@@ -280,6 +328,8 @@ test("live final synthesis uses GPT-5.6, all eight scenes and selected historica
   assert.deepEqual(result.data.perspectives.map((item) => item.character_id), ["frida", "socrates"]);
   assert.match(request.body.input[0].content, /visitor_observation is the only visitor-attributed visual observation/i);
   assert.match(request.body.input[0].content, /Never turn an inquiry, choice label, evidence prompt or companion perspective/i);
+  assert.match(request.body.input[0].content, /selected AI interpretive lens/i);
+  assert.doesNotMatch(request.body.input[0].content, /selected historical companion/i);
   assert.match(request.body.input[1].content, /"station_evidence":\[/);
   assert.match(request.body.input[1].content, /"visitor_observation":"","inquiry":/);
   assert.match(request.body.input[1].content, /"evidence_kind":"inquiry"/);
@@ -617,6 +667,7 @@ test("realtime call carries sanitized museum context and language guidance to th
 
   assert.equal(answer, "v=0\r\nanswer");
   assert.equal(request.url, OPENAI_ENDPOINTS.realtime);
+  assert.equal(request.options.redirect, "error");
   assert.match(request.options.headers.Authorization, /^Bearer /);
   assert.equal(session.type, "realtime");
   assert.equal(session.model, "gpt-realtime-2.1");
@@ -669,6 +720,7 @@ test("official narration uses a fixed OpenAI TTS model and allowlisted synthetic
 
   assert.equal(service.narrationConfigured, true);
   assert.equal(request.url, OPENAI_ENDPOINTS.speech);
+  assert.equal(request.options.redirect, "error");
   assert.equal(request.body.model, NARRATION_MODEL);
   assert.equal(request.body.input, "Look first at the changing light.");
   assert.equal(request.body.voice, "coral");

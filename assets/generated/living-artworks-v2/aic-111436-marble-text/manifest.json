@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "status": "approved-for-browser-qa",
+  "artworkId": "aic-111436",
+  "provider": {
+    "name": "World Labs World API",
+    "model": "marble-1.1",
+    "api": "https://api.worldlabs.ai/marble/v1",
+    "documentation": "https://docs.worldlabs.ai/api"
+  },
+  "startedAt": "2026-07-21T17:38:33.486Z",
+  "completedAt": "2026-07-21T17:43:55.214Z",
+  "source": {
+    "type": "text",
+    "path": null,
+    "sha256": null,
+    "bytes": null,
+    "promptPath": "assets/generated/living-artworks-v2/prompts/aic-111436-marble-text.txt",
+    "prompt": "Photorealistic walkable impossible still-life chamber inspired by the spatial tensions of a late-nineteenth-century apple still life, rendered as a physically built museum set rather than a painting. The hero composition occupies a shallow stage immediately in front of the viewer: two visibly disjoint tilted wood table edges follow conflicting vanishing points; a forward-pitching worn wicker basket overflows with irregular heirloom apples; a tall leaning dark-green aged glass bottle divides the composition; a glazed ceramic plate holds crusty bread; and heavy striped white linen cascades toward the viewer in sculptural folds. Leave one natural apple-sized depression empty in the front-center linen for a separately animated hero object. Preserve this intentionally impossible geometry instead of correcting the tables into a normal rectangle. Surround the stage with a restrained blue-green lime-plaster chamber that feels plausible but secondary. Museum-grade tactile realism: individual wicker strands, matte wax bloom and russet bruises on fruit, subsurface fruit skin, dust and micro-scratches in glass, ceramic glaze, bread pores, scuffed wood grain, thick woven linen fibers, realistic cloth weight, ambient occlusion and precise contact shadows. Soft north-window daylight from upper left, neutral filmic exposure, deep focus, natural color separation. Absolutely no brush strokes, canvas texture, illustration, painterly shading, cartoon look, plastic fruit, glossy supermarket apples, people, labels, text, frames, oversized furniture, duplicated baskets, or decorative props. The impossible tabletop must be the immediate focal environment and fill the central field of view.",
+    "mediaAssetId": null
+  },
+  "generation": {
+    "operationId": "ce8d1cfe-7390-4894-9357-123d3820080d",
+    "worldId": "43225634-4b37-474e-bdd6-68ae43d52548",
+    "worldMarbleUrl": "https://marble.worldlabs.ai/world/43225634-4b37-474e-bdd6-68ae43d52548",
+    "semantics": {
+      "metric_scale_factor": 0.3159521818161011,
+      "ground_plane_offset": 0.22479191422462463
+    },
+    "caption": "The scene is a photorealistic, walkable impossible still-life chamber, meticulously rendered to evoke the spatial tensions found in a late-nineteenth-century apple still life, presented as a physically constructed museum set. The overall tone is one of quiet contemplation and meticulous artistry, emphasizing tactile realism and an intentionally disorienting geometry. The hero composition occupies a shallow stage directly in front of the viewer, featuring two visibly disjointed, tilted wooden table edges that follow conflicting vanishing points, creating an impossible yet compelling spatial arrangement. A worn wicker basket, overflowing with irregular heirloom apples, pitches forward precariously. A tall, leaning dark-green aged glass bottle divides the composition, its surface exhibiting dust and micro-scratches. A glazed ceramic plate holds crusty bread, its pores distinctly visible, while heavy striped white linen cascades toward the viewer in sculptural folds, revealing a natural apple-sized depression in its front-center for a separately animated hero object. The surrounding chamber is finished with a restrained blue-green lime plaster, providing a plausible yet secondary backdrop. The realism extends to individual wicker strands, the matte wax bloom and russet bruises on the fruit, the subsurface scattering of fruit skin, the ceramic glaze, scuffed wood grain, and the thick woven fibers of the linen, all rendered with realistic cloth weight, ambient occlusion, and precise contact shadows. Soft north-window daylight illuminates the scene from the upper left, ensuring neutral filmic exposure, deep focus, and natural color separation. The impossible tabletop serves as the immediate focal environment, filling the central field of view. ",
+    "request": {
+      "display_name": "MUSE Living Artwork - Impossible Apple Chamber",
+      "model": "marble-1.1",
+      "world_prompt": {
+        "type": "text",
+        "text_prompt": "Photorealistic walkable impossible still-life chamber inspired by the spatial tensions of a late-nineteenth-century apple still life, rendered as a physically built museum set rather than a painting. The hero composition occupies a shallow stage immediately in front of the viewer: two visibly disjoint tilted wood table edges follow conflicting vanishing points; a forward-pitching worn wicker basket overflows with irregular heirloom apples; a tall leaning dark-green aged glass bottle divides the composition; a glazed ceramic plate holds crusty bread; and heavy striped white linen cascades toward the viewer in sculptural folds. Leave one natural apple-sized depression empty in the front-center linen for a separately animated hero object. Preserve this intentionally impossible geometry instead of correcting the tables into a normal rectangle. Surround the stage with a restrained blue-green lime-plaster chamber that feels plausible but secondary. Museum-grade tactile realism: individual wicker strands, matte wax bloom and russet bruises on fruit, subsurface fruit skin, dust and micro-scratches in glass, ceramic glaze, bread pores, scuffed wood grain, thick woven linen fibers, realistic cloth weight, ambient occlusion and precise contact shadows. Soft north-window daylight from upper left, neutral filmic exposure, deep focus, natural color separation. Absolutely no brush strokes, canvas texture, illustration, painterly shading, cartoon look, plastic fruit, glossy supermarket apples, people, labels, text, frames, oversized furniture, duplicated baskets, or decorative props. The impossible tabletop must be the immediate focal environment and fill the central field of view."
+      }
+    }
+  },
+  "credits": {
+    "before": 35680,
+    "after": 34100,
+    "consumed": 1580
+  },
+  "files": [
+    {
+      "path": "world-100k.spz",
+      "bytes": 1359774,
+      "sha256": "be1bc0595c142e22ea0c97cf50f5e659ecaa1603acc4b77bf9c10fc5aa5494a8",
+      "contentType": "application/octet-stream"
+    },
+    {
+      "path": "world-500k.spz",
+      "bytes": 7785130,
+      "sha256": "5af2e6ff271d348666621d46f52770f910ecfa02f4991e8b7c4a5dd0de614da1",
+      "contentType": "application/octet-stream"
+    },
+    {
+      "path": "collider.glb",
+      "bytes": 7124764,
+      "sha256": "4a3381c6c0c9df28c08376cbf6fc2c39595a4f60fa897f17f516b5319c800f90",
+      "contentType": "model/gltf-binary"
+    },
+    {
+      "path": "pano.png",
+      "bytes": 10821923,
+      "sha256": "ca92a8169887309c130381f44c0117b8bfc1e0c58335917e90f837b05067d9fa",
+      "contentType": "image/png"
+    },
+    {
+      "path": "thumbnail.webp",
+      "bytes": 29644,
+      "sha256": "874522f525c3d0b8a32c81d5bfe601630a04f4578a3571cfe975d8bbc8c08ef5",
+      "contentType": "image/webp"
+    }
+  ],
+  "integration": {
+    "visualAsset": null,
+    "candidateVisualAsset": "world-500k.spz",
+    "colliderAsset": "collider.glb",
+    "note": "The SPZ is the visual environment. The collider GLB is not a visual-quality mesh. A separate Tripo hero asset is still required for independent object animation."
+  },
+  "visualQa": {
+    "status": "approved-for-browser-qa",
+    "reviewedAt": "2026-07-21T17:55:00.000Z",
+    "evidence": [
+      "thumbnail.webp",
+      "pano.png"
+    ],
+    "preliminaryHermesReview": {
+      "candidateScore": 9,
+      "minimumPassingScore": 8,
+      "decision": "advance-to-browser-qa",
+      "strongestProblem": "The competing image-conditioned candidate lacked sufficient premium elevation and preserved the painting's focal hierarchy less effectively.",
+      "direction": "Use restrained cinematic lighting and subtle environmental motion while keeping every effect secondary to the original artwork."
+    },
+    "knownRisks": [
+      "The composition is sparser than the painting and must prove its impact through the authored five-second camera event.",
+      "The generated set retains only part of the original painting's abundance and contradictory tabletop structure.",
+      "The static source has no independent subject animation; browser QA must reject it if camera motion alone feels generic."
+    ],
+    "directive": "Eligible only for an isolated browser-QA preview. Do not mark production-approved until desktop, mobile, reduced-motion, frame-return, and second independent visual review all pass."
+  }
+}

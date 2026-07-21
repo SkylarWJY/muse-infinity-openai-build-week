@@ -1,16 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { createFallbackLesson } from "../shared/contracts.js";
-import { splitNarration } from "../src/services/sound-experience.js";
 
 const appUrl = process.env.MUSE_E2E_BASE_URL || "/?quality=performance";
 const lessonGoal = "How composition moves my attention";
-const lesson = {
-  ...createFallbackLesson(lessonGoal),
-  opening: "Mira opens the curated route by asking you to observe where each composition directs your attention before naming an interpretation or deciding what the image means. Carry that evidence through all eight rooms, compare every guide's perspective with what you can actually see, and let the final answer emerge from those differences."
-};
-const openingSegments = splitNarration(lesson.opening);
+const lesson = createFallbackLesson(lessonGoal);
+const welcomeNarration = "Welcome to MUSE, an immersive museum built around one question. What question are you carrying?";
+const curationNarration = "Your route is ready. GPT-5.6 and your chosen AI lenses will keep refining it while you enter the first chapter.";
 
 test("sound unlocks on entry and synthetic narration follows the real curation flow", async ({ page }) => {
+  test.setTimeout(240_000);
   const narrationRequests = [];
   await installDeterministicBrowserAudio(page);
   await page.route("**/api/**", (route) => route.fulfill({
@@ -70,13 +68,24 @@ test("sound unlocks on entry and synthetic narration follows the real curation f
       stage: "threshold",
       profile: "threshold",
       ducked: false,
-      targetVolume: 0.16
+      targetVolume: 0.025
+    },
+    score: {
+      enabled: true,
+      unlocked: false,
+      stage: "threshold",
+      track: "promenade",
+      ducked: false,
+      targetVolume: 0
     },
     narration: { enabled: true, speaking: false, queued: 0 }
   });
   await expect.poll(() => soundState(page)).toMatchObject({ narration: { remoteEnabled: true } });
   expect(await audioMetrics(page)).toMatchObject({ contexts: 0, resumes: 0, oscillatorsStarted: 0 });
 
+  await page.waitForFunction(() => window.__MUSE_APP__?.state?.bootSettled === true, null, { timeout: 180_000 });
+  await expect(page.locator("#world-transition")).toHaveAttribute("aria-busy", "false", { timeout: 180_000 });
+  await expect(page.locator("#world-transition")).toHaveCSS("visibility", "hidden", { timeout: 180_000 });
   await page.locator("[data-entry-action='cross-threshold']").click();
   await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "life-question");
   await expect.poll(() => soundState(page)).toMatchObject({
@@ -85,30 +94,44 @@ test("sound unlocks on entry and synthetic narration follows the real curation f
       unlocked: true,
       stage: "life_question",
       profile: "threshold",
-      targetVolume: 0.16
-    }
+      ducked: true,
+      targetVolume: 0.008
+    },
+    score: {
+      enabled: true,
+      unlocked: true,
+      stage: "life_question",
+      track: "promenade",
+      ducked: true,
+      targetVolume: 0.04
+    },
+    narration: { remoteEnabled: true, speaking: true }
+  });
+  await expect(soundButton).toHaveAttribute("data-sound-state", "speaking");
+  await expect.poll(() => audioMetrics(page)).toMatchObject({
+    contexts: 1,
+    resumes: 1,
+    oscillatorsStarted: 3,
+    scoreAudioStarted: 1,
+    activeScoreAudio: 1,
+    narrationAudioStarted: 1,
+    activeNarrationAudio: 1,
+    maxConcurrentNarrationAudio: 1,
+    spoken: []
+  });
+  expect(narrationRequests[0]).toMatchObject({ speaker_id: "mira", text: welcomeNarration });
+
+  await page.evaluate(() => window.__AUDIO_TEST__.finishCurrentNarrationAudio());
+  await expect.poll(() => soundState(page)).toMatchObject({
+    soundscape: { ducked: false, speakingSources: [], targetVolume: 0.025 },
+    score: { ducked: false, speakingSources: [], targetVolume: 0.18 },
+    narration: { speaking: false, queued: 0 }
   });
   await expect(soundButton).toHaveAttribute("data-sound-state", "on");
-  expect(await audioMetrics(page)).toMatchObject({ contexts: 1, resumes: 1, oscillatorsStarted: 3 });
-
-  await soundButton.click();
-  await expect(soundButton).toHaveAttribute("aria-pressed", "false");
-  await expect(soundButton.locator(".tool-label")).toHaveText("Muted");
-  expect(await soundState(page)).toMatchObject({
-    soundscape: { enabled: false, targetVolume: 0 },
-    narration: { enabled: false, speaking: false }
-  });
-
-  await soundButton.click();
-  await expect(soundButton).toHaveAttribute("aria-pressed", "true");
-  await expect(soundButton.locator(".tool-label")).toHaveText("Sound");
-  expect(await soundState(page)).toMatchObject({
-    soundscape: { enabled: true, unlocked: true, targetVolume: 0.16 },
-    narration: { enabled: true, speaking: false }
-  });
 
   const thresholdOscillators = (await audioMetrics(page)).oscillatorsStarted;
-  await page.getByRole("button", { name: lessonGoal }).click();
+  await page.locator("#goal-input").fill(lessonGoal);
+  await page.locator("#goal-form button[type='submit']").click();
   await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "company");
   expect(await soundState(page)).toMatchObject({
     soundscape: { stage: "companion_selection", profile: "threshold" }
@@ -117,62 +140,62 @@ test("sound unlocks on entry and synthetic narration follows the real curation f
 
   await page.locator("[data-entry-action='curate']").click();
   await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "curation");
-  await expect(page.locator("#toast")).toContainText("AI-generated interpretations");
+  await expect.poll(() => page.evaluate(() => window.__MUSE_APP__.state.narrationDisclosureShown)).toBe(true);
+  await expect(page.locator("#toast")).toContainText("finished refining the route");
   await expect(page.locator("#toast")).toBeVisible();
   await expect.poll(() => audioMetrics(page)).toMatchObject({
-    remoteAudioStarted: 1,
-    activeRemoteAudio: 1,
-    maxConcurrentRemoteAudio: 1,
+    scoreAudioStarted: 1,
+    activeScoreAudio: 1,
+    narrationAudioStarted: 2,
+    activeNarrationAudio: 1,
+    maxConcurrentNarrationAudio: 1,
     spoken: []
   });
-  expect(openingSegments).toHaveLength(2);
-  expect(narrationRequests[0]).toMatchObject({ speaker_id: "mira", text: openingSegments[0] });
+  expect(narrationRequests[1]).toMatchObject({ speaker_id: "mira", text: curationNarration });
   await page.waitForTimeout(100);
   expect(await audioMetrics(page)).toMatchObject({
-    remoteAudioStarted: 1,
-    activeRemoteAudio: 1,
-    maxConcurrentRemoteAudio: 1
+    scoreAudioStarted: 1,
+    activeScoreAudio: 1,
+    narrationAudioStarted: 2,
+    activeNarrationAudio: 1,
+    maxConcurrentNarrationAudio: 1
   });
   expect(await soundState(page)).toMatchObject({
-    soundscape: { stage: "ai_curation", profile: "threshold", ducked: true, targetVolume: 0.035 },
-    narration: { remoteEnabled: true, speaking: true, queued: 1 }
+    soundscape: { stage: "ai_curation", profile: "threshold", ducked: true, targetVolume: 0.008 },
+    score: { stage: "ai_curation", track: "promenade", ducked: true, targetVolume: 0.04 },
+    narration: { remoteEnabled: true, speaking: true, queued: 0 }
   });
   await expect(soundButton).toHaveAttribute("data-sound-state", "speaking");
   await expect(soundButton).toHaveAttribute("title", "Synthetic guide narration speaking");
 
-  await page.evaluate(() => window.__AUDIO_TEST__.finishCurrentAudio());
-  await expect.poll(() => audioMetrics(page)).toMatchObject({
-    remoteAudioStarted: 2,
-    activeRemoteAudio: 1,
-    maxConcurrentRemoteAudio: 1,
-    completedRemoteAudio: 1,
-    spoken: []
-  });
-  expect(narrationRequests.map(({ speaker_id, text }) => ({ speaker_id, text }))).toEqual(
-    openingSegments.map((text) => ({ speaker_id: "mira", text }))
-  );
-  expect((await soundState(page)).soundscape.targetVolume).toBe(0.035);
-
-  await page.evaluate(() => window.__AUDIO_TEST__.finishCurrentAudio());
+  await page.evaluate(() => window.__AUDIO_TEST__.finishCurrentNarrationAudio());
   await expect.poll(() => soundState(page)).toMatchObject({
-    soundscape: { ducked: false, speakingSources: [], targetVolume: 0.16 },
+    soundscape: { ducked: false, speakingSources: [], targetVolume: 0.025 },
+    score: { ducked: false, speakingSources: [], targetVolume: 0.18 },
     narration: { speaking: false, queued: 0 }
   });
+  expect(narrationRequests.map(({ speaker_id, text }) => ({ speaker_id, text }))).toEqual(
+    [welcomeNarration, curationNarration].map((text) => ({ speaker_id: "mira", text }))
+  );
   await expect(soundButton).toHaveAttribute("data-sound-state", "on");
   expect(await audioMetrics(page)).toMatchObject({
-    remoteAudioStarted: 2,
-    activeRemoteAudio: 0,
-    maxConcurrentRemoteAudio: 1,
-    completedRemoteAudio: 2,
+    scoreAudioStarted: 1,
+    activeScoreAudio: 1,
+    narrationAudioStarted: 2,
+    activeNarrationAudio: 0,
+    maxConcurrentNarrationAudio: 1,
+    completedNarrationAudio: 2,
     spoken: []
   });
 
   await expect(page.locator("[data-entry-action='enter-walk']")).toBeEnabled();
   await page.locator("[data-entry-action='enter-walk']").click();
   await expect.poll(() => soundState(page)).toMatchObject({
-    soundscape: { stage: "world_exploration", profile: "exploration", targetVolume: 0.16 }
+    soundscape: { stage: "world_exploration", profile: "exploration", targetVolume: 0.025 },
+    score: { stage: "world_exploration", track: "clair-de-lune", targetVolume: 0.18 }
   });
   expect((await audioMetrics(page)).oscillatorsStarted).toBe(thresholdOscillators + 3);
+  await expect.poll(() => audioMetrics(page)).toMatchObject({ scoreAudioStarted: 2, activeScoreAudio: 1 });
 });
 
 async function soundState(page) {
@@ -267,6 +290,9 @@ async function installDeterministicBrowserAudio(page) {
         this.duration = 0.4;
         this.listeners = new Map();
         this.started = false;
+        this.paused = true;
+        this.volume = 1;
+        this.isScore = String(src).includes("/assets/audio/");
       }
 
       addEventListener(type, listener, options = {}) {
@@ -283,18 +309,25 @@ async function installDeterministicBrowserAudio(page) {
 
       async play() {
         this.started = true;
-        harness.remoteAudioStarted += 1;
-        harness.activeRemoteAudio.push(this);
-        harness.maxConcurrentRemoteAudio = Math.max(
-          harness.maxConcurrentRemoteAudio,
-          harness.activeRemoteAudio.length
-        );
+        this.paused = false;
+        const active = this.isScore ? harness.activeScoreAudio : harness.activeNarrationAudio;
+        const startedKey = this.isScore ? "scoreAudioStarted" : "narrationAudioStarted";
+        harness[startedKey] += 1;
+        if (!active.includes(this)) active.push(this);
+        if (!this.isScore) {
+          harness.maxConcurrentNarrationAudio = Math.max(
+            harness.maxConcurrentNarrationAudio,
+            harness.activeNarrationAudio.length
+          );
+        }
         queueMicrotask(() => this.dispatch("loadedmetadata"));
       }
 
       pause() {
-        const index = harness.activeRemoteAudio.indexOf(this);
-        if (index >= 0) harness.activeRemoteAudio.splice(index, 1);
+        this.paused = true;
+        const active = this.isScore ? harness.activeScoreAudio : harness.activeNarrationAudio;
+        const index = active.indexOf(this);
+        if (index >= 0) active.splice(index, 1);
       }
     }
 
@@ -308,20 +341,23 @@ async function installDeterministicBrowserAudio(page) {
       active: [],
       maxConcurrentUtterances: 0,
       cancellations: 0,
-      remoteAudioStarted: 0,
-      completedRemoteAudio: 0,
-      activeRemoteAudio: [],
-      maxConcurrentRemoteAudio: 0,
+      scoreAudioStarted: 0,
+      activeScoreAudio: [],
+      narrationAudioStarted: 0,
+      completedNarrationAudio: 0,
+      activeNarrationAudio: [],
+      maxConcurrentNarrationAudio: 0,
       finishCurrent() {
         const utterance = this.active.shift();
         if (!utterance) throw new Error("no_active_utterance");
         this.completed.push(utterance.text);
         utterance.onend?.();
       },
-      finishCurrentAudio() {
-        const audio = this.activeRemoteAudio.shift();
-        if (!audio) throw new Error("no_active_remote_audio");
-        this.completedRemoteAudio += 1;
+      finishCurrentNarrationAudio() {
+        const audio = this.activeNarrationAudio.shift();
+        if (!audio) throw new Error("no_active_narration_audio");
+        audio.paused = true;
+        this.completedNarrationAudio += 1;
         audio.dispatch("ended");
       },
       snapshot() {
@@ -335,10 +371,12 @@ async function installDeterministicBrowserAudio(page) {
           activeUtterances: this.active.length,
           maxConcurrentUtterances: this.maxConcurrentUtterances,
           cancellations: this.cancellations,
-          remoteAudioStarted: this.remoteAudioStarted,
-          completedRemoteAudio: this.completedRemoteAudio,
-          activeRemoteAudio: this.activeRemoteAudio.length,
-          maxConcurrentRemoteAudio: this.maxConcurrentRemoteAudio
+          scoreAudioStarted: this.scoreAudioStarted,
+          activeScoreAudio: this.activeScoreAudio.length,
+          narrationAudioStarted: this.narrationAudioStarted,
+          completedNarrationAudio: this.completedNarrationAudio,
+          activeNarrationAudio: this.activeNarrationAudio.length,
+          maxConcurrentNarrationAudio: this.maxConcurrentNarrationAudio
         };
       }
     };

@@ -12,7 +12,13 @@ export const LEARNER_AVATARS = Object.freeze([
     motionProfile: {
       legUpperY: -0.42,
       legBlendWidth: 0.1,
-      footSeparation: 0.012,
+      legSwingScale: 0.55,
+      kneeBendScale: 0.35,
+      armSwingScale: 0,
+      elbowBendScale: 0,
+      bobScale: 0.35,
+      leanScale: 0.35,
+      footSeparation: 0,
       maxSpeed: 1.33
     }
   }),

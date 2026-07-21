@@ -2,31 +2,34 @@
 
 ## Product intent
 
-MUSE is a learning world, not a museum dashboard and not a chatbot over 3D wallpaper. The
-spatial environment is the primary surface. Interface, GPT output and character behavior
-exist to direct attention inside a sequence of worlds.
+MUSE&infin; turns one real question the visitor carries into a walkable Impossible Museum.
+GPT-5.6 brings cross-temporal AI interpretive lenses into conversation around real artworks;
+their disagreements make the visitor look again, and the route the visitor actually observes
+and chooses becomes an answer concept that could only emerge from this journey.
 
-One life question moves through ten narrative beats, eight process worlds and one gated answer
-world. The learner and independently directed selected companions move through each
-high-fidelity space;
-dialogue waits for physical arrival and facing; colliders keep bodies on the visible ground;
-the station speaker rotates while the other actors take separated listening positions; and the
-Roundtable is grounded in three artwork stations plus one reflection from every process world.
+This edition is an Education deepening of the original thesis, not an eight-world teaching-task
+checklist. Its eight thought chapters give observation and disagreement a durable evidence
+structure before the visitor enters a ninth, prepared spatial realization of their own answer.
+The spatial environment remains the primary surface: dialogue waits for physical arrival and
+facing, colliders keep bodies on visible ground, and the Roundtable cites observations carried
+from the encountered works rather than inventing a generic conclusion.
 
 ## Product invariants
 
-- The canonical spatial structure is eight ordered process scenes plus one independently
-  gated answer scene. Bright Gallery is not part of this structure.
+- The canonical spatial structure is eight identified process scenes plus one independently
+  gated answer scene. Atlas may open the process scenes in any order; Bright Gallery is not
+  part of this structure.
 - The first eight scene IDs and their order are deterministic and cannot be changed by model
   output, Atlas navigation or an observation choice.
 - The answer world is excluded from Atlas and cannot load before all eight scene reflections,
   Summoning, Roundtable, Decision, Transformation and Manifesto are complete.
-- At least one and no more than three of the eight historical companions are chosen
+- At least one and no more than three of the eight AI interpretive lenses are chosen
   before curation.
-- Every process scene contains three required artwork stations. Only after all three station
-  evidence records exist does one scene reflection enter the eight-scene digest.
+- Every process scene contains three route stations. A visitor may skip an individual work,
+  but at least one real station evidence record is required before that scene reflection can
+  enter the eight-scene digest; skips never fabricate evidence.
 - Every selected companion remains embodied during world exploration. Speaker order rotates
-  by station; each actor owns an independent director, staggered departure and grounded stage
+  by station; each actor owns an independent director, simultaneous departure and grounded stage
   position. The same roster appears at the Roundtable without duplicate persistent/staged actors.
 - Observation precedes interpretation. Dialogue cannot claim spatial correspondence until the
   active speaker reaches and faces the declared artwork. A visitor may then choose a bounded
@@ -38,7 +41,8 @@ Roundtable is grounded in three artwork stations plus one reflection from every 
   performs no language reasoning.
 - GPT personalizes the final concept. The final geometry is a prepared, pre-generated
   Shimmering Spheres world and must never be labeled live-generated geometry.
-- No-key mode completes the same gates and scene order with explicit curated provenance.
+- No-key mode completes the same gates and canonical evidence contract with explicit curated
+  provenance.
 
 ## Ten-beat journey
 
@@ -49,11 +53,11 @@ into generic `walk`, `salon` or `rewrite` stages.
 | ---: | --- | --- |
 | 1 | `threshold` | Establish the museum premise; crossing advances to the life question. |
 | 2 | `life_question` | Capture a non-empty question before company can be selected. |
-| 3 | `companion_selection` | Select one to three known companion IDs; begin curation explicitly. |
+| 3 | `companion_selection` | Select one to three AI interpretive lens IDs; begin curation explicitly. |
 | 4 | `ai_curation` | Validate a strict eight-stop GPT/fallback contract; accept it before walking. |
-| 5 | `world_exploration` | Complete three artwork stations and one reflection in each of eight process scenes, in canonical order. |
-| 6 | `summoning` | Surface the complete eight-reflection ledger and selected company. |
-| 7 | `roundtable` | Produce one perspective per selected companion and a provisional grounded concept. |
+| 5 | `world_exploration` | Complete three artwork stations and one reflection in each of eight process scenes in any visitor-chosen order; canonicalize the final digest. |
+| 6 | `summoning` | Surface the complete eight-reflection ledger and selected AI lenses. |
+| 7 | `roundtable` | Produce one perspective per selected AI lens and a provisional grounded concept. |
 | 8 | `decision` | Choose the unresolved axis: `perception`, `emotion` or `invention`. |
 | 9 | `world_transformation` | Send the provisional concept and chosen axis through a second strict GPT/fallback transformation; accept the validated replacement. |
 | 10 | `manifesto` | Publish the final principle; only then enable answer-world entry. |
@@ -63,7 +67,7 @@ always resolves to `personal-dream-world` / Fantasy Realm of Shimmering Spheres.
 
 ## Canonical spatial spine
 
-| # | Scene ID | Exhibition title | World ID | Historical lens | Format |
+| # | Scene ID | Exhibition title | World ID | AI interpretive lens | Format |
 | ---: | --- | --- | --- | --- | --- |
 | 1 | `threshold-conservatory` | The Threshold Conservatory | `grand-conservatory-with-lush-gardens` | Cross-temporal salon | Quality RAD from 4.32M SPZ |
 | 2 | `court-of-light` | The Court of Light | `elegant-floral-palace-interior` | Sigmund Freud | Quality RAD from 4.32M SPZ |
@@ -72,8 +76,8 @@ always resolves to `personal-dream-world` / Fantasy Realm of Shimmering Spheres.
 | 5 | `burning-sky` | The Studio of the Burning Sky | `van-gogh-inspired-gallery-interior` | Vincent van Gogh | Quality RAD from 3.84M SPZ |
 | 6 | `petal-transition` | The Petal Transition Hall | `sunlit-palace-gardens` | Qi Baishi | Quality RAD from 4.32M SPZ |
 | 7 | `living-memory` | The Courtyard of Living Memory | `mexican-courtyard-bedroom-fantasy` | Frida Kahlo | Quality RAD from 4.32M SPZ |
-| 8 | `infinite-repetition` | The Infinite Repetition Chamber | `yellow-polka-dot-infinity-room` | Yayoi Kusama | 8K GLB; 1.92M SPZ fallback |
-| 9 | `personal-dream-world` | Your Dream World | `fantasy-realm-of-shimmering-spheres` | Visitor + selected company | 8K GLB |
+| 8 | `infinite-repetition` | The Infinite Repetition Chamber | `yellow-polka-dot-infinity-room` | Infinity & Repetition Lens | 8K GLB; 1.92M SPZ fallback |
+| 9 | `personal-dream-world` | Your Dream World | `fantasy-realm-of-shimmering-spheres` | Visitor + selected AI lenses | 8K GLB |
 
 The first eight entries live in `EXHIBITION_SPINE`. The ninth lives in `FINAL_SCENE` so
 lesson generation and Atlas cannot accidentally expose it as a process stop.
@@ -97,8 +101,9 @@ lesson generation and Atlas cannot accidentally expose it as a process stop.
 
 ### Runtime quality tiers
 
-`high` is the default. URL parameters may select `balanced` or `performance` without
-changing the source assets.
+`balanced` is the default so ordinary laptops and mobile judging devices do not begin with a
+multi-million-splat GPU budget. URL parameters may explicitly select `high` or `performance`
+without changing the source assets.
 
 | Mode | Desktop DPR / Spark target / render scale / LOD scale | Mobile DPR / Spark target / render scale / LOD scale |
 | --- | --- | --- |
@@ -146,31 +151,35 @@ surface classification or general physics.
 
 ### Artwork correspondence
 
-Each of the nine scenes owns four deterministic Art Institute of Chicago works and four
-authored placements in `src/config/artworkPlacements.js`. The first three artworks in each
+Each of the nine scene collections owns four deterministic Art Institute of Chicago works and
+four authored placements in `src/config/artworkPlacements.js`. The first three artworks in each
 process scene are required stations; the fourth remains present without blocking completion.
+The ninth-world collection is retained for provenance, but all artwork is hidden during the
+visitor-facing Finale so the selected company can face the visitor in a ceremonial close.
 Placement QA loads each real JPEG
 dimension and scene collider, checks the full frame sightline, bounds, separation,
-grounded guide anchor and first-guide route, and requires any hidden supports to have a real
-near-vertical backing wall behind the frame center and all four corners within 0.10 m. The
+grounded guide anchor and first-guide route. A wall-mounted frame requires a real near-vertical
+backing wall behind the frame center and all four corners within 0.10 m. No display renders the
+former pair of support posts. The
 frame center is always 1.50 m above the local viewing ground; absolute world Y is intentionally
 not normalized because the worlds use different origins and terrain elevations.
 
-| Scene | True wall mounts | Grounded stands |
+| Scene | True wall mounts | Grounded edge displays |
 | --- | ---: | ---: |
-| Threshold Conservatory | 2 | 2 |
-| Court of Light | 1 | 3 |
+| Threshold Conservatory | 1 | 3 |
+| Court of Light | 0 | 4 |
 | Garden of Water and Light | 1 | 3 |
 | Sunset Frame Gallery | 0 | 4 |
 | Studio of the Burning Sky | 1 | 3 |
-| Petal Transition Hall | 4 | 0 |
+| Petal Transition Hall | 1 | 3 |
 | Courtyard of Living Memory | 0 | 4 |
 | Infinite Repetition Chamber | 0 | 4 |
-| Your Dream World | 0 | 4 |
+| Your Dream World | 0 | 4 (hidden in Finale) |
 
-Open gardens and the two answer-scale spaces retain honest freestanding displays where the
-collider contains no reachable wall. Increasing the wall tolerance to make those frames look
-mounted is prohibited because it would hide supports while leaving a visible 0.3-0.48 m gap.
+Open gardens retain honest freestanding displays where the collider contains no reachable wall.
+They sit at validated scene edges without the former pair of metal support posts. Increasing
+the wall tolerance to make those frames look mounted is
+prohibited because it would leave a visible 0.3-0.48 m gap.
 
 Procedural architecture and articulated fallback avatars exist for bounded load failure, but
 the readiness veil prevents them from flashing during a successful normal preload. They are
@@ -184,27 +193,33 @@ false until the answer mesh is live.
 
 ### Learner
 
-The learner is a local high-detail Tripo v3.1 GLB reconstructed from a GPT Image 2 source and
-an identity-consistent four-view turnaround. A semantic 41-joint biped skin and baked
-`preset:biped:wait` / `preset:biped:walk` clips run through `THREE.AnimationMixer`; an
-articulated procedural learner remains the load fallback. Skin validation and the bounded
-24-vertex cross-region correction happen offline, so runtime animation never rewrites weights.
-Learner and guide navigation use a 1.33 m/s walking pace calibrated to the baked foot-contact
-travel; the rejected run clip is not used because it failed the bind-ground gate.
+The default learner is the user-provided little-girl Tripo export. It is a browser-optimized
+static mesh with no skin or animation clips; bounded shader-region limb articulation and root
+motion make walking readable without claiming skeletal animation. The retained `original`
+profile is the GPT Image 2 / Tripo learner with a semantic 41-joint biped skin and baked
+`preset:biped:wait` / `preset:biped:walk` clips. An articulated procedural body remains the
+load fallback. Learner and guide navigation use a 1.33 m/s walking pace on the real collider.
 
-### Historical companions
+### AI interpretive lenses
 
-The selectable company consists of Monet, Van Gogh, Socrates, Frida Kahlo, Picasso, Freud,
-Qi Baishi and Yayoi Kusama. Their browser GLBs are optimized static Tripo meshes; they contain
-no skeleton or animation clips. The runtime
-therefore uses bounded shader-region deformation plus spatial root motion.
+The selectable company consists of eight explicitly synthetic interpretive lenses. Seven use
+named, cross-temporal perspectives associated with Monet, Van Gogh, Socrates, Frida Kahlo,
+Picasso, Freud and Qi Baishi; they are not the people, authentic quotations or endorsements.
+Their browser GLBs are optimized static Tripo representations without skeletons or animation
+clips, so the runtime uses bounded shader-region deformation plus spatial root motion.
+
+The eighth retains the internal ID `yayoi-kusama` only so persisted sessions remain readable.
+Every visitor-facing field resolves to **Infinity & Repetition Lens**. It loads neither the
+living artist's portrait nor her character GLB and never speaks as her in first person; the
+selection card uses the non-person infinity-room scene image and the spatial actor remains the
+generic procedural lens placeholder.
 
 Selection is also a spatial commitment. While the visitor freely walks, selected companions
 may occupy collider-grounded formation slots. During a station tour, however, they stop being
 followers: the station index rotates the lead speaker, each selected actor owns a separate
-`GuideDirector`, and departures are staggered so the speaker arrives first. Collider-validated
-party staging places the lead at the evidence center and listeners in separated side/retreat
-positions. Each actor updates its own root position, heading, walk/idle deformation and locally
+`GuideDirector`, and all selected actors depart together on independent safe routes.
+Collider-validated party staging keeps the artwork sightline and trigger corridor clear while
+forming a visitor-facing conversation arc. Each actor updates its own root position, heading, walk/idle deformation and locally
 continuous ground height. At the Roundtable the persistent party
 is temporarily hidden while the same roster is staged, so selection does not create visible
 duplicates.
@@ -225,21 +240,15 @@ this improves readable timing without changing the asset capability claim.
 
 ### Ambient life
 
-`src/config/ambientLife.js` owns deterministic, authored activity volumes for all nine scenes.
-Threshold, Sunset and Petal load the checked-in high-detail white rock-dove PBR GLB generated
-through Tripo's hosted GPT Image 2 source-image task and Tripo v3.1 reconstruction. The selected
-asset has no skin or baked clip (`skins: 0`, `animations: 0`), but a dedicated PBR vertex-shader
-deformation visibly bends its two wing regions on every flight cycle. Deterministic root paths,
-yaw, pitch and bank provide the larger flight path without a false skeletal-animation claim. A
-concrete procedural white-dove fallback is used only on detailed-asset load failure. Other
-distant birds, butterflies, dragonflies and koi use code-native articulated geometry; scene-8
-dots and final fireflies use efficient point fields.
+`src/config/ambientLife.js` owns the approved ambient configuration for all nine scenes. The
+current public build intentionally keeps only abstract infinity dots and final-world fireflies.
+Earlier procedural birds, butterflies, dragonflies and koi, plus the unskinned and clipless
+white-dove GLB experiment, are retired and never receive a primitive fallback. A future concrete
+subject must pass the complete GPT Image 2 reference, identity-consistent multiview, Tripo GLB,
+named embedded animation and visual-QA gate before it can appear.
 
-Counts stay between two and four physical creatures per world; the two point-only worlds use
-24 motifs in one field. Every switch clears the previous world's geometry and material
-resources. These paths are atmosphere, not navigation agents or semantic assertions about the
-collider. Scene 5's crows are a bounded distant motif inside the authored volume, not a claim
-that the interior world contains *Wheatfield with Crows*.
+Every world switch clears the prior ambient geometry and material resources. These motifs are
+atmosphere, not navigation agents or semantic assertions about the collider.
 
 ### Correspondence gate
 
@@ -250,10 +259,10 @@ degrees. Model output never supplies arbitrary world coordinates.
 
 After that gate, the visitor may select one of three evidence-bearing stances or write a short
 observation in their own words. The scene tour records the focused artwork, rotating speaker
-order and companion perspectives. After three required station records, one bounded scene
-reflection continues to the same canonical next world. Neither a free observation nor a station
-choice can bypass correspondence, skip the other required artworks or rewrite route order.
-Atlas is inspect-only and never writes a visit record.
+order and companion perspectives. After three stations are explored or explicitly skipped, one
+bounded scene reflection continues to the next unfinished world. Neither a free observation nor
+a station choice can bypass correspondence or rewrite the canonical scene identities. Atlas can
+jump among all eight process worlds, but navigation alone never writes a visit record.
 
 ## Final concept semantics
 
@@ -290,9 +299,10 @@ world was generated live".
 
 - GPT-5.6 Responses API: strict lesson, provisional-concept and transformed-concept Structured
   Outputs plus artwork dialogue. The decision transformation is a second concept request, not
-  a client-side label change. The only accepted origins are `https://api.openai.com` and the
-  disclosed authorized compatible gateway `https://api.baizhiyuan.cloud`; the only accepted
-  reasoning models are `gpt-5.6` and `gpt-5.6-sol`.
+  a client-side label change. The accepted remote origins are `https://api.openai.com` and the
+  disclosed authorized compatible gateway `https://api.baizhiyuan.cloud`. Local development may
+  explicitly use the current user's Codex auth with its exact loopback `/v1` Responses provider;
+  the only accepted reasoning models are `gpt-5.6` and `gpt-5.6-sol`.
 - OpenAI Realtime: official-origin-only voice transport and spoken-response model for the
   microphone experience; it is disabled for the reasoning-only compatible gateway. Text
   interaction remains available when Realtime is not configured.
@@ -309,31 +319,32 @@ world was generated live".
   Forge endpoint for isolated spatial variations. Forge is outside the canonical journey and
   receives no visitor question, evidence or conversation data.
 - Tripo: offline character and white-dove asset production only; there is no Tripo runtime API.
-- All runtime language and judgment requests use GPT-5.6 through one of the two exact
-  allowlisted origins. No alternate reasoning-model family is supported. The competition
+- All runtime language and judgment requests use GPT-5.6 through an exact remote allowlist or
+  the explicitly selected local Codex loopback transport. No alternate reasoning-model family is supported. The competition
   [Project Requirements](https://openai.devpost.com/rules) permit third-party SDKs, APIs and
   data when the entrant is authorized under their terms; provider roles remain disclosed and
   separated.
 
 All Responses API calls use `store: false`, a hashed `safety_identifier`, a strict schema,
-bounded timeout and a single billable POST attempt. Deterministic code owns scene order,
-coordinates, movement, rendering, validation and fallback labels.
+bounded timeout and a single billable POST attempt. Deterministic code owns canonical scene
+identities and digest order, coordinates, movement, rendering, validation and fallback labels.
 
 ## Visual and layout system
 
 - Full-bleed real-time world; no decorative world preview frame.
-- World color is dominant. Neutral charcoal UI preserves scene inspection.
-- Signal yellow-green communicates synchronization and active commands; coral identifies the
-  learner; cyan identifies recorded evidence.
+- World color is dominant. A restrained ivory surface with plum text preserves scene inspection.
+- Gold marks active commands, cyan identifies recorded evidence, and rose distinguishes the
+  learner without introducing the retired neon-green interface.
 - Georgia is reserved for reflective display text; system sans serif is used for commands and
   telemetry. Corners remain 4 px or less.
-- Companion portraits are identity controls, not decorative stock imagery.
+- Lens visuals are identity controls, not decorative stock imagery; a non-person scene marker
+  replaces any living-artist likeness.
 - The desktop mission rail displays all eight process chapters in a stable scroll region.
 - The final answer is shown only in the gated Manifesto/entry surface, never as an Atlas card.
 - A full-viewport 1672 x 941 scene poster and readiness veil cover successful world preloads
   and Atlas cross-world changes; coarse fallbacks must not flash before the high-fidelity scene
   is ready, and quality-gate failure retains the poster rather than revealing them.
-- On mobile, route and dialogue become bounded sheets above the joystick/follow control zone;
+- On mobile, route and dialogue become bounded sheets above the joystick zone;
   there is no horizontal document overflow at 390 x 844.
 
 Accessibility constraints: visible focus, accessible names/titles on controls, text as the
@@ -353,15 +364,15 @@ viewport-width font scaling.
   until the prepared 8K realization loads successfully.
 - Retired Spark worlds: stop pager driving, track initialization/fetch/worker work through one
   bounded retirement, then dispose terminally; late GLTF/texture resolutions are also disposed.
-- Collider failure: use declared terrain references, keep nominal wall mounts on visible floor
-  supports and avoid claiming collider-backed placement.
-- Historical GLB failure: use the matching procedural avatar interface.
+- Collider failure: use declared terrain references, downgrade nominal wall mounts to leg-free
+  edge displays and avoid claiming collider-backed placement.
+- AI-lens GLB failure: use the matching procedural avatar interface.
 - Room expiry: return to solo without mutating the local journey.
 
 ## Non-goals
 
 - Runtime generation of the ninth scene's geometry.
-- Runtime historical-character generation, rigging or skeletal retargeting.
+- Runtime real-person or AI-lens character generation, rigging or skeletal retargeting.
 - Navmesh pathfinding, semantic surface classification, guide/party obstacle planning,
   general physics, full-body IK, mocap or lip sync.
 - Production multiplayer persistence.

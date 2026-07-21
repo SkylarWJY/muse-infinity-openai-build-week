@@ -1,13 +1,14 @@
 import { createFallbackLesson, createFallbackSalon, createFallbackTransformation } from "../shared/contracts.js";
 import { EXHIBITION_SPINE, FINAL_SCENE, getExhibitionScene } from "./config/exhibitionSpine.js";
 import { getCompanion, getWorld } from "./config/legacyAssets.js";
+import { livingArtworkForArtwork } from "./config/livingArtworks.js";
 import { LessonSession } from "./domain/LessonSession.js";
 import { JourneySession } from "./domain/JourneySession.js";
 import { SceneTourSession } from "./domain/SceneTourSession.js";
-import { MuseumEngine } from "./render/MuseumEngine.js";
+import { MuseumEngine, resolveActiveArtwork } from "./render/MuseumEngine.js";
 import { MuseApi } from "./services/api.js";
 import { ProfileStore } from "./services/profile.js";
-import { NarrationSession, ProceduralSoundscape } from "./services/sound-experience.js";
+import { MuseumScore, NarrationSession, ProceduralSoundscape } from "./services/sound-experience.js";
 import { VoiceSession } from "./services/voice.js";
 import { AppView } from "./ui/AppView.js";
 
@@ -20,6 +21,7 @@ const view = new AppView();
 const firstScene = EXHIBITION_SPINE[0];
 const MIRA_SPEAKER = Object.freeze({ id: "mira", fullName: "Mira", name: "MIRA", portrait: null });
 const DECISION_QUESTION = "If art can alter reality, what responsibility should it carry?";
+const artworkVisionQaCandidate = new URLSearchParams(window.location.search).get("artworkVisionQa");
 const state = {
   status: { configured: false, openai: false, gateway: "official", realtime: false, world_forge: false, model: "gpt-5.6" },
   provider: { live: false, model: "curated-demo" },
@@ -46,8 +48,12 @@ const state = {
   stationDialogueQuestion: "",
   companionReadyPromise: Promise.resolve(),
   narrationDisclosureShown: false,
+  curationGeneration: 0,
   bootPromise: null,
-  bootSettled: false
+  bootSettled: false,
+  deferredCompanionConversation: null,
+  resumeCompanionConversationAfterStory: false,
+  artworkStoryCue: null
 };
 
 const engine = new MuseumEngine(document.getElementById("world"), {
@@ -56,19 +62,22 @@ const engine = new MuseumEngine(document.getElementById("world"), {
     state.metrics = metrics;
     view.setSync(metrics);
   },
-  onFollowChange: (enabled) => document.getElementById("follow-button").setAttribute("aria-pressed", String(enabled)),
   onWorldLayerStatus: ({ message }) => view.toast(message),
   onCompanionStatus: ({ live, companion }) => {
-    if (!live) view.toast(`${companion.fullName} · spatial fallback active`);
-  }
+    if (!live) view.toast(`${companion.fullName} AI lens · spatial fallback active`);
+  },
+  onArtworkStoryStatus: handleArtworkStoryStatus,
+  artworkVisionQaCandidate
 });
-const soundscape = new ProceduralSoundscape();
+const soundscape = new ProceduralSoundscape({ fullVolume: 0.025, duckedVolume: 0.008 });
+const museumScore = new MuseumScore();
 const narrator = new NarrationSession({
   synthesize: (line, options) => api.narration(line, options),
   onLineStart: ({ speakerId }) => setNarrationSpeaker(speakerId, true),
   onLineEnd: ({ speakerId }) => setNarrationSpeaker(speakerId, false),
   onSpeaking: (speaking) => {
     soundscape.setSpeaking("narration", speaking);
+    museumScore.setSpeaking("narration", speaking);
     view.setNarrationState(speaking);
   }
 });
@@ -106,7 +115,12 @@ view.bind({
   onDecision: chooseContradiction,
   onCompleteTransformation: completeTransformation,
   onPublishManifesto: publishManifesto,
-  onEnterFinal: enterFinalWorld
+  onEnterFinal: enterFinalWorld,
+  onConversationNext: advanceConversation,
+  onSkipArtwork: skipCurrentArtwork,
+  onArtworkStoryPause: pauseArtworkStory,
+  onArtworkStorySkip: skipArtworkStory,
+  onArtworkStoryReplay: replayArtworkStory
 });
 bindMovementControls();
 bindSoundUnlock();
@@ -147,8 +161,16 @@ window.__MUSE_APP__ = {
   canOpenDialogue,
   voiceActive: () => voice.active,
   soundscape,
+  museumScore,
   narrator,
-  soundState: () => ({ soundscape: soundscape.snapshot(), narration: narrator.snapshot() }),
+  artworkStoryState: () => engine.artworkStorySnapshot(),
+  artworkVisionState: () => engine.artworkVisionSnapshot(),
+  previewArtworkVisionForBrowserQa: (artworkId = artworkVisionQaCandidate) => (
+    artworkVisionQaCandidate === "aic-111436"
+    && artworkId === artworkVisionQaCandidate
+    && engine.triggerArtworkVisionPreview(artworkId)
+  ),
+  soundState: () => ({ soundscape: soundscape.snapshot(), score: museumScore.snapshot(), narration: narrator.snapshot() }),
   currentDialogueContext,
   continueLesson,
   beginSummoning,
@@ -167,6 +189,10 @@ function crossThreshold() {
     journey.crossThreshold();
     setSoundStage(journey.stage);
     view.showLifeQuestion();
+    narrate([{
+      speakerId: "mira",
+      text: "Welcome to MUSE, an immersive museum built around one question. What question are you carrying?"
+    }], { replace: true });
   } catch (error) {
     view.toast(readable(error.message));
   }
@@ -176,6 +202,7 @@ function startJourney(question) {
   try {
     journey.setQuestion(question);
     state.journeyStationEvidence = [];
+    syncQuestionProgress();
     setSoundStage(journey.stage);
     state.draftCompanions = [...journey.companions];
     view.showCompany(state.draftCompanions);
@@ -189,7 +216,7 @@ function toggleCompanion(id) {
   if (selected.has(id)) selected.delete(id);
   else if (selected.size < 3) selected.add(id);
   else {
-    view.toast("Invite up to three companions.");
+    view.toast("Choose up to three AI interpretive lenses.");
     return;
   }
   state.draftCompanions = [...selected];
@@ -210,29 +237,39 @@ async function curateJourney() {
     view.setSpeaker(companions[0]);
 
     state.companionReadyPromise = engine.setCompanions(journey.companions).catch(() => {
-      view.toast("Selected 3D companions unavailable; spatial stand-ins remain active.");
+      view.toast("Selected AI-lens avatars unavailable; spatial stand-ins remain active.");
       return null;
     });
-    let result;
-    try {
-      result = await api.lesson(journey.question);
-    } catch (error) {
-      result = {
-        data: createFallbackLesson(journey.question),
-        live: false,
-        model: "curated-demo",
-        reason: "server_unavailable"
-      };
-      view.toast(`GPT connection unavailable; the complete curated route remains active. ${readable(error.message)}`);
-    }
-    state.provider = providerRecord(result);
-    session.start(result.data);
+    const localPlan = createFallbackLesson(journey.question);
+    state.provider = { live: false, model: "curated-demo", reason: "instant_local_route" };
+    session.start(localPlan);
     view.setCurationReady();
-    narrate([{ speakerId: "mira", text: result.data.opening }], { replace: true });
+    syncQuestionProgress();
+    narrate([{
+      speakerId: "mira",
+      text: "Your route is ready. GPT-5.6 and your chosen AI lenses will keep refining it while you enter the first chapter."
+    }], { replace: true });
+    const generation = ++state.curationGeneration;
+    void enrichCuratedRoute(generation, journey.question);
   } catch (error) {
     view.toast(`Curation unavailable: ${readable(error.message)}`);
   } finally {
     state.busy = false;
+  }
+}
+
+async function enrichCuratedRoute(generation, question) {
+  try {
+    const result = await api.lesson(question);
+    if (generation !== state.curationGeneration || journey.question !== question || !session.plan) return;
+    session.plan = result.data;
+    state.provider = providerRecord(result);
+    view.setProvider({ ...state.status, ...state.provider });
+    if (journey.stage === "ai_curation") view.toast("GPT-5.6 finished refining the route. You can enter at any time.");
+  } catch {
+    if (generation === state.curationGeneration && journey.question === question) {
+      state.provider = { live: false, model: "curated-demo", reason: "server_unavailable" };
+    }
   }
 }
 
@@ -263,14 +300,16 @@ async function activateProcessScene(sceneId) {
   if (!scene || scene.isFinal) throw new Error(`unknown_process_scene:${sceneId}`);
   const activationGeneration = ++state.sceneActivationGeneration;
   sceneTour.reset();
+  resetArtworkStoryFlow();
   voice.stop();
   narrator.stop();
+  view.hideCompanionConversation?.();
   soundscape.setStage("world_exploration");
+  museumScore.setStage("world_exploration");
   const worldConfig = getWorld(scene.worldId);
   state.dialogueGeneration += 1;
   state.dialogueBusy = false;
   state.sceneStationHistory = [];
-  state.journeyStationEvidence = state.journeyStationEvidence.filter((record) => record.scene_id !== scene.id);
   state.stationDialoguePerspectives = [];
   state.stationDialogueQuestion = "";
   state.currentSceneId = scene.id;
@@ -279,6 +318,7 @@ async function activateProcessScene(sceneId) {
   view.setWorld(worldConfig);
   view.showWalking(scene.id);
   view.renderRoute(session.plan, session.visited, scene.id);
+  syncQuestionProgress();
 
   const transitionToken = view.beginWorldTransition(scene);
   try {
@@ -369,7 +409,7 @@ function handleGuideState(event) {
 
 function answerQuestion(value) {
   if (state.dialogueBusy) {
-    view.toast("Wait for the company to finish this reply before recording the station.");
+    view.toast("Wait for the AI lenses to finish this reply before recording the station.");
     return;
   }
   if (sceneTour.phase === "discussing") {
@@ -381,7 +421,7 @@ function answerQuestion(value) {
 
 function answerObservation(value) {
   if (state.dialogueBusy) {
-    view.toast("Wait for the company to finish this reply before recording the station.");
+    view.toast("Wait for the AI lenses to finish this reply before recording the station.");
     return;
   }
   if (sceneTour.phase === "discussing") {
@@ -414,11 +454,8 @@ async function askInquiry(question) {
     state.stationDialoguePerspectives = Array.isArray(result?.perspectives)
       ? result.perspectives.map((item) => ({ ...item }))
       : [];
-    view.showInquiryReply(result);
-    narrate((result?.perspectives || []).map((item) => ({
-      speakerId: item.speakerId || "mira",
-      text: item.text
-    })));
+    view.showInquiryReply({ ...result, perspectives: [] });
+    showConversationTurns(result?.perspectives, "Return to the artwork");
     const effect = result?.perspectives?.find((item) => item?.effect)?.effect;
     if (effect) engine.applyEffect(artworkId, effect);
   } catch (error) {
@@ -451,6 +488,153 @@ function isCurrentInquiry({ sceneId, generation, tourToken, stationIndex, artwor
     && engine.director.correspondence().synced === true;
 }
 
+function showConversationTurns(items, completeLabel, { allowSkip = true } = {}) {
+  const turns = (Array.isArray(items) ? items : []).map((item) => ({
+    speakerId: item?.speakerId || item?.speaker_id || item?.companionId || item?.companion_id || item?.character_id || "mira",
+    speaker: item?.speaker || item?.name || "",
+    text: shortDialogueText(item?.text || item?.stance)
+  })).filter((item) => item.text);
+  const result = view.showCompanionConversation(turns, {
+    onCompleteLabel: completeLabel,
+    allowSkip
+  });
+  if (result?.turn) narrate([result.turn], { replace: true });
+  return result;
+}
+
+function advanceConversation({ turn, complete } = {}) {
+  narrator.stop();
+  if (complete || !turn) return;
+  view.setSpeaker(getCompanion(turn.speakerId) || MIRA_SPEAKER);
+  narrate([turn], { replace: true });
+}
+
+function handleArtworkStoryStatus(event = {}) {
+  const config = livingArtworkForArtwork(event.artworkId);
+  const visionEvent = Boolean(config?.vision && event.artworkId === config.artworkId);
+  if (visionEvent && ["loading", "story", "completed"].includes(event.state)) {
+    view.app.dataset.artworkVision = event.state;
+  } else if (event.type === "state" && ["idle", "ready", "failed", "cleared"].includes(event.state)) {
+    delete view.app.dataset.artworkVision;
+  }
+  let cuePresentation = null;
+  if (event.type === "state" && event.state === "story") state.artworkStoryCue = null;
+  if (event.type === "cue" && event.cue) {
+    cuePresentation = presentArtworkStoryCue(event.cue, config);
+    state.artworkStoryCue = cuePresentation;
+  }
+  view.setArtworkStory({
+    ...event,
+    title: config?.sources?.[0]?.title || "Artwork story",
+    accessibleDescription: config?.accessibleDescription || "",
+    cue: cuePresentation?.cue || null
+  });
+  if (cuePresentation) narrateArtworkStoryCue(cuePresentation);
+
+  const terminal = event.type === "state" && ["completed", "failed", "cleared"].includes(event.state);
+  const pendingSkipped = event.type === "control" && event.action === "skip-pending";
+  if (terminal || pendingSkipped) {
+    if (visionEvent) narrator.stop();
+    if (pendingSkipped) delete view.app.dataset.artworkVision;
+    if (event.state !== "completed") state.artworkStoryCue = null;
+    restoreConversationAfterArtworkStory();
+  }
+}
+
+function triggerLivingArtworkStory({ scene, station, deferredConversation = null } = {}) {
+  const hero = livingArtworkForArtwork(station?.artwork_id);
+  const isCurrentHero = hero?.sceneId === scene?.id && hero?.artworkId === station?.artwork_id;
+  if (!isCurrentHero) return false;
+  state.deferredCompanionConversation = deferredConversation;
+  state.resumeCompanionConversationAfterStory = false;
+  state.artworkStoryCue = null;
+  const triggered = engine.triggerArtworkStory(station.artwork_id);
+  if (!triggered) state.deferredCompanionConversation = null;
+  return triggered;
+}
+
+function presentArtworkStoryCue(cue, config) {
+  const curated = cue.kind === "curated-fact";
+  const scene = getExhibitionScene(state.currentSceneId);
+  const companion = getCompanion(sceneTour.leadCompanionId) || sceneSpeaker(scene) || MIRA_SPEAKER;
+  const title = config?.sources?.[0]?.title || "Artwork";
+  const source = curated
+    ? config?.sources?.find((item) => item.id === cue.sourceId) || config?.sources?.[0]
+    : null;
+  return {
+    speakerId: curated ? companion.id || "mira" : "mira",
+    cue: {
+      ...cue,
+      speakerName: curated
+        ? `${companion.fullName || companion.name || "MUSE"} · AI INTERPRETIVE LENS`
+        : `${title} · ARTWORK VOICE`,
+      sourceUrl: source?.url || "",
+      sourceLabel: source ? "Art Institute of Chicago source" : ""
+    }
+  };
+}
+
+function narrateArtworkStoryCue({ cue, speakerId } = {}) {
+  if (!cue?.text) return;
+  narrate([{ speakerId: speakerId || "mira", text: cue.text }], { replace: true });
+}
+
+function pauseArtworkStory(paused) {
+  if (paused) narrator.stop();
+  const changed = engine.pauseArtworkStory(paused);
+  if (changed && !paused && state.artworkStoryCue) narrateArtworkStoryCue(state.artworkStoryCue);
+}
+
+function skipArtworkStory() {
+  narrator.stop();
+  if (!engine.skipArtworkStory()) return;
+  const snapshot = engine.artworkStorySnapshot();
+  if (snapshot.state === "loading" && snapshot.pendingTrigger === false) {
+    view.hideArtworkStory();
+    restoreConversationAfterArtworkStory();
+  }
+}
+
+function replayArtworkStory() {
+  const suspended = view.suspendCompanionConversation();
+  if (suspended) state.resumeCompanionConversationAfterStory = true;
+  state.artworkStoryCue = null;
+  narrator.stop();
+  if (!engine.replayArtworkStory()) restoreConversationAfterArtworkStory();
+}
+
+function restoreConversationAfterArtworkStory() {
+  const deferred = state.deferredCompanionConversation;
+  state.deferredCompanionConversation = null;
+  if (deferred) {
+    showDeferredCompanionConversation(deferred);
+    return;
+  }
+  if (!state.resumeCompanionConversationAfterStory) return;
+  state.resumeCompanionConversationAfterStory = false;
+  const resumed = view.resumeCompanionConversation();
+  if (resumed?.turn) narrate([resumed.turn], { replace: true });
+}
+
+function showDeferredCompanionConversation({ turns, completeLabel, allowSkip = false } = {}) {
+  return showConversationTurns(turns, completeLabel, { allowSkip });
+}
+
+function resetArtworkStoryFlow() {
+  state.deferredCompanionConversation = null;
+  state.resumeCompanionConversationAfterStory = false;
+  state.artworkStoryCue = null;
+  view.hideArtworkStory();
+}
+
+function shortDialogueText(value, limit = 360) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= limit) return text;
+  const boundary = Math.max(text.lastIndexOf(". ", limit), text.lastIndexOf("? ", limit), text.lastIndexOf("! ", limit));
+  const sliceEnd = boundary > 160 ? Math.min(limit, boundary + 1) : limit;
+  return `${text.slice(0, sliceEnd).trim()}…`;
+}
+
 function canOpenDialogue() {
   const sceneId = session.currentStopId;
   const expectedWorld = getExhibitionScene(sceneId)?.worldId;
@@ -475,7 +659,7 @@ function recordStationEvidence({ choiceValue = "", observation = "" } = {}) {
     const expectedWorld = scene?.worldId;
     if (session.phase !== "walking" || sceneTour.phase !== "discussing" || sceneTour.sceneId !== currentId) return;
     if (engine.activeWorld.id !== expectedWorld) {
-      view.toast("Return to the current process world before recording evidence.");
+      view.toast("Return to the current thought chapter before recording evidence.");
       return;
     }
     if (!engine.isWorldReady(expectedWorld)) {
@@ -489,7 +673,7 @@ function recordStationEvidence({ choiceValue = "", observation = "" } = {}) {
     }
     const correspondence = engine.director.correspondence();
     if (engine.director.state !== "asking" || !correspondence.synced) {
-      view.toast("Wait for the speaking companion to reach and face the evidence.");
+      view.toast("Wait for the speaking AI lens to reach and face the evidence.");
       return;
     }
 
@@ -501,7 +685,7 @@ function recordStationEvidence({ choiceValue = "", observation = "" } = {}) {
     const choice = selected || {
       value: "free-observation",
       label: "Visitor observation",
-      stance: "Keep this as a firsthand observation, separate from any interpretation the company proposes.",
+      stance: "Keep this as a firsthand observation, separate from any interpretation the AI lenses propose.",
       evidence_prompt: "Name the exact relation another visitor could inspect, then note what remains uncertain.",
       effect: "focus"
     };
@@ -554,18 +738,26 @@ function recordStationEvidence({ choiceValue = "", observation = "" } = {}) {
       ...state.journeyStationEvidence.filter((record) => record.station_id !== station.station_id),
       structuredClone(stationRecord)
     ].slice(-24);
+    const deferredConversation = usedLivePerspectives ? null : {
+      turns: perspectives,
+      completeLabel: sceneTour.metrics.resolved >= sceneTour.requiredStationCount
+        ? "Reflect on this world"
+        : "Continue to the next artwork",
+      allowSkip: false
+    };
     voice.stop();
+    narrator.stop();
     state.dialogueGeneration += 1;
     state.dialogueBusy = false;
     engine.director.listen();
     engine.applyEffect(station.artwork_id, choice.effect);
-    view.showStationFeedback(choice, sceneTour.stationEvidence.length >= sceneTour.requiredStationCount, {
+    view.showStationFeedback(choice, sceneTour.metrics.resolved >= sceneTour.requiredStationCount, {
       observationRecorded: Boolean(visitorObservation),
-      perspectives: usedLivePerspectives ? [] : perspectives
+      perspectives: []
     });
-    if (!usedLivePerspectives) {
-      narrate(perspectives.map((item) => ({ speakerId: item.companionId, text: item.text })), { replace: true });
-    }
+    const storyTriggered = triggerLivingArtworkStory({ scene, station, deferredConversation });
+    if (deferredConversation && !storyTriggered) showDeferredCompanionConversation(deferredConversation);
+    syncQuestionProgress();
     postRoom("answer", `${station.station_id}:${choice.label}`);
     postRoom("effect", choice.effect);
   } catch (error) {
@@ -578,7 +770,7 @@ function recordSceneReflection(resolveAnswer) {
     const currentId = session.currentStopId;
     const expectedWorld = getExhibitionScene(currentId)?.worldId;
     if (engine.activeWorld.id !== expectedWorld) {
-      view.toast("Return to the current process world before recording evidence.");
+      view.toast("Return to the current thought chapter before recording evidence.");
       return;
     }
     if (!engine.isWorldReady(expectedWorld)) {
@@ -590,12 +782,16 @@ function recordSceneReflection(resolveAnswer) {
       view.toast("Complete all three artwork stations before reflecting on this world.");
       return;
     }
+    if (sceneTour.stationEvidence.length < 1) {
+      view.toast("Explore at least one artwork before reflecting on this world.");
+      return;
+    }
     const choice = resolveAnswer();
     sceneTour.completeScene(choice.label, sceneTour.token);
     voice.stop();
     state.dialogueGeneration += 1;
     state.dialogueBusy = false;
-    journey.recordSceneVisit(currentId);
+    if (!journey.visitedSceneIds.includes(currentId)) journey.recordSceneVisit(currentId);
     engine.director.listen();
     engine.applyEffect(currentId, choice.effect);
     view.showFeedback(choice);
@@ -604,6 +800,7 @@ function recordSceneReflection(resolveAnswer) {
       text: choice.feedback
     }], { replace: true });
     view.renderRoute(session.plan, session.visited, null);
+    syncQuestionProgress();
     postRoom("answer", choice.label);
     postRoom("effect", choice.effect);
   } catch (error) {
@@ -618,20 +815,7 @@ async function continueLesson() {
     if (sceneTour.phase === "station-reflecting") {
       const token = sceneTour.token;
       const stop = session.currentStop;
-      sceneTour.continue(token);
-      if (sceneTour.phase === "station-walking") {
-        navigateToCurrentStation(stop, token);
-        return;
-      }
-      const scene = getExhibitionScene(stop.stop_id);
-      session.arrive();
-      view.setSpeaker(sceneSpeaker(scene));
-      view.showQuestion(stop);
-      view.renderRoute(session.plan, session.visited, session.currentStopId);
-      narrate([{
-        speakerId: scene?.guideId || "mira",
-        text: `${stop.guide_line} ${stop.prompt}`
-      }], { replace: true });
+      advanceStationOrOpenReflection(stop, token);
       return;
     }
     const next = session.continue();
@@ -642,7 +826,7 @@ async function continueLesson() {
     const digest = currentDigest();
     const recap = await api.recap(digest).catch(() => ({
       data: {
-        title: "Eight worlds are now in the record",
+        title: "Your question now carries an eight-chapter record",
         summary: "You carried one question through visibility, inheritance, perception, invention, intensity, transformation, identity and infinity."
       }
     }));
@@ -657,6 +841,48 @@ async function continueLesson() {
   }
 }
 
+function skipCurrentArtwork() {
+  try {
+    if (!["station-walking", "station-ready", "discussing"].includes(sceneTour.phase)) return;
+    if (sceneTour.metrics.remaining === 1 && sceneTour.metrics.explored === 0) {
+      view.toast("Pause at one artwork before leaving this world; the finale only uses evidence you actually explored.");
+      return;
+    }
+    const stop = session.currentStop;
+    const token = sceneTour.token;
+    const skippedArtwork = focusedArtwork();
+    const skippedId = sceneTour.skipStation(token);
+    voice.stop();
+    narrator.stop();
+    view.hideCompanionConversation?.();
+    state.dialogueGeneration += 1;
+    state.dialogueBusy = false;
+    engine.director.listen();
+    advanceStationOrOpenReflection(stop, token);
+    syncQuestionProgress();
+    view.toast(`${skippedArtwork?.title || skippedId} skipped · no evidence was added.`);
+  } catch (error) {
+    view.toast(readable(error.message));
+  }
+}
+
+function advanceStationOrOpenReflection(stop, token) {
+  sceneTour.continue(token);
+  if (sceneTour.phase === "station-walking") {
+    navigateToCurrentStation(stop, token);
+    return;
+  }
+  const scene = getExhibitionScene(stop.stop_id);
+  session.arrive();
+  view.setSpeaker(sceneSpeaker(scene));
+  view.showQuestion(stop);
+  view.renderRoute(session.plan, session.visited, session.currentStopId);
+  narrate([{
+    speakerId: scene?.guideId || "mira",
+    text: stop.prompt
+  }], { replace: true });
+}
+
 function beginSummoning() {
   if (state.busy) return;
   try {
@@ -666,7 +892,7 @@ function beginSummoning() {
     const digest = currentDigest();
     view.showSummoning(digest, selectedCompanionRecords(), state.recap);
     state.salonPromise = requestSalon(digest);
-    engine.showSalonCharacters(true).catch(() => view.toast("Companion staging unavailable; their perspectives remain in the record."));
+    engine.showSalonCharacters(true).catch(() => view.toast("AI-lens staging unavailable; their perspectives remain in the record."));
   } catch (error) {
     view.toast(readable(error.message));
   }
@@ -773,6 +999,7 @@ async function enterFinalWorld() {
   state.busy = true;
   let transitionToken = null;
   try {
+    resetArtworkStoryFlow();
     voice.stop();
     const scene = journey.prepareFinalWorld();
     transitionToken = view.beginWorldTransition(scene);
@@ -795,7 +1022,13 @@ async function enterFinalWorld() {
     }
     journey.enterFinalWorld();
     setSoundStage("final_answer");
-    view.toast("Opening 09 / ANSWER · high-resolution spatial realization");
+    try {
+      engine.enterFinale?.();
+    } catch {
+      engine.worldLayer.setArtworksVisible?.(false);
+      await engine.showSalonCharacters(true);
+    }
+    view.toast("09 / ANSWER · your chosen AI lenses have returned to you");
     state.dialogueGeneration += 1;
     state.dialogueBusy = false;
     state.currentSceneId = scene.id;
@@ -803,7 +1036,7 @@ async function enterFinalWorld() {
     view.enterFinalWorld(world, state.salon);
     narrate([{
       speakerId: "mira",
-      text: `${state.salon?.principle || journey.manifesto} ${FINAL_SCENE.question}`,
+      text: `You carried “${journey.question}” through eight thought chapters, and your chosen AI lenses have returned with you. ${state.salon?.principle || journey.manifesto} This journey produced a concept no other path could repeat; the answer remains yours to live with.`,
       remote: Boolean(state.salon?.principle)
     }], { replace: true });
     postRoom("scene", FINAL_SCENE.id);
@@ -836,7 +1069,7 @@ function renderDrawer(type = view.drawer.dataset.type) {
     visitedSceneIds: [...journey.visitedSceneIds],
     session,
     provider: state.salon ? state.salonProvider : state.provider,
-    tourLocked: hasActiveSceneTour()
+    tourLocked: false
   });
 }
 
@@ -845,34 +1078,24 @@ async function handleDrawerAction(action, button) {
     if (action === "world") {
       if (state.busy) throw new Error("world_transition_in_progress");
       if (journey.finalWorldEntered) throw new Error("answer_world_is_final");
-      if (hasActiveSceneTour()) throw new Error("finish_current_scene_before_atlas");
       const sceneIndex = EXHIBITION_SPINE.findIndex((item) => item.worldId === button.dataset.value);
-      const unlockedIndex = Math.min(journey.visitedSceneIds.length, EXHIBITION_SPINE.length - 1);
-      if (sceneIndex < 0 || sceneIndex > unlockedIndex) throw new Error("world_not_unlocked");
+      if (journey.stage !== "world_exploration") throw new Error("begin_the_walk_before_using_atlas");
+      if (sceneIndex < 0) throw new Error("unknown_process_scene");
       state.busy = true;
       voice.stop();
       narrator.stop();
+      view.hideCompanionConversation?.();
       state.dialogueGeneration += 1;
       state.dialogueBusy = false;
       view.setInquiryBusy(false);
       const scene = EXHIBITION_SPINE[sceneIndex];
-      const transitionToken = engine.activeWorld.id === scene.worldId
-        ? null
-        : view.beginWorldTransition(scene);
-      let world;
+      view.closeDrawer();
       try {
-        world = await engine.setWorld(button.dataset.value);
-        state.worldId = world.id;
-        view.setWorld(world);
-        view.setWorldPresentation(scene, engine.isWorldReady(world.id));
+        session.jumpTo(scene.id);
+        await activateProcessScene(scene.id);
       } finally {
-        if (transitionToken !== null) view.finishWorldTransition(transitionToken);
         state.busy = false;
       }
-      renderDrawer("atlas");
-      view.toast(engine.isWorldReady(world.id)
-        ? `${world.name} · Atlas comparison only`
-        : `${world.name} · scene unavailable; comparison fallback only`);
     } else if (action === "forge") {
       button.disabled = true;
       const result = await api.forge(valueOf("forge-prompt"), valueOf("forge-token"));
@@ -919,8 +1142,11 @@ function openDecision() {
 
 async function toggleSound() {
   const enabled = soundscape.setEnabled(!soundscape.enabled);
+  museumScore.setEnabled(enabled);
   narrator.setEnabled(enabled);
-  const ready = enabled ? await soundscape.unlock() : false;
+  const ready = enabled
+    ? (await Promise.all([soundscape.unlock(), museumScore.unlock()])).some(Boolean)
+    : false;
   view.setSoundState(enabled, enabled ? (ready ? "on" : "unavailable") : "off");
 }
 
@@ -953,12 +1179,15 @@ async function toggleVoice() {
 
 function setVoiceState(value) {
   view.setVoiceState(value);
-  soundscape.setSpeaking("conversation", !["off", "error"].includes(value));
+  const speaking = !["off", "error"].includes(value);
+  soundscape.setSpeaking("conversation", speaking);
+  museumScore.setSpeaking("conversation", speaking);
 }
 
 function setSoundStage(stage) {
   narrator.stop();
   soundscape.setStage(stage);
+  museumScore.setStage(stage);
 }
 
 function narrate(lines, options = {}) {
@@ -966,7 +1195,7 @@ function narrate(lines, options = {}) {
   const playable = (lines || []).filter((line) => String(line?.text || "").trim());
   if (state.status.narration && !state.narrationDisclosureShown && playable.some((line) => line.remote !== false)) {
     state.narrationDisclosureShown = true;
-    view.toast("Guide voices are AI-generated interpretations, not the historical figures themselves.");
+    view.toast("Named voices are AI-generated interpretive lenses, never the historical figures or living artists themselves.");
   }
   return narrator.enqueue(playable, options);
 }
@@ -982,7 +1211,8 @@ function bindSoundUnlock() {
     window.removeEventListener("pointerdown", unlock);
     window.removeEventListener("keydown", unlock);
     if (!soundscape.enabled) return;
-    void soundscape.unlock().then((ready) => {
+    void Promise.all([soundscape.unlock(), museumScore.unlock()]).then((results) => {
+      const ready = results.some(Boolean);
       const enabled = soundscape.enabled;
       view.setSoundState(enabled, enabled ? (ready ? "on" : "unavailable") : "off");
     });
@@ -992,11 +1222,6 @@ function bindSoundUnlock() {
 }
 
 function bindMovementControls() {
-  const follow = document.getElementById("follow-button");
-  follow.addEventListener("click", () => {
-    const enabled = follow.getAttribute("aria-pressed") !== "true";
-    engine.setFollow(enabled);
-  });
   const joystick = document.getElementById("joystick");
   const knob = joystick.firstElementChild;
   const reset = () => {
@@ -1053,6 +1278,17 @@ function currentDigest() {
   });
 }
 
+function syncQuestionProgress() {
+  const exploredStationIds = new Set(state.journeyStationEvidence.map((record) => record.station_id).filter(Boolean));
+  return view.setQuestionProgress({
+    question: journey.question,
+    explored: exploredStationIds.size,
+    total: 24,
+    worldsExplored: new Set(journey.visitedSceneIds).size,
+    worldsTotal: EXHIBITION_SPINE.length
+  });
+}
+
 function providerRecord(result = {}) {
   return {
     live: result.live === true,
@@ -1072,6 +1308,7 @@ function currentDialogueContext(question = "") {
   }));
   return {
     question,
+    carrying_question: journey.question,
     station_id: currentStation(session.currentStop)?.station_id,
     focus_question: currentStation(session.currentStop)?.focus_question,
     scene_id: scene.id,
@@ -1122,8 +1359,10 @@ function currentStation(stop = session.currentStop) {
 }
 
 function focusedArtwork() {
-  if (!sceneTour.focusedArtworkId) return null;
-  return engine.worldLayer.artworkPose(sceneTour.focusedArtworkId)?.artwork || null;
+  const artworkId = sceneTour.focusedArtworkId;
+  if (!artworkId) return null;
+  const liveArtwork = engine.worldLayer.artworkPose(artworkId)?.artwork;
+  return resolveActiveArtwork(artworkId, liveArtwork, engine.companyTour);
 }
 
 function selectedCompanionRecords() {
@@ -1170,21 +1409,17 @@ function companionPerspectiveText({ companion, choice, artwork, station, prior }
   const maker = artwork?.artist ? ` by ${artwork.artist}` : "";
   const date = artwork?.date ? ` (${artwork.date})` : "";
   const methods = {
-    monet: "Treat your first response as a changeable condition: compare what holds steady with what shifts as attention, distance, or time changes.",
-    "van-gogh": "Test where color, pressure, and rhythm support the claim, then identify the exact relation that resists an easy emotional reading.",
-    socrates: "State the claim in its narrowest form, name the evidence that could falsify it, and ask which assumption has entered without proof.",
-    frida: "Keep bodily response and private symbolism as attributed experience, then separate that experience from what the shared evidence can establish.",
-    picasso: "Hold at least two viewpoints at once; let their incompatibility expose what a single stable reading leaves outside the frame.",
-    freud: "Ask which inherited desire or prior association may be speaking, while refusing to treat that association as a verified fact about the work.",
-    "qi-baishi": "Attend to the economy of the mark and the active interval around it; test how little evidence is needed before the relation becomes legible.",
-    "yayoi-kusama": "Track repetition as a method rather than a decoration, and ask when accumulation changes the visitor's sense of boundary or self."
+    monet: "compare what stays with what changes as light, distance, or attention shifts",
+    "van-gogh": "test where color, pressure, and rhythm support your feeling",
+    socrates: "narrow the claim, then name the evidence that could prove it wrong",
+    frida: "separate bodily experience and private symbolism from what others can verify",
+    picasso: "hold two incompatible viewpoints together and notice what neither can contain",
+    freud: "notice which memory or desire may be speaking without treating it as fact",
+    "qi-baishi": "watch the economy of the mark and the active space around it",
+    "yayoi-kusama": "track when repetition changes your sense of boundary or self"
   };
-  const priorLink = prior?.visitor_observation
-    ? `Compare it with your prior observation, “${prior.visitor_observation},” and say whether the relation survives.`
-    : prior?.visitor_question
-      ? `Carry forward the earlier test, “${prior.visitor_question},” without assuming the same answer.`
-      : "Begin with a relation another visitor could independently check.";
-  return `${name} approaches ${work}${maker}${date} through this lens: ${companion?.lens || "Interpretation must remain answerable to evidence."} Your chosen stance is: ${choice.stance} ${methods[id] || methods.socrates} ${priorLink} Next evidence test: ${choice.evidence_prompt}`;
+  const priorLink = prior?.visitor_observation || prior?.visitor_question;
+  return `${name}: For “${journey.question},” I would ${methods[id] || methods.socrates}. In ${work}${maker}${date}, your stance is “${choice.stance}”${priorLink ? `; compare it with your earlier thought, “${priorLink}.”` : "."} Now test this: ${choice.evidence_prompt}`;
 }
 
 function hasActiveSceneTour() {

@@ -56,6 +56,8 @@ export class LearnerAvatar {
     const limbMotion = createStaticLimbMotion(this.avatar.motionProfile);
     this.motionAngles = limbMotion.angles;
     this.motionUniforms = limbMotion.uniforms;
+    Object.assign(this.motionAngles, resolveLearnerMotionPose({ profile: this.avatar.motionProfile }));
+    updateStaticLimbMatrices(this.motionUniforms, this.motionAngles);
     this.loadToken = 0;
     this.disposed = false;
   }
@@ -161,10 +163,12 @@ export class LearnerAvatar {
     const moving = THREE.MathUtils.clamp(Math.abs(proceduralSpeed) / 1.8, 0, 1);
     this.motionUniforms.footSeparation.value = (this.avatar.motionProfile?.footSeparation || 0) * moving;
     const phase = (Number(elapsed) || 0) * archivedGaitCadence(proceduralSpeed) + this.phase;
-    const targetY = this.baseY + Math.abs(Math.sin(phase)) * 0.018 * moving + Math.sin(phase * 0.24) * 0.003;
-    const targetLean = Math.sin(phase) * 0.008 * moving;
+    const bobScale = motionProfileScale(this.avatar.motionProfile?.bobScale);
+    const leanScale = motionProfileScale(this.avatar.motionProfile?.leanScale);
+    const targetY = this.baseY + (Math.abs(Math.sin(phase)) * 0.018 * moving + Math.sin(phase * 0.24) * 0.003) * bobScale;
+    const targetLean = Math.sin(phase) * 0.008 * moving * leanScale;
     const damping = 1 - Math.exp(-Math.max(0, dt) * 8);
-    const pose = resolveArchivedMotionPose({ speed: proceduralSpeed, gesture: this.gesture, elapsed, phase: this.phase });
+    const pose = resolveLearnerMotionPose({ speed: proceduralSpeed, gesture: this.gesture, elapsed, phase: this.phase, profile: this.avatar.motionProfile });
     for (const key of Object.keys(this.motionAngles)) {
       this.motionAngles[key] += (pose[key] - this.motionAngles[key]) * damping;
     }
@@ -286,6 +290,28 @@ export function clampLearnerProceduralSpeed(speed, maxSpeed = 1.33) {
   return THREE.MathUtils.clamp(Number(speed) || 0, -limit, limit);
 }
 
+export function resolveLearnerMotionPose({ speed = 0, gesture = "open", elapsed = 0, phase = 0, profile = null } = {}) {
+  const proceduralSpeed = clampLearnerProceduralSpeed(speed, profile?.maxSpeed);
+  const pose = resolveArchivedMotionPose({ speed: proceduralSpeed, gesture, elapsed, phase });
+  const armScale = motionProfileScale(profile?.armSwingScale);
+  const elbowScale = motionProfileScale(profile?.elbowBendScale);
+  const legScale = motionProfileScale(profile?.legSwingScale);
+  const kneeScale = motionProfileScale(profile?.kneeBendScale);
+  return {
+    ...pose,
+    leftArmX: scaledMotion(pose.leftArmX, armScale),
+    rightArmX: scaledMotion(pose.rightArmX, armScale),
+    leftArmZ: scaledMotion(pose.leftArmZ, armScale),
+    rightArmZ: scaledMotion(pose.rightArmZ, armScale),
+    leftElbowX: scaledMotion(pose.leftElbowX, elbowScale),
+    rightElbowX: scaledMotion(pose.rightElbowX, elbowScale),
+    leftLegX: scaledMotion(pose.leftLegX, legScale),
+    rightLegX: scaledMotion(pose.rightLegX, legScale),
+    leftKneeX: scaledMotion(pose.leftKneeX, kneeScale),
+    rightKneeX: scaledMotion(pose.rightKneeX, kneeScale)
+  };
+}
+
 export function resolveLearnerClips(clips = []) {
   const find = (name) => clips.find((clip) => String(clip?.name || "").toLowerCase().includes(name)) || null;
   return {
@@ -299,4 +325,12 @@ function prepareAction(action) {
   action.clampWhenFinished = false;
   action.setLoop(THREE.LoopRepeat, Infinity);
   return action;
+}
+
+function motionProfileScale(value) {
+  return Number.isFinite(value) ? THREE.MathUtils.clamp(value, 0, 1) : 1;
+}
+
+function scaledMotion(value, scale) {
+  return scale === 0 ? 0 : value * scale;
 }
