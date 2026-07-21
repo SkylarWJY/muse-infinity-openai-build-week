@@ -1,0 +1,78 @@
+export class VoiceConversation {
+  constructor({ context, onState, onUserText, onReply }) {
+    this.context = context;
+    this.onState = onState;
+    this.onUserText = onUserText;
+    this.onReply = onReply;
+    this.recognition = null;
+  }
+
+  async ask(question) {
+    const clean = question.trim();
+    if (!clean) return;
+    this.onUserText?.(clean);
+    this.onState?.("thinking");
+    try {
+      const response = await fetch("/api/dialogue", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ question: clean, ...this.context() })
+      });
+      const reply = await response.json().catch(() => null);
+      if (!response.ok) {
+        const detail = reply?.warning || reply?.error || `HTTP ${response.status}`;
+        throw new Error(`Dialogue request failed (${response.status}): ${detail}`);
+      }
+      if (!reply) throw new Error("Dialogue response was not valid JSON.");
+      if (!Array.isArray(reply.perspectives)) throw new Error("Dialogue response carried no perspectives.");
+      this.onReply?.(reply);
+      // Read all three. Speaking only the first would silently discard two thirds of the answer,
+      // which is the entire point of asking three masters at once.
+      this.speak(reply.perspectives.map(item => `${item.speaker}. ${item.text}`).join(" "));
+      this.onState?.(reply.live ? "live" : "local");
+    } catch (error) {
+      // Surface the real failure. A canned apology here would hide exactly what the caller
+      // needs in order to render an honest error.
+      this.onReply?.({ perspectives: [], live: false, error: error.message });
+      this.onState?.("offline");
+    }
+  }
+
+  listen() {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Recognition) {
+      this.onState?.("unsupported");
+      return;
+    }
+    this.recognition?.abort?.();
+    const recognition = new Recognition();
+    recognition.lang = document.documentElement.lang === "zh" ? "zh-CN" : "en-US";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.onstart = () => this.onState?.("listening");
+    recognition.onerror = () => this.onState?.("offline");
+    recognition.onend = () => {
+      if (this.recognition === recognition) this.recognition = null;
+    };
+    recognition.onresult = event => {
+      const text = event.results?.[0]?.[0]?.transcript || "";
+      if (text) this.ask(text);
+    };
+    this.recognition = recognition;
+    recognition.start();
+  }
+
+  speak(text) {
+    if (!window.speechSynthesis || !text) return;
+    speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.94;
+    utterance.pitch = 0.92;
+    speechSynthesis.speak(utterance);
+  }
+
+  dispose() {
+    this.recognition?.abort?.();
+    window.speechSynthesis?.cancel?.();
+  }
+}
