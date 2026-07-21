@@ -2,11 +2,62 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
-import { LEARNER_ASSET, learnerMotionForSpeed, resolveLearnerClips } from "../src/render/LearnerAvatar.js";
+import * as THREE from "three";
+import { DEFAULT_LEARNER_AVATAR_ID, LEARNER_AVATARS, getLearnerAvatar } from "../src/config/learnerAvatars.js";
+import { LEARNER_ASSET, LearnerAvatar, clampLearnerProceduralSpeed, learnerMotionForSpeed, resolveLearnerClips } from "../src/render/LearnerAvatar.js";
 
-const LEARNER_FILE = new URL(`..${LEARNER_ASSET}`, import.meta.url);
+const DEFAULT_AVATAR = getLearnerAvatar(DEFAULT_LEARNER_AVATAR_ID);
+const ORIGINAL_AVATAR = getLearnerAvatar("original");
+const LEARNER_FILE = new URL(`..${ORIGINAL_AVATAR.asset}`, import.meta.url);
+const GIRL_FILE = new URL(`..${DEFAULT_AVATAR.asset}`, import.meta.url);
 const MANIFEST_FILE = new URL("../assets/generated/learner-v2/manifest.json", import.meta.url);
 const QA_REPORT_FILE = new URL("../assets/generated/learner-v2/qa-report.json", import.meta.url);
+const GIRL_MANIFEST_FILE = new URL("../assets/generated/learner-girl/manifest.json", import.meta.url);
+
+test("the learner avatar registry defaults to the switchable little-girl profile", () => {
+  assert.equal(DEFAULT_LEARNER_AVATAR_ID, "little-girl");
+  assert.equal(LEARNER_ASSET, DEFAULT_AVATAR.asset);
+  assert.equal(DEFAULT_AVATAR.motionMode, "procedural-limbs");
+  assert.deepEqual(DEFAULT_AVATAR.motionProfile, {
+    legUpperY: -0.42,
+    legBlendWidth: 0.1,
+    footSeparation: 0.012,
+    maxSpeed: 1.33
+  });
+  assert.equal(Object.isFrozen(DEFAULT_AVATAR.motionProfile), true);
+  assert.equal(ORIGINAL_AVATAR.motionMode, "skeletal");
+  assert.deepEqual(LEARNER_AVATARS.map((avatar) => avatar.id), ["little-girl", "original"]);
+  assert.equal(getLearnerAvatar("missing"), null);
+  assert.equal(Object.isFrozen(DEFAULT_AVATAR), true);
+});
+
+test("the default little-girl GLB is a browser-sized static mesh with verified provenance", () => {
+  const stat = fs.statSync(GIRL_FILE);
+  assert.ok(stat.size > 1_000_000 && stat.size < 5_000_000);
+  const buffer = fs.readFileSync(GIRL_FILE);
+  const gltf = readGlbJson(buffer);
+  let vertices = 0;
+  let triangles = 0;
+  for (const mesh of gltf.meshes) {
+    for (const primitive of mesh.primitives) {
+      const position = gltf.accessors[primitive.attributes.POSITION];
+      const indices = gltf.accessors[primitive.indices];
+      vertices += position.count;
+      triangles += Math.floor((indices?.count || position.count) / 3);
+    }
+  }
+  assert.equal(gltf.asset.generator, "glTF-Transform v4.4.1");
+  assert.equal(gltf.skins, undefined);
+  assert.equal(gltf.animations, undefined);
+  assert.ok(gltf.extensionsRequired.includes("KHR_mesh_quantization"));
+  assert.equal(vertices, 56_770);
+  assert.equal(triangles, 88_379);
+
+  const manifest = JSON.parse(fs.readFileSync(GIRL_MANIFEST_FILE, "utf8"));
+  assert.equal(manifest.output.path, "../../characters/learner-girl.glb");
+  assert.equal(manifest.output.bytes, buffer.byteLength);
+  assert.equal(manifest.output.sha256, createHash("sha256").update(buffer).digest("hex"));
+});
 
 test("generated learner GLB contains a web-ready skin and idle/walk clips", () => {
   const stat = fs.statSync(LEARNER_FILE);
@@ -86,3 +137,117 @@ test("learner generation manifest matches every shipped source and output hash",
     if (entry.bytes) assert.equal(data.byteLength, entry.bytes, entry.path);
   }
 });
+
+test("learner avatars articulate static meshes and can switch to the retained skeletal profile", async () => {
+  const requestedAssets = [];
+  let girlGeometryDisposals = 0;
+  const loader = {
+    async loadAsync(asset) {
+      requestedAssets.push(asset);
+      const scene = new THREE.Group();
+      if (asset === DEFAULT_AVATAR.asset) {
+        const geometry = new THREE.BoxGeometry(0.5, 1, 0.4);
+        geometry.addEventListener("dispose", () => { girlGeometryDisposals += 1; });
+        scene.add(new THREE.Mesh(geometry, new THREE.MeshStandardMaterial()));
+        return { scene, animations: [] };
+      }
+      return skeletalGltf(scene);
+    }
+  };
+  const avatar = new LearnerAvatar({ loader });
+
+  await avatar.load();
+  assert.equal(avatar.ready, true);
+  assert.equal(avatar.group.userData.avatarId, "little-girl");
+  assert.equal(avatar.group.userData.fallback, false);
+  assert.equal(avatar.model.userData.motionRig, "procedural-limbs");
+  assert.deepEqual(avatar.model.userData.animationClips, []);
+  const material = avatar.model.children[0].material;
+  assert.equal(material.customProgramCacheKey(), "muse-archived-avatar-motion-v4");
+  assert.equal(avatar.motionUniforms.legUpperY.value, -0.42);
+  assert.equal(avatar.motionUniforms.legBlendWidth.value, 0.1);
+  avatar.phase = 0;
+  avatar.setMotion(1);
+  const startY = avatar.model.position.y;
+  avatar.update(1 / 60, 0.35);
+  assert.equal(avatar.group.userData.motion, "walk");
+  assert.notEqual(avatar.model.position.y, startY);
+  assert.equal(Math.sign(avatar.motionAngles.leftArmX), -Math.sign(avatar.motionAngles.rightArmX));
+  assert.equal(Math.sign(avatar.motionAngles.leftLegX), -Math.sign(avatar.motionAngles.rightLegX));
+  assert.ok(avatar.motionAngles.leftKneeX > 0 || avatar.motionAngles.rightKneeX > 0);
+  assert.ok(avatar.motionUniforms.footSeparation.value > 0);
+
+  await avatar.setAvatar("original");
+  assert.deepEqual(requestedAssets, [DEFAULT_AVATAR.asset, ORIGINAL_AVATAR.asset]);
+  assert.equal(girlGeometryDisposals, 1);
+  assert.equal(avatar.group.userData.avatarId, "original");
+  assert.equal(avatar.group.userData.asset, ORIGINAL_AVATAR.asset);
+  assert.equal(avatar.model.userData.motionRig, "skeletal-animation");
+  assert.deepEqual(avatar.model.userData.animationClips, ["idle", "walk"]);
+  await assert.rejects(avatar.setAvatar("missing"), /unknown_learner_avatar:missing/);
+  avatar.dispose();
+});
+
+test("procedural learner motion cannot exceed the museum walking envelope", () => {
+  assert.equal(clampLearnerProceduralSpeed(1.8), 1.33);
+  assert.equal(clampLearnerProceduralSpeed(-4), -1.33);
+  assert.equal(clampLearnerProceduralSpeed(0.7), 0.7);
+  assert.equal(clampLearnerProceduralSpeed(Number.NaN), 0);
+});
+
+test("the last avatar selection wins when an earlier switch resolves late", async () => {
+  let resolveOriginal;
+  const loader = {
+    loadAsync(asset) {
+      if (asset === DEFAULT_AVATAR.asset) {
+        const scene = new THREE.Group();
+        scene.add(new THREE.Mesh(new THREE.BoxGeometry(0.5, 1, 0.4), new THREE.MeshStandardMaterial()));
+        return Promise.resolve({ scene, animations: [] });
+      }
+      return new Promise((resolve) => { resolveOriginal = resolve; });
+    }
+  };
+  const avatar = new LearnerAvatar({ loader });
+  await avatar.load();
+
+  const switchingToOriginal = avatar.setAvatar("original");
+  await Promise.resolve();
+  await avatar.setAvatar("little-girl");
+  const lateOriginal = skeletalGltf();
+  let lateGeometryDisposals = 0;
+  lateOriginal.scene.children[0].geometry.addEventListener("dispose", () => { lateGeometryDisposals += 1; });
+  resolveOriginal(lateOriginal);
+  await switchingToOriginal;
+
+  assert.equal(avatar.group.userData.avatarId, "little-girl");
+  assert.equal(avatar.group.userData.asset, DEFAULT_AVATAR.asset);
+  assert.equal(avatar.ready, true);
+  assert.equal(avatar.loaded, true);
+  assert.equal(lateGeometryDisposals, 1);
+  avatar.dispose();
+});
+
+function skeletalGltf(scene = new THREE.Group()) {
+  const geometry = new THREE.BoxGeometry(0.5, 1, 0.4);
+  const vertexCount = geometry.getAttribute("position").count;
+  geometry.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(new Uint16Array(vertexCount * 4), 4));
+  const weights = new Float32Array(vertexCount * 4);
+  for (let index = 0; index < vertexCount; index += 1) weights[index * 4] = 1;
+  geometry.setAttribute("skinWeight", new THREE.Float32BufferAttribute(weights, 4));
+  const mesh = new THREE.SkinnedMesh(geometry, new THREE.MeshStandardMaterial());
+  const bone = new THREE.Bone();
+  mesh.add(bone);
+  mesh.bind(new THREE.Skeleton([bone]));
+  scene.add(mesh);
+  return {
+    scene,
+    animations: [new THREE.AnimationClip("idle", 1, []), new THREE.AnimationClip("walk", 1, [])]
+  };
+}
+
+function readGlbJson(buffer) {
+  assert.equal(buffer.toString("ascii", 0, 4), "glTF");
+  assert.equal(buffer.readUInt32LE(4), 2);
+  const jsonLength = buffer.readUInt32LE(12);
+  return JSON.parse(buffer.toString("utf8", 20, 20 + jsonLength).replace(/\0+$/, "").trim());
+}

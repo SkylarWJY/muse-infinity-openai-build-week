@@ -68,7 +68,7 @@ const INITIAL_PARTY_PATTERN_OVERRIDES = Object.freeze({
 });
 
 export class MuseumEngine {
-  constructor(container, { onGuideState = () => {}, onMetrics = () => {}, onFollowChange = () => {}, onWorldLayerStatus = () => {}, onCompanionStatus = () => {}, quality = currentSceneQuality() } = {}) {
+  constructor(container, { onGuideState = () => {}, onMetrics = () => {}, onFollowChange = () => {}, onWorldLayerStatus = () => {}, onCompanionStatus = () => {}, learnerAvatarId, quality = currentSceneQuality() } = {}) {
     this.container = container;
     this.onGuideState = onGuideState;
     this.onMetrics = onMetrics;
@@ -119,7 +119,7 @@ export class MuseumEngine {
     this.setupLights();
     this.worldLayer = new WorldLayer(this.scene, { renderer: this.renderer, quality, onStatus: onWorldLayerStatus });
     this.ambient = new AmbientLife(this.scene);
-    this.player = new LearnerAvatar();
+    this.player = new LearnerAvatar({ avatarId: learnerAvatarId });
     this.guide = new ProceduralAvatar({ coat: 0x1a312d, accent: 0xd8ff42, skin: 0xa66f55, name: "Mira" });
     this.player.group.position.set(0.8, 0, 5.2);
     this.guide.group.position.set(-0.7, 0, 3.4);
@@ -140,6 +140,10 @@ export class MuseumEngine {
     const companions = this.setCompanions(this.companionIds).catch(() => null);
     const [activeWorld] = await Promise.all([world, learner, companions]);
     return activeWorld;
+  }
+
+  setLearnerAvatar(avatarId) {
+    return this.player.setAvatar(avatarId);
   }
 
   setupLights() {

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "source": {
+    "name": "little girl 3d model.glb",
+    "provider": "user-provided Tripo export",
+    "bytes": 58341140,
+    "sha256": "40fc483cbbe48b05bae560663cfc7e207592ce7f8f790b26b288361204fe47c0",
+    "geometry": {
+      "vertices": 1016272,
+      "triangles": 1964005,
+      "skins": 0,
+      "animations": 0
+    }
+  },
+  "optimization": {
+    "tool": "@gltf-transform/cli 4.4.1",
+    "command": "optimize --compress quantize --simplify-ratio 0.045 --simplify-error 0.02 --texture-size 1024 --texture-compress auto"
+  },
+  "output": {
+    "path": "../../characters/learner-girl.glb",
+    "bytes": 2066968,
+    "sha256": "62b84aab7414b12d4ca2c5f9a0aa4ae11dfe51dca879bf45814e892dbb71b5c4",
+    "geometry": {
+      "vertices": 56770,
+      "triangles": 88379,
+      "skins": 0,
+      "animations": 0
+    }
+  }
+}

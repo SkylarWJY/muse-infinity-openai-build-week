@@ -31,11 +31,11 @@ export class ArchivedAvatar {
     this.phase = Math.random() * Math.PI * 2;
     this.baseY = 0;
     this.pose = resolveArchivedMotionPose();
-    this.motionAngles = { ...this.pose };
-    this.motionUniforms = Object.fromEntries(ROTATION_UNIFORMS.map((key) => [key, { value: new THREE.Matrix3() }]));
+    const limbMotion = createStaticLimbMotion();
+    this.motionAngles = limbMotion.angles;
+    this.motionUniforms = limbMotion.uniforms;
     this.loadToken = 0;
     this.disposed = false;
-    updateMotionMatrices(this.motionUniforms, this.motionAngles);
   }
 
   async load() {
@@ -184,6 +184,33 @@ export function archivedGaitCadence(speed) {
   return THREE.MathUtils.clamp(Math.abs(Number(speed) || 0) * 4.5, 2.8, 10.5);
 }
 
+export function createStaticLimbMotion(profile) {
+  const angles = { ...resolveArchivedMotionPose() };
+  const uniforms = {
+    ...Object.fromEntries(ROTATION_UNIFORMS.map((key) => [key, { value: new THREE.Matrix3() }])),
+    legUpperY: { value: 0.035 },
+    legBlendWidth: { value: 0.115 },
+    footSeparation: { value: 0 }
+  };
+  configureStaticLimbMotion(uniforms, profile);
+  updateMotionMatrices(uniforms, angles);
+  return { angles, uniforms };
+}
+
+export function configureStaticLimbMotion(uniforms, profile = {}) {
+  if (Number.isFinite(profile?.legUpperY)) uniforms.legUpperY.value = profile.legUpperY;
+  if (Number.isFinite(profile?.legBlendWidth) && profile.legBlendWidth > 0) uniforms.legBlendWidth.value = profile.legBlendWidth;
+  uniforms.footSeparation.value = 0;
+}
+
+export function installStaticLimbShader(material, uniforms) {
+  installMotionShader(material, uniforms);
+}
+
+export function updateStaticLimbMatrices(uniforms, angles) {
+  updateMotionMatrices(uniforms, angles);
+}
+
 function installMotionShader(material, uniforms) {
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
@@ -192,7 +219,7 @@ function installMotionShader(material, uniforms) {
       .replace("#include <beginnormal_vertex>", `#include <beginnormal_vertex>\n${motionNormalShader()}`)
       .replace("#include <begin_vertex>", `#include <begin_vertex>\n${motionPositionShader()}`);
   };
-  material.customProgramCacheKey = () => "muse-archived-avatar-motion-v2";
+  material.customProgramCacheKey = () => "muse-archived-avatar-motion-v4";
 }
 
 function updateMotionMatrices(uniforms, pose) {
@@ -230,6 +257,9 @@ uniform mat3 leftLegMatrix;
 uniform mat3 rightLegMatrix;
 uniform mat3 leftKneeMatrix;
 uniform mat3 rightKneeMatrix;
+uniform float legUpperY;
+uniform float legBlendWidth;
+uniform float footSeparation;
 
 float museArmMask(float x, float y, float side) {
   float horizontal = smoothstep(0.12, 0.23, x * side);
@@ -238,7 +268,9 @@ float museArmMask(float x, float y, float side) {
 }
 
 float museLegMask(float x, float y, float side) {
-  return smoothstep(-0.035, 0.075, x * side) * (1.0 - smoothstep(-0.08, 0.035, y));
+  float horizontal = smoothstep(-0.035, 0.075, x * side);
+  float vertical = 1.0 - smoothstep(legUpperY - legBlendWidth, legUpperY, y);
+  return horizontal * vertical;
 }
 `;
 }
@@ -315,6 +347,8 @@ if (museLeftLeg > 0.0) {
   vec3 museLeftShinPosition = museLeftKneePivot + leftKneeMatrix * (transformed - museLeftKneePivot);
   transformed = mix(transformed, museLeftShinPosition, museLeftKnee);
 }
+float museFootMask = 1.0 - smoothstep(-0.72, -0.58, position.y);
+transformed.x += (museRightLeg - museLeftLeg) * museFootMask * footSeparation;
 `;
 }
 

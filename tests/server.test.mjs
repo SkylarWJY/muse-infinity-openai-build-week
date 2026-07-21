@@ -544,6 +544,7 @@ test("archived worlds and companions are served with deployable media types", ()
   const world = await fetch(`${base}/assets/worlds/grand-conservatory.rad`, { method: "HEAD" });
   const companion = await fetch(`${base}/assets/characters/monet.glb`, { method: "HEAD" });
   const learner = await fetch(`${base}/assets/characters/learner.glb`, { method: "HEAD" });
+  const learnerGirl = await fetch(`${base}/assets/characters/learner-girl.glb`, { method: "HEAD" });
   assert.equal(world.status, 200);
   assert.equal(world.headers.get("content-type"), "application/octet-stream");
   assert.equal(Number(world.headers.get("content-length")), 87_503_680);
@@ -553,6 +554,9 @@ test("archived worlds and companions are served with deployable media types", ()
   assert.equal(learner.status, 200);
   assert.equal(learner.headers.get("content-type"), "model/gltf-binary");
   assert.ok(Number(learner.headers.get("content-length")) > 1_000_000);
+  assert.equal(learnerGirl.status, 200);
+  assert.equal(learnerGirl.headers.get("content-type"), "model/gltf-binary");
+  assert.equal(Number(learnerGirl.headers.get("content-length")), 2_066_968);
 }));
 
 test("quality RAD worlds stream immutable byte ranges", () => withServer(async (base) => {
