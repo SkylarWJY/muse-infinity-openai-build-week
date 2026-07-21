@@ -161,8 +161,8 @@ test("browser voice fallback turns free speech into grounded dialogue and spoken
       return {
         live: true,
         model: "gpt-5.6",
-        gateway: "inherited-gpt",
-        model_source: "gateway-response-reported",
+        gateway: "official",
+        model_source: "openai-api",
         perspectives: [{ speakerId: "monet", speaker: "Claude Monet", text: "The reflection changes with your position." }]
       };
     },
@@ -199,8 +199,8 @@ test("browser voice fallback turns free speech into grounded dialogue and spoken
   assert.deepEqual(transcripts.at(-1).provider, {
     live: true,
     model: "gpt-5.6",
-    gateway: "inherited-gpt",
-    model_source: "gateway-response-reported"
+    gateway: "official",
+    model_source: "openai-api"
   });
   assert.equal(transcripts.at(-1).source, "live-dialogue");
   assert.equal(states.at(-1), "listening");

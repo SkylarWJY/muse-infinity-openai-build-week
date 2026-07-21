@@ -236,6 +236,13 @@ export function resolveProceduralMotionPose({ speed = 0, gesture = "open", elaps
     pose.rightShoulderX = -0.66 + idle * 0.02;
     pose.rightShoulderZ = -0.14;
     pose.rightElbowX = -0.58;
+    pose.headYaw = -0.08 + idle * 0.02;
+  } else if (gesture === "listen") {
+    pose.leftShoulderZ = -0.05 - idle * 0.01;
+    pose.rightShoulderZ = 0.05 + idle * 0.01;
+    pose.leftElbowX = 0.025;
+    pose.rightElbowX = 0.025;
+    pose.headYaw = 0.08 + idle * 0.025;
   } else {
     pose.leftShoulderZ = -0.16 - idle * 0.02;
     pose.rightShoulderZ = 0.16 + idle * 0.02;

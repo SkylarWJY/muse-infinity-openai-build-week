@@ -16,3 +16,29 @@ test("guide arrives and faces declared artwork before asking", () => {
   assert.ok(metrics.facingError <= 20, `facing ${metrics.facingError}`);
   assert.deepEqual(states.slice(-4), ["arriving", "facing", "pointing", "asking"]);
 });
+
+test("guide keeps its reflecting gesture until the next state transition", () => {
+  const avatar = new ProceduralAvatar();
+  const director = new GuideDirector({ avatar });
+
+  director.reflect();
+  director.update(1 / 60);
+  director.update(1 / 60);
+
+  assert.equal(director.state, "reflecting");
+  assert.equal(avatar.targetGesture, "reflect");
+});
+
+test("guide visibly listens before moving into a sustained reflection", () => {
+  const avatar = new ProceduralAvatar();
+  const director = new GuideDirector({ avatar });
+
+  director.listen();
+  director.update(0.25);
+  assert.equal(director.state, "listening");
+  assert.equal(avatar.targetGesture, "listen");
+
+  director.update(0.31);
+  assert.equal(director.state, "reflecting");
+  assert.equal(avatar.targetGesture, "reflect");
+});

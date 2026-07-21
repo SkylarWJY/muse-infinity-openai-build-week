@@ -8,6 +8,17 @@ const PHILOSOPHY_AXES = Object.freeze([
   Object.freeze({ id: "invention", number: "03", name: "Invention", statement: "Art must keep reality open to reinvention." })
 ]);
 
+const PORTRAIT_POSITIONS = Object.freeze({
+  monet: "center 28%",
+  "van-gogh": "center 34%",
+  socrates: "center 24%",
+  frida: "center 20%",
+  picasso: "center 26%",
+  freud: "center 18%",
+  "qi-baishi": "center 18%",
+  "yayoi-kusama": "center 16%"
+});
+
 const PROCESS_WORLDS = EXHIBITION_SPINE.map((item) => WORLDS.find((world) => world.id === item.worldId)).filter(Boolean);
 
 export function providerPresentation(status = {}) {
@@ -22,15 +33,6 @@ export function providerPresentation(status = {}) {
   }
 
   const live = status.live === true;
-  if (status.gateway === "inherited-gpt") {
-    const responseReported = status.model_source === "gateway-response-reported";
-    return {
-      label: `${model} ${live ? "LIVE" : "CONFIGURED"} · INHERITED GATEWAY · ${responseReported ? "MODEL RESPONSE REPORTED" : "MODEL REQUESTED"}`,
-      shortLabel: `${model} · GATEWAY · ${responseReported ? "RESPONSE" : "REQUEST"}`,
-      badge: `${model} · GATEWAY ${live ? "LIVE" : "READY"}`
-    };
-  }
-
   return {
     label: `${model} ${live ? "LIVE" : "CONFIGURED"} · OPENAI RESPONSES API`,
     shortLabel: `${model} · OPENAI ${live ? "LIVE" : "READY"}`,
@@ -62,10 +64,19 @@ export class AppView {
     this.worldName = byId("world-name");
     this.syncState = byId("sync-state");
     this.toastElement = byId("toast");
+    this.worldTransition = byId("world-transition");
+    this.worldTransitionImage = byId("world-transition-image");
+    this.worldTransitionTitle = byId("world-transition-title");
     this.currentSalon = null;
     this.conceptProvider = { live: false, model: "curated-demo" };
     this.providerStatus = { configured: false, live: false, openai: false, gateway: "official", model: "GPT-5.6" };
+    this.soundRestingState = "armed";
     this.toastTimer = 0;
+    this.worldTransitionTimer = 0;
+    this.worldTransitionToken = 0;
+    this.worldTransitionStartedAt = 0;
+    this.pendingTransitionToast = "";
+    this.lastPresentedStage = null;
   }
 
   bind(callbacks = {}) {
@@ -109,7 +120,10 @@ export class AppView {
       else if (name === "enter-walk") setTimeout(() => call("onEnterWalk"), 80);
       else if (name === "begin-summoning") setTimeout(() => call("onBeginSummoning"), 80);
       else if (name === "convene-roundtable") setTimeout(() => call("onConveneRoundtable"), 80);
-      else if (name === "open-decision") this.showDecision(undefined, this.currentSalon);
+      else if (name === "open-decision") {
+        if (typeof callbacks.onOpenDecision === "function") call("onOpenDecision");
+        else this.showDecision(undefined, this.currentSalon);
+      }
       else if (name === "complete-transformation") setTimeout(() => call("onCompleteTransformation"), 80);
       else if (name === "publish-manifesto") {
         const value = this.entry.querySelector("#manifesto-input")?.value.trim() || "";
@@ -200,10 +214,8 @@ export class AppView {
       ...this.providerStatus,
       configured: provider.live === true,
       live: provider.live === true,
-      openai: provider.live === true && provider.gateway !== "inherited-gpt",
-      gateway: provider.gateway || this.providerStatus.gateway,
-      model: provider.model || this.providerStatus.model,
-      model_source: provider.model_source || this.providerStatus.model_source
+      openai: provider.live === true,
+      model: provider.model || this.providerStatus.model
     };
     this.updateModelBadge();
     this.updateProviderLabel();
@@ -217,7 +229,7 @@ export class AppView {
     intro.append(
       element("p", { className: "eyebrow" }, "02 / CHOOSE YOUR COMPANY"),
       element("h1", {}, "Who should walk the question with you?"),
-      element("p", { className: "entry-copy" }, "Invite up to three interpretive companions from the original MUSE collection. Their archived 3D forms will move through the worlds with you.")
+      element("p", { className: "entry-copy" }, "Invite up to three interpretive companions. Their distinct ways of seeing will travel through every world with you.")
     );
     const grid = element("div", { className: "companion-grid" });
     for (const companion of COMPANIONS) {
@@ -229,6 +241,7 @@ export class AppView {
         ariaPressed: String(active),
         "aria-label": `${active ? "Remove" : "Invite"} ${companion.fullName}`
       });
+      button.style.setProperty("--portrait-position", PORTRAIT_POSITIONS[companion.id] || "center 24%");
       button.append(
         element("img", { src: companion.portrait, alt: "" }),
         element("span", { className: "companion-copy" }),
@@ -248,12 +261,18 @@ export class AppView {
 
   showCuration(question, companions = []) {
     const route = element("ol", { className: "curation-route", "aria-label": "Eight-scene exhibition route" });
-    for (const sceneItem of EXHIBITION_SPINE) {
+    for (const [index, sceneItem] of EXHIBITION_SPINE.entries()) {
       const item = element("li");
-      item.append(
+      item.style.setProperty("--stagger-delay", `${index * 55}ms`);
+      const copy = element("div", { className: "curation-route-copy" });
+      copy.append(
         element("b", {}, sceneItem.chapter),
         element("span", {}, sceneItem.title),
         element("small", {}, sceneItem.artist)
+      );
+      item.append(
+        element("img", { src: sceneItem.thumbnail, alt: "", loading: "eager" }),
+        copy
       );
       route.append(item);
     }
@@ -285,7 +304,7 @@ export class AppView {
     this.app.dataset.narrativeStage = "world-exploration";
     this.guideState.textContent = "WALKING";
     this.stopTitle.textContent = `Approaching ${sceneStop.title}`;
-    this.guideLine.textContent = `${this.speakerName.textContent} is moving to the selected evidence point.`;
+    this.guideLine.textContent = "Your company is moving to the selected evidence point.";
     this.inquiryThread.hidden = true;
     this.inquiryThread.replaceChildren();
     this.answers.replaceChildren();
@@ -294,10 +313,10 @@ export class AppView {
 
   showArchiveRequired(sceneItem) {
     this.presentEntry("archive-required", [
-      element("p", { className: "eyebrow" }, `${sceneItem.chapter} / ARCHIVE REQUIRED`),
+      element("p", { className: "eyebrow" }, `${sceneItem.chapter} / SCENE UNAVAILABLE`),
       element("h1", {}, sceneItem.title),
-      element("p", { className: "entry-copy" }, "This scene has not reached source fidelity, so it cannot contribute evidence to the final concept."),
-      element("button", { type: "button", className: "entry-primary", dataset: { entryAction: "retry-scene" } }, "Retry archived scene →")
+      element("p", { className: "entry-copy" }, "The complete spatial scene must finish loading before it can contribute evidence to the final concept."),
+      element("button", { type: "button", className: "entry-primary", dataset: { entryAction: "retry-scene" } }, "Retry scene →")
     ]);
     this.chapterLabel.textContent = `${sceneItem.chapter} / RETRY`;
   }
@@ -412,6 +431,27 @@ export class AppView {
     if (label) label.textContent = copy[0];
   }
 
+  setSoundState(enabled, state = enabled ? "on" : "off") {
+    const button = document.getElementById("sound-tool");
+    const label = button.querySelector(".tool-label");
+    this.soundRestingState = state;
+    button.dataset.soundState = state;
+    button.setAttribute("aria-pressed", String(Boolean(enabled)));
+    button.title = enabled
+      ? "Mute original score and synthetic guide narration"
+      : "Enable original score and synthetic guide narration";
+    if (label) label.textContent = enabled ? "Sound" : "Muted";
+  }
+
+  setNarrationState(speaking) {
+    const button = document.getElementById("sound-tool");
+    if (button.getAttribute("aria-pressed") !== "true") return;
+    button.dataset.soundState = speaking ? "speaking" : this.soundRestingState;
+    button.title = speaking
+      ? "Synthetic guide narration speaking"
+      : "Mute original score and synthetic guide narration";
+  }
+
   showRecap(recap, digest) {
     const count = Array.isArray(digest?.visits) ? digest.visits.length : 0;
     this.presentEntry("exploration-complete", [
@@ -427,9 +467,10 @@ export class AppView {
   showSummoning(digest, companions = [], recap = null) {
     const visits = Array.isArray(digest?.visits) ? digest.visits : [];
     const ledger = element("ol", { className: "summoning-ledger", "aria-label": "Evidence gathered across eight worlds" });
-    for (const sceneItem of EXHIBITION_SPINE) {
+    for (const [index, sceneItem] of EXHIBITION_SPINE.entries()) {
       const visit = visits.find((item) => item.stop_id === sceneItem.id);
       const row = element("li", { className: visit ? "recorded" : "missing" });
+      row.style.setProperty("--stagger-delay", `${index * 55}ms`);
       row.append(
         element("b", {}, sceneItem.chapter),
         element("span", {}, sceneItem.title),
@@ -459,9 +500,10 @@ export class AppView {
     const threads = element("div", { className: "roundtable-threads" });
     const perspectives = Array.isArray(salon?.perspectives) ? salon.perspectives : [];
     if (perspectives.length) {
-      for (const item of perspectives) {
+      for (const [index, item] of perspectives.entries()) {
         const companion = findCompanion(item.character_id, companions);
         const article = element("article", { className: "roundtable-thread" });
+        article.style.setProperty("--stagger-delay", `${index * 55}ms`);
         if (companion) article.append(portraitChip(companion));
         article.append(
           element("h3", {}, companion?.fullName || item.name || item.character_id),
@@ -478,7 +520,7 @@ export class AppView {
       conceptBadge(salon, provider),
       element("h2", {}, title),
       element("blockquote", {}, salon?.synthesis || "The final concept has not returned yet."),
-      element("small", {}, "GPT generates the personalized concept. The ninth spatial realization is the archived Shimmering Spheres world from MUSE Infinity.")
+      element("small", {}, "GPT generates the personalized concept. The ninth world gives that concept a spatial form you can enter.")
     );
     body.append(threads, synthesis);
     this.presentEntry("roundtable", [
@@ -496,8 +538,9 @@ export class AppView {
     }
     this.currentSalon = salon || this.currentSalon;
     const grid = element("div", { className: "decision-grid" });
-    for (const axis of PHILOSOPHY_AXES) {
+    for (const [index, axis] of PHILOSOPHY_AXES.entries()) {
       const button = element("button", { type: "button", className: "decision-choice", dataset: { decision: axis.id } });
+      button.style.setProperty("--stagger-delay", `${index * 55}ms`);
       button.append(element("small", {}, axis.number), element("b", {}, axis.name), element("span", {}, axis.statement));
       grid.append(button);
     }
@@ -518,7 +561,7 @@ export class AppView {
       element("div", { className: `transformation-mark axis-${choice.id}`, ariaHidden: "true" }),
       element("h1", {}, "The museum is ready to rewrite itself."),
       element("p", { className: "transformation-axis" }, `${choice.name} · ${choice.statement}`),
-      element("p", { className: "entry-copy" }, `${conceptTitle(this.currentSalon)} will be transformed by this choice before it becomes a manifesto. The archived ninth world remains closed until that new statement is published.`),
+      element("p", { className: "entry-copy" }, `${conceptTitle(this.currentSalon)} will be transformed by this choice before it becomes a manifesto. The ninth world remains closed until that new statement is published.`),
       element("button", { type: "button", className: "entry-primary", dataset: { entryAction: "complete-transformation" } }, `Bind ${choice.name} into the concept →`)
     ]);
     this.chapterLabel.textContent = "TRANSFORMATION / 08";
@@ -553,7 +596,7 @@ export class AppView {
       element("p", { className: "entry-copy" }, "This personalized concept is grounded in the eight-scene walk. Publish its governing statement to open the final spatial answer."),
       field,
       actions,
-      element("p", { className: "archive-note" }, "Spatial realization: Fantasy Realm of Shimmering Spheres · archived MUSE Infinity world. The geometry is not generated live.")
+      element("p", { className: "archive-note" }, "Spatial realization: Fantasy Realm of Shimmering Spheres. Your statement determines how this final world is interpreted.")
     ]);
     this.chapterLabel.textContent = "MANIFESTO / 09";
   }
@@ -576,15 +619,19 @@ export class AppView {
     const title = conceptTitle(this.currentSalon);
     const source = provider?.live === true || salon?.live === true ? liveProviderName(provider) : "curated fallback";
     this.dialogue.hidden = true;
+    this.stopTitle.textContent = `${FINAL_SCENE.title} · ${FINAL_SCENE.artist}`;
+    this.guideLine.textContent = FINAL_SCENE.question;
+    this.inquiryThread.replaceChildren();
+    this.answers.replaceChildren();
     this.presentEntry("final-answer", [
       element("button", { type: "button", className: "final-dismiss", dataset: { entryAction: "dismiss-final" }, "aria-label": "Close answer plaque" }, "×"),
       element("p", { className: "eyebrow" }, FINAL_SCENE.chapter),
       conceptBadge(this.currentSalon, provider),
       element("h1", {}, title),
       element("p", { className: "final-world-name" }, world?.name || "Fantasy Realm of Shimmering Spheres"),
-      element("p", { className: "entry-copy" }, "Your GPT concept now inhabits the archived Shimmering Spheres realization. Move through it as the answer to the eight worlds behind you."),
+      element("p", { className: "entry-copy" }, "Your GPT concept now inhabits the Shimmering Spheres realization. Move through it as the answer to the eight worlds behind you."),
       element("blockquote", { className: "return-question" }, FINAL_SCENE.question),
-      element("p", { className: "archive-note" }, `Personalized concept: ${source} · Spatial asset: archived MUSE Infinity world`)
+      element("p", { className: "archive-note" }, `Personalized concept: ${source} · Spatial form: 09 / ANSWER`)
     ]);
     this.app.dataset.narrativeStage = "answer";
     this.chapterLabel.textContent = FINAL_SCENE.chapter;
@@ -593,9 +640,15 @@ export class AppView {
   setSpeaker(companion) {
     if (!companion) return;
     this.speakerName.textContent = companion.name;
-    this.speakerPortrait.src = companion.portrait;
-    this.speakerPortrait.alt = companion.fullName;
-    this.speakerPortrait.hidden = false;
+    if (companion.portrait) {
+      this.speakerPortrait.src = companion.portrait;
+      this.speakerPortrait.alt = companion.fullName;
+      this.speakerPortrait.hidden = false;
+    } else {
+      this.speakerPortrait.removeAttribute("src");
+      this.speakerPortrait.alt = "";
+      this.speakerPortrait.hidden = true;
+    }
   }
 
   renderRoute(plan, visited = [], currentId) {
@@ -676,7 +729,7 @@ export class AppView {
         element("span", { className: "atlas-copy" })
       );
       button.querySelector(".atlas-copy").append(
-        element("small", {}, `${sceneItem?.chapter || String(index + 1).padStart(2, "0")} · ${answerOpen ? "ARCHIVED" : context.busy ? "LOADING" : visited ? "VISITED" : active ? "CURRENT" : unlocked ? "AVAILABLE" : "LOCKED"}`),
+        element("small", {}, `${sceneItem?.chapter || String(index + 1).padStart(2, "0")} · ${answerOpen ? "ANSWER OPEN" : context.busy ? "LOADING" : visited ? "VISITED" : active ? "CURRENT" : unlocked ? "AVAILABLE" : "LOCKED"}`),
         element("b", {}, sceneItem?.title || world.name),
         element("span", {}, sceneItem?.artist || world.subtitle)
       );
@@ -696,7 +749,7 @@ export class AppView {
     const section = element("div", { className: "drawer-section" });
     section.append(
       element("h3", {}, context.status.world_forge ? "World Labs connected" : "World generation locked"),
-      element("p", {}, context.status.world_forge ? "Create an isolated spatial variation. The canonical nine-world journey remains active." : "This server has no generation credentials. The archived worlds and local journey remain available."),
+      element("p", {}, context.status.world_forge ? "Create an isolated spatial variation. The canonical nine-world journey remains active." : "This server has no generation credentials. The prepared worlds and local journey remain available."),
       textarea("forge-prompt", "A luminous gallery where reflections become pathways", 600),
       input("forge-token", "password", "Admin token"),
       element("button", { type: "button", className: "command", disabled: !context.status.world_forge, dataset: { drawerAction: "forge" } }, "Generate isolated world")
@@ -761,17 +814,21 @@ export class AppView {
     this.drawerKicker.textContent = "PROVENANCE & CORRESPONDENCE";
     this.drawerTitle.textContent = "Evidence";
     const live = context.provider?.live === true;
+    const narrationProvider = context.status?.narration
+      ? `OPENAI · ${String(context.status.narration_model || "gpt-4o-mini-tts").toUpperCase()}`
+      : "BROWSER SPEECH FALLBACK";
     const rows = [
       ["Reasoning model", live ? liveProviderName(context.provider) : "GPT contract · curated fallback"],
+      ["Narration", narrationProvider],
       ["Scene manifest", SCENE_MANIFEST.version],
       ["Canonical process", "8 ordered worlds"],
-      ["Final realization", "Shimmering Spheres · archived world 09"],
-      ["Active archived world", context.worldId],
-      ["Archived companions", context.companions.map((item) => item.fullName).join(" · ")],
+      ["Final realization", "Shimmering Spheres · world 09"],
+      ["Active world", context.worldId],
+      ["Selected companions", context.companions.map((item) => item.fullName).join(" · ")],
       ["Guide position", context.metrics?.distance == null ? "Awaiting route" : `${context.metrics.distance.toFixed(2)} m from anchor`],
       ["Guide facing", context.metrics?.facingError == null ? "Awaiting route" : `${context.metrics.facingError.toFixed(1)}° error`],
-      ["Runtime authorship", "Codex Build Week rebuild"],
-      ["World model", "muse-infinity World Labs archives · original high-resolution assets"]
+      ["Runtime", "MUSE embodied inquiry"],
+      ["World model", "Nine high-resolution spatial worlds"]
     ];
     const table = element("table", { className: "evidence-table" });
     const tbody = element("tbody");
@@ -781,7 +838,7 @@ export class AppView {
       tbody.append(tr);
     }
     table.append(tbody);
-    this.drawerBody.replaceChildren(table, element("p", { className: "drawer-note" }, "Dialogue opens after the selected archived companion reaches the scene anchor and faces its evidence point. Atlas browsing does not create visit evidence."));
+    this.drawerBody.replaceChildren(table, element("p", { className: "drawer-note" }, "Dialogue opens after the selected companion reaches the scene anchor and faces its evidence point. Atlas browsing does not create visit evidence."));
   }
 
   setWorld(world) {
@@ -789,14 +846,60 @@ export class AppView {
   }
 
   toast(message) {
-    clearTimeout(this.toastTimer);
     const safeMessage = String(message || "");
+    if (!this.worldTransition.hidden) {
+      this.pendingTransitionToast = safeMessage;
+      return;
+    }
+    clearTimeout(this.toastTimer);
     this.toastElement.textContent = safeMessage.length > 240 ? `${safeMessage.slice(0, 237)}…` : safeMessage;
     this.toastElement.hidden = false;
     this.toastTimer = setTimeout(() => { this.toastElement.hidden = true; }, 3000);
   }
 
+  beginWorldTransition(sceneItem = {}) {
+    const token = ++this.worldTransitionToken;
+    clearTimeout(this.worldTransitionTimer);
+    clearTimeout(this.toastTimer);
+    this.toastElement.hidden = true;
+    this.pendingTransitionToast = "";
+    this.worldTransitionStartedAt = performance.now();
+    this.worldTransitionImage.src = sceneItem.thumbnail || sceneItem.image || "";
+    this.worldTransitionTitle.textContent = sceneItem.title || sceneItem.name || "MUSE";
+    this.worldTransition.hidden = false;
+    this.worldTransition.setAttribute("aria-busy", "true");
+    this.worldTransition.classList.remove("is-visible", "is-leaving");
+    void this.worldTransition.offsetWidth;
+    this.worldTransition.classList.add("is-visible");
+    return token;
+  }
+
+  finishWorldTransition(token) {
+    if (token !== this.worldTransitionToken) return;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const minimumHold = reducedMotion ? 80 : 650;
+    const fadeDuration = reducedMotion ? 0 : 650;
+    const elapsed = performance.now() - this.worldTransitionStartedAt;
+    const wait = Math.max(0, minimumHold - elapsed);
+    clearTimeout(this.worldTransitionTimer);
+    this.worldTransitionTimer = window.setTimeout(() => {
+      if (token !== this.worldTransitionToken) return;
+      this.worldTransition.classList.add("is-leaving");
+      this.worldTransition.classList.remove("is-visible");
+      this.worldTransitionTimer = window.setTimeout(() => {
+        if (token !== this.worldTransitionToken) return;
+        this.worldTransition.hidden = true;
+        this.worldTransition.setAttribute("aria-busy", "false");
+        this.worldTransition.classList.remove("is-leaving");
+        const pendingToast = this.pendingTransitionToast;
+        this.pendingTransitionToast = "";
+        if (pendingToast) this.toast(pendingToast);
+      }, fadeDuration);
+    }, wait);
+  }
+
   presentEntry(stage, children) {
+    const stageChanged = this.lastPresentedStage !== stage;
     this.entry.dataset.stage = stage;
     this.entry.hidden = false;
     this.entry.replaceChildren(...children);
@@ -804,6 +907,12 @@ export class AppView {
     if (heading) heading.id = "entry-title";
     this.dialogue.hidden = true;
     this.app.dataset.narrativeStage = stage;
+    if (stageChanged) {
+      this.entry.classList.remove("stage-reveal");
+      void this.entry.offsetWidth;
+      this.entry.classList.add("stage-reveal");
+      this.lastPresentedStage = stage;
+    }
     this.updateModelBadge();
   }
 
@@ -836,21 +945,17 @@ function conceptBadge(salon, provider = {}) {
   const live = salon?.live === true || provider?.live === true;
   const fallbackText = `${salon?.synthesis || ""} ${salon?.warning || ""}`;
   const fallback = salon?.live === false || provider?.live === false || salon?.source === "fallback" || /curated demo|fallback|not generated live/i.test(fallbackText);
-  const liveLabel = provider?.gateway === "inherited-gpt" ? "GATEWAY GPT CONCEPT" : "LIVE GPT CONCEPT";
-  return element("span", { className: `concept-badge ${live ? "live" : fallback ? "fallback" : "pending"}` }, live ? liveLabel : fallback ? "CURATED FALLBACK CONCEPT" : "CONCEPT RECORD");
+  return element("span", { className: `concept-badge ${live ? "live" : fallback ? "fallback" : "pending"}` }, live ? "LIVE GPT CONCEPT" : fallback ? "CURATED FALLBACK CONCEPT" : "CONCEPT RECORD");
 }
 
 function liveProviderName(provider = {}) {
   const model = String(provider.model || "GPT-5.6").toUpperCase();
-  return provider.gateway === "inherited-gpt" ? `${model} · INHERITED GATEWAY` : `${model} · OPENAI API`;
+  return `${model} · OPENAI API`;
 }
 
 function voiceTranscriptLabel(role, mode, provider = {}) {
   if (role === "user") return "YOU · VOICE";
   if (mode === "realtime") return "MIRA · OPENAI REALTIME";
-  if (provider.live === true && provider.gateway === "inherited-gpt") {
-    return `MIRA · ${String(provider.model || "GPT-5.6").toUpperCase()} · INHERITED GATEWAY`;
-  }
   if (provider.live === true) return `MIRA · ${String(provider.model || "GPT-5.6").toUpperCase()} · OPENAI`;
   return "MIRA · CURATED LOCAL";
 }

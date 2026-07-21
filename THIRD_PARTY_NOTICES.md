@@ -2,7 +2,10 @@
 
 The repository's MIT license applies to source code and documentation authored here. It does
 not relicense the generated spatial/character assets or source images listed below. Exact
-bytes, hashes and unresolved provenance records are maintained in `docs/PROVENANCE.md`.
+bytes, hashes and transformations are maintained in `docs/PROVENANCE.md`. The
+[OpenAI Build Week Official Rules](https://openai.devpost.com/rules) allow authorized
+third-party SDKs, APIs and data subject to their applicable terms; this file records those
+project dependencies and sources.
 
 ## Runtime packages
 
@@ -12,49 +15,57 @@ bytes, hashes and unresolved provenance records are maintained in `docs/PROVENAN
 - Playwright Test `1.61.1`, Apache-2.0 License, development/test only:
   <https://github.com/microsoft/playwright>
 
+## Background music
+
+This repository does not bundle or play any third-party background-music recording. Its
+four-profile score is Submission Period source code in `src/services/sound-experience.js`:
+deterministic Web Audio oscillators generate the pitches in the browser without recording
+samples or reference audio. The code is covered by this repository's MIT license; there is no
+separate music file, performer or recording asset to license.
+
+The official rules require authorization for third-party content and prohibit copyrighted music
+in the demo video without permission.
+Any future recorded or generated soundtrack asset must therefore record the exact asset hash,
+source, performer or generator, rights holder, license or commercial-use grant, and the terms
+snapshot relied on. For generated music, also retain the provider and model version, account
+tier, task ID, full prompt, generation date and whether any reference audio was uploaded. AI
+generation alone is not evidence that an output is unique or cleared for use; prompts must not
+request imitation of an identifiable artist or existing recording.
+
 ## OpenAI model services
 
-The official judging configuration requests OpenAI GPT-5.6 Responses and optional OpenAI
-Realtime. Requests default to `api.openai.com`; local operators may select the single
-allowlisted inherited MUSE GPT gateway, to which the runtime sends only `gpt-5.6` requests.
-That request configuration is not official-provider evidence. The runtime rejects all other origins and rewrites every
-text-model selection to `gpt-5.6`. No Claude, Gemini or MiniMax runtime is included.
+The judging configuration requests OpenAI GPT-5.6 Responses, OpenAI Realtime and
+`gpt-4o-mini-tts` narration directly from `api.openai.com`. TTS renders already-visible lines
+as speech; it is not used for language reasoning. Supported browsers may use
+`SpeechRecognition` and `SpeechSynthesis` as speech-only fallbacks. Recognized text still uses
+the official GPT-5.6 dialogue path or its labeled curated local fallback. Runtime reasoning
+model selection is fixed to the checked-in GPT constants.
 
-Official and inherited credentials are stored under different environment variables and are
-bound to their respective origins. Gateway status is labeled `request-configured`; an actual
-response is labeled `gateway-response-reported` only when its payload identifies an allowed
-GPT-5.6 model. Neither label is official OpenAI Platform evidence, and Realtime is disabled on
-that gateway. Questions and scene
-evidence sent through the gateway are visible to its operator, and `store: false` does not
-assert proxy-side retention behavior.
-
-Direct `api.openai.com` use is governed by the terms associated with the operator's OpenAI
-account. Use of the allowlisted inherited gateway is governed by that gateway operator and
-its upstream service terms; its credential is not represented as an official OpenAI Platform
-API key. No model service or credential is bundled as software in this repository.
+Use of the official OpenAI API is governed by the terms associated with the operator's OpenAI
+account. API credentials remain server-side and are not bundled as software or committed to
+the repository.
 
 ## World Labs scene assets
 
 The nine canonical spaces, their colliders, thumbnails and interpretive scene images are
-pre-generated outputs retained from the earlier MUSE asset set. Scenes 1-7 deploy official
-Spark quality RAD derivatives built from archived World Labs SPZ sources; scene 8 deploys an
-8K texture mesh with its archived SPZ as a fallback; scene 9 deploys an 8K texture mesh.
+prepared MUSE assets. Scenes 1-7 deploy Spark quality RAD derivatives built from World Labs
+SPZ sources; scene 8 deploys an 8K texture mesh with its SPZ as a fallback; scene 9 deploys an
+8K texture mesh.
 Exact filenames, derivations, bytes and hashes are recorded in `docs/PROVENANCE.md`.
 
 The older `bright-gallery.spz`, `van-gogh-gallery.spz` and `infinity-room.spz` derivatives
 remain only as noncanonical compatibility records. They are not used by the 8+1 route.
 
-World Labs is not a language/reasoning runtime. A separately gated Forge adapter can
-optionally contact World Labs for explicit spatial generation when both provider and admin
-credentials are supplied; no-key operation uses local files and sends no provider request.
-Three noncanonical account records (Bright Gallery and two World of Light generations) were
-recovered, but complete source World IDs for the formal nine-world route and explicit output
-redistribution records were not. Inclusion must not be read as a new MIT license grant for any
-generated asset.
+World Labs produced prepared assets and also backs an optional auxiliary Forge endpoint. Forge
+requires both a server-side World Labs key and an exact admin token, accepts an administrator's
+spatial prompt, and returns an isolated generation operation; it is outside the canonical 8+1
+journey and receives no visitor question, evidence or conversation data. World Labs does not
+provide language reasoning. Generated asset use remains subject to the terms of the authorized
+account; the repository's MIT license does not replace those terms.
 
 ## Tripo character assets
 
-These browser-optimized GLBs were derived from Tripo character outputs in `muse-infinity`:
+These browser-optimized GLBs were derived from MUSE Tripo character outputs:
 
 - `assets/characters/monet.glb`
 - `assets/characters/van-gogh.glb`
@@ -65,15 +76,14 @@ These browser-optimized GLBs were derived from Tripo character outputs in `muse-
 - `assets/characters/qi-baishi.glb`
 - `assets/characters/yayoi-kusama.glb`
 
-The new fictional learner is a separate generated asset:
+The fictional learner is a separate Submission Period asset:
 
 - `assets/characters/learner.glb`, designed with GPT Image 2 through Tripo's image task, then
   reconstructed, PBR-textured, rigged and animated by Tripo.
 
-Tripo is asset provenance only; this repository has no Tripo runtime API. Generation task IDs
-and settings were not recovered for the eight inherited historical figures, while the new
-learner's complete generation manifest is checked in. The historical figures are interpretive
-representations and do not claim endorsement, quotation or authentic reconstruction.
+Tripo is an asset-production tool only; this repository has no Tripo runtime API. The learner's
+generation manifest is checked in. The historical figures are interpretive representations and
+do not claim endorsement, quotation or authentic reconstruction.
 
 Tripo output rights depend on the generating account tier under Tripo's current terms. Confirm
 the applicable account and output rights before commercial redistribution; the repository's
@@ -81,8 +91,7 @@ MIT license does not relicense this GLB or its GPT Image 2 source views.
 
 ## Companion portrait images
 
-The prior MUSE manifest recorded the following Wikimedia Commons sources and marked the
-copies public domain:
+The following five portrait files have Wikimedia Commons source pages:
 
 - Claude Monet self-portrait reproduction:
   <https://commons.wikimedia.org/wiki/File:Autoportret_Claude_Monet.jpg>
@@ -98,10 +107,14 @@ copies public domain:
 The shipped files are under `assets/portraits/`. Downstream users should verify each current
 Commons file page and jurisdiction-specific status before redistribution.
 
-The archived Freud, Qi Baishi and Yayoi Kusama portrait copies lack recovered upstream URLs
-or rights records. They should not be redistributed outside this hackathon repository until
-those records are recovered. Yayoi Kusama is living; neither her portrait nor generated
-representation is described here as a public-domain historical likeness.
+The Freud, Qi Baishi and Yayoi Kusama files are local MUSE character-reference images and are
+not described as public-domain documentary portraits. Yayoi Kusama is living; neither her
+portrait nor generated representation is described as a public-domain historical likeness.
+
+`freud-card.jpg`, `qi-baishi-card.jpg` and `yayoi-kusama-card.jpg` are mechanically cropped
+single-view derivatives of those same local turnaround images. The crops do not change their
+character-interpretation or likeness status; exact hashes are recorded in
+`docs/PROVENANCE.md`.
 
 ## Artwork images
 
@@ -123,11 +136,16 @@ The older `assets/art/water-lilies.jpg`, `assets/art/bedroom.jpg` and
 `assets/art/grande-jatte.jpg` are retained lower-resolution compatibility copies of three
 works also represented in the 36-work collection. They are not additional unique works.
 
-No cloned voice, stock interface illustration or alternate model-family runtime is bundled.
-Dynamic text dialogue requests `gpt-5.6` through the official API or visibly disclosed local
-legacy gateway. The official judging path can use OpenAI Realtime WebRTC with the built-in
-`marin` voice. Gateway and no-key operation may instead use the browser's Web Speech
-recognition and synthesis around the same text-dialogue contract; browser implementations may
-delegate speech transport to platform services. Recognition availability, synthesis voices and
-speech behavior therefore vary by browser and operating system, but this repository does not
-route reasoning to another model provider.
+No cloned voice, recorded narration, stock interface illustration or alternate reasoning-model
+runtime is bundled. Optional OpenAI TTS narration maps characters to generic system voices and
+never claims to be a historical person. MP3 responses are used for immediate playback,
+are not written into the repository or application storage, and their browser object URLs are
+revoked after playback. If remote speech is unavailable, browser `SpeechSynthesis` reads the
+same visible text.
+
+Dynamic text dialogue requests `gpt-5.6` through the official OpenAI API. The independent Voice
+control prefers OpenAI Realtime WebRTC with the built-in `marin` voice. Where supported, its
+browser fallback uses `SpeechRecognition` for input, the same GPT-5.6 or curated local dialogue
+path for the response, and `SpeechSynthesis` for output. Text interaction remains available
+when microphone permission or speech services are unavailable; no fallback adds another
+language/reasoning model.

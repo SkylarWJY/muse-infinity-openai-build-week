@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 export const GUIDE_STATES = Object.freeze(["idle", "walking", "arriving", "facing", "pointing", "asking", "listening", "reflecting"]);
+const LISTEN_DURATION_SECONDS = 0.55;
 
 export class GuideDirector {
   constructor({ avatar, speed = 1.33, onState = () => {} } = {}) {
@@ -35,7 +36,8 @@ export class GuideDirector {
     else if (this.state === "arriving" && this.stateTime > 0.22) this.transition("facing");
     else if (this.state === "facing") this.updateFacing(dt);
     else if (this.state === "pointing" && this.stateTime > 1.0) this.transition("asking");
-    this.avatar.setMotion(this.state === "walking" ? this.speed : 0, this.state === "pointing" || this.state === "asking" ? "point" : "open");
+    else if (this.state === "listening" && this.stateTime > LISTEN_DURATION_SECONDS) this.transition("reflecting");
+    this.avatar.setMotion(this.state === "walking" ? this.speed : 0, guideGestureForState(this.state));
   }
 
   updateWalking(dt) {
@@ -85,6 +87,13 @@ export class GuideDirector {
     this.stateTime = 0;
     this.onState({ state: next, stopId: this.stopId, correspondence: this.correspondence() });
   }
+}
+
+export function guideGestureForState(state) {
+  if (state === "pointing" || state === "asking") return "point";
+  if (state === "listening") return "listen";
+  if (state === "reflecting") return "reflect";
+  return "open";
 }
 
 function dampAngle(current, target, amount) {

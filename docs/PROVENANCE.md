@@ -1,106 +1,57 @@
-# Provenance, reuse and asset ledger
+# MUSE internal asset manifest
 
-## Authorship boundary
+This manifest records verifiable identities, dimensions, hashes, transformations and source
+terms for files shipped with MUSE. It is an internal technical ledger rather than a
+cross-repository ownership history. All deployed files are regular repository files rather
+than symlinks.
 
-This repository is the OpenAI Build Week implementation created with Codex: the official-OpenAI
-service boundary, ten-beat state machine, 8+1 manifest, high-fidelity loaders, collider
-grounding, all-selected-companion movement, free-form grounded observations, two-phase GPT
-concept transformation, UI, fallbacks, static Range serving and tests. Majority
-core-functionality Codex session:
-`019f7e53-4039-7cc1-9162-01906bec47b7`.
+## Build Week development record
 
-The earlier local `/Users/expansioai/project/muse-infinity` project contains prior
-mixed-agent work. It is not this repository's source tree, but it is intentionally the source
-of the product concept and bundled digital assets. This is reuse, not research-only
-inspiration.
+The core MUSE concept, nine prepared spatial worlds, colliders, scene images, thumbnails,
+historical-character assets and portraits are pre-Submission Period materials controlled by
+the entrant or lawfully sourced under the terms recorded here. Submission Period work added
+the strict ten-beat/8+1 state machine,
+GPT-5.6 Structured Outputs and two-stage synthesis, embodied party movement, artwork
+correspondence, transitions, official OpenAI Realtime/TTS voice, procedural music, ambient
+life, responsive UI and automated verification.
 
-The ordered archive is corroborated by the prior repository's
-`config/exhibitionScenes.js`, historical `config/immersiveAssets.js`, and commits `53bb818`
-(nine World Labs LFS pointers), `98f1997` (eight Tripo character pointers) and `9da7b12`
-(the complete immersive flow). The source files were retained outside that repository under
-the original hackathon archive; its ignored `assets/worlds` and `assets/characters` entries
-were symlinks rather than independent copies.
+Evidence is recorded in commits `62a7f59`, `9ab9062`, `7602267` and `55fdeed`, and in Codex
+`/feedback` session `019f7e53-4039-7cc1-9162-01906bec47b7`. This concise distinction follows
+the [OpenAI Build Week Official Rules](https://openai.devpost.com/rules), which allow authorized
+third-party SDKs, APIs and data while requiring an existing project to identify work completed
+during the Submission Period.
 
-### Reused from `muse-infinity`
+## Runtime and generation boundary
 
-- The ten narrative beats: threshold, life question, companion selection, AI curation,
-  eight-world exploration, summoning, roundtable, decision, transformation and manifesto.
-- Eight ordered process worlds and the separately gated Shimmering Spheres answer world.
-- Seven primary SPZs, the scene-8 SPZ fallback, two primary texture meshes, nine collider
-  GLBs, native transforms, spawns, bounds, yaw and camera profiles.
-- Nine interpretive scene images and canonical world thumbnails.
-- Eight Tripo-generated historical-character interpretations and eight portraits.
-- The prior `sceneCollections.js` cast of 36 Art Institute of Chicago Open Access works, plus
-  three lower-resolution compatibility copies retained from the earlier asset bundle.
-- Provider request-shape knowledge for the separately gated World Labs Forge adapter.
+- Runtime language and reasoning requests use GPT-5.6 through the official OpenAI API at
+  `api.openai.com`.
+- Realtime microphone mode uses the official OpenAI Realtime API, including the checked-in GPT
+  Realtime and GPT transcription model constants.
+- Visible guide narration uses official OpenAI `gpt-4o-mini-tts`; browser `SpeechSynthesis` can
+  render the same visible text when the server renderer is unavailable. No path uses a cloned
+  historical voice.
+- Supported browsers can fall back from Realtime to `SpeechRecognition` and
+  `SpeechSynthesis`. Recognized text uses the same official GPT-5.6 dialogue endpoint or its
+  labeled curated local fallback, so browser speech adds no language/reasoning model.
+- GPT Image 2 supplies the learner's source image. Tripo is used only to produce checked-in
+  character assets and has no runtime API in MUSE.
+- World Labs produced prepared spatial assets. Its separate optional Forge endpoint requires
+  both a server API key and an exact admin token, generates only isolated spatial variations,
+  receives no visitor question/evidence/conversation data and is outside the canonical journey.
+- The nine spatial environments and character GLBs are prepared local assets. GPT personalizes
+  the inquiry and final concept but does not generate new 3D geometry during a visitor session.
 
-### Newly implemented in this repository
+## Audio asset boundary
 
-- A GPT-5.6-only language/reasoning contract with an official OpenAI default and one
-  separately keyed, visibly disclosed local legacy gateway.
-- The strict ten-beat state machine and independent `EXHIBITION_SPINE` / `FINAL_SCENE`
-  boundary.
-- Eight-stop lesson validation and a final-concept contract that require the exact ordered
-  scene IDs and exactly the selected companion perspectives.
-- A gated free-form observation input that records visitor language without changing the
-  inherited route.
-- Runtime follow formations for the complete selected company and duplicate-free Roundtable
-  staging. The deployed character files remain static-mesh interpretations; movement is
-  runtime behavior.
-- A provisional Roundtable GPT-5.6 strict schema plus a second decision-triggered transformed
-  schema locked to the chosen `perception`, `emotion` or `invention` axis.
-- Quality RAD hierarchies built from the original-source SPZs in place of canonical 500K
-  reductions or browser-time LOD construction.
-- Geometry-preserving, 8192 x 8192 JPEG repacking for the two GitHub-sized texture meshes.
-- High/balanced/performance renderer tiers, DPR restoration, `NoToneMapping`, archive race
-  disposal, collider height sampling and byte-range static responses.
-- Shader-deformed companion movement and correspondence-gated dialogue.
-- Local delivery and collider-aware placement of four globally unique AIC works in each of
-  the nine worlds.
-- Context-grounded GPT-5.6 Responses dialogue and an OpenAI Realtime WebRTC session that can
-  refresh scene, artwork, companion and evidence context between turns.
-- A new fictional learner designed with GPT Image 2, reconstructed with Tripo v3.1, rigged
-  with a semantic 41-joint biped skeleton and shipped with baked wait/walk clips.
-- New security boundaries, tests and desktop/mobile E2E coverage.
+MUSE does not bundle or play a third-party music recording. The four-profile score in
+`src/services/sound-experience.js` is deterministic Web Audio synthesis using checked-in pitch
+fields and oscillators, with no recording samples or reference audio. Narration and live
+conversation duck that score independently.
 
-No legacy application module, server module, stylesheet, MiniMax narration path or Claude
-model path is included. The inherited GPT-5.6 gateway is represented by one explicit allowlist
-entry rather than a general provider registry.
-
-## Provider boundary
-
-The judging path uses OpenAI GPT through `api.openai.com`. World Labs and Tripo identify where
-pre-generated scene and character files came from; neither is used as a language model.
-
-The default endpoint is the official OpenAI API. The previous MUSE deployment stored a
-server-side credential for `api.baizhiyuan.cloud`, whose model catalogue exposes `gpt-5.6` and
-whose Responses route was used by that project. This rebuild accepts that one inherited HTTPS
-origin through `OPENAI_BASE_URL`, while hard-locking the request model to `gpt-5.6` and rejecting
-arbitrary compatible origins. `OPENAI_API_KEY` is origin-bound to `api.openai.com`, while
-`MUSE_GPT_GATEWAY_API_KEY` is origin-bound to the inherited gateway; either cross-origin
-configuration is treated as unconfigured. Credentials remain untracked.
-
-The inherited gateway's catalogue exposes `gpt-5.6`, but a compatible gateway cannot
-independently prove its upstream provider. Status and responses without model metadata carry
-`gateway: inherited-gpt` and `model_source: request-configured`; only a response payload that
-identifies an allowed GPT-5.6 model carries `model_source: gateway-response-reported` and
-`response_model`. The UI preserves that distinction. Competition evidence should use an
-official OpenAI Platform credential.
-When the gateway is active it receives the learner's question, scene evidence and dialogue;
-`store: false` is a request field, not a guarantee about proxy-side retention.
-
-The server retains an isolated Forge adapter that can send an explicit spatial-generation
-request to World Labs only when both `WORLDLABS_API_KEY` and `INTEGRATION_ADMIN_TOKEN` are
-configured. It is not called by the canonical path, never supplies reasoning text and remains
-locked without credentials. There is no Tripo runtime endpoint in the judging path.
-
-The ninth-world distinction is material to provenance. On the configured live path, the
-Roundtable first asks GPT-5.6 for a provisional concept; the visitor's chosen contradiction
-then triggers a second GPT-5.6 Responses API strict-schema request that is instructed to
-materially rewrite `world_title`, `synthesis`, `principle` and `visual_prompt` and is validated
-against that axis. No-key mode applies an axis-specific curated replacement under the same
-contract. The loaded Fantasy Realm of Shimmering Spheres mesh was generated before Build Week
-and reused from `muse-infinity`; neither concept request generates new geometry.
+Any future recorded or generated soundtrack file must have an asset-level record covering its
+source, generator or performer, applicable rights, prompt/reference inputs when relevant,
+generation date and SHA-256. AI generation alone is not treated as copyright clearance. This
+implements the competition rule that demo-video music must be authorized.
 
 ## Dialogue and voice boundary
 
@@ -112,36 +63,45 @@ result containing exactly one named perspective and one allowed visual effect pe
 Invalid output or an absent key returns an explicitly non-live local curated response under
 the same shape.
 
+`POST /api/narration` is a speech-rendering path for an already-visible, length-bounded line. It
+uses official OpenAI `gpt-4o-mini-tts` and built-in synthetic voices. The service uses no cloned
+historical voice and performs no language reasoning. The fully buffered
+MP3 response is returned for immediate browser playback; MUSE writes no narration file or cache
+entry, and the temporary browser object URL is revoked when playback settles. If remote speech
+is unavailable or playback fails, browser `SpeechSynthesis` reads the same visible line.
+
 `POST /api/realtime/call` exchanges the browser's WebRTC SDP only with the official OpenAI
 Realtime endpoint. The server session instructions carry the sanitized current scene,
 focused artwork, selected companion lenses and recent evidence; ask for visible evidence;
 follow the visitor's language; and prohibit impersonation or fabricated quotations. The
 browser's `oai-events` data channel sends `session.update` when that museum context changes
 and surfaces user/assistant transcript events. Audio output uses OpenAI's built-in `marin`
-voice. There is no cloned historical voice, lip synchronization or alternate speech provider.
+voice. There is no cloned historical voice or lip synchronization.
 
-Both live paths require an untracked, origin-bound server credential. Realtime is fixed to the
-checked-in OpenAI Realtime model constant and is disabled when the inherited text gateway is
-selected. Text inquiry remains the authoritative accessible path when microphone permission,
-WebRTC or official Realtime access is unavailable.
+When Realtime is not used, supported browsers use `SpeechRecognition` for microphone input,
+send the recognized text through `POST /api/dialogue`, and use `SpeechSynthesis` for the
+returned perspectives. That dialogue remains official GPT-5.6 when configured or the labeled
+curated local fallback; browser speech is not a second reasoning provider.
 
-The inherited GPT gateway's model catalogue lists legacy audio models but its unified
-`/v1/realtime/calls` route returned `404` during the 2026-07-20 deployment check. The runtime
-therefore reports Realtime as unavailable for that origin and uses browser speech recognition
-and synthesis around the same GPT-5.6 `/api/dialogue` turns. This fallback does not send the
-audio stream through this application's reasoning-provider boundary; browser support and
-platform speech-service behavior vary.
+Passive guide narration is controlled with Sound and stops at scene or process transitions.
+The separate Voice control remains the visitor-initiated live microphone conversation
+described above; starting it stops passive narration so the input stream does not capture the
+guide's own speech. Both narration and live conversation lower the procedural score while
+speaking. Browser autoplay policy requires a visitor gesture before Web Audio can begin.
 
-## Canonical World Labs archive ledger
+The official Realtime and TTS paths require an untracked OpenAI server credential. Browser
+speech remains available where the browser implements it, while text inquiry remains the
+authoritative accessible path when microphone permission or speech services are unavailable.
 
-All deployed files are regular repository files, not symlinks. Counts for scenes 1-7 were
-read from their archived SPZ source headers. Those full-detail inputs remain part of the
-disclosed `muse-infinity` source record; the public runtime ships official Spark quality RAD
-derivatives so it can page the hierarchy instead of blocking on browser-time Bhatt LOD.
+## Spatial world asset ledger
+
+Counts for scenes 1-7 were read from their World Labs SPZ source headers. The runtime ships
+Spark quality RAD derivatives so it can page the hierarchy instead of blocking on browser-time
+Bhatt LOD construction.
 
 ### Source-detail inputs for scenes 1-7
 
-| # | Archived SPZ source name | Detail | Source bytes | Source SHA-256 |
+| # | SPZ source name | Detail | Source bytes | Source SHA-256 |
 | ---: | --- | ---: | ---: | --- |
 | 1 | `Grand Conservatory with Lush Gardens.spz` | 4,320,000 splats | 64,296,322 | `17f00f8855796eff69a47f543caa0920ac1049f8ca1bdbeb5574d9db1545456b` |
 | 2 | `Elegant Floral Palace Interior.spz` | 4,320,000 splats | 64,592,504 | `0acf9e9859633df1b9ad1062d9e057aa34dc33f4d3b89c094df34290417a01ef` |
@@ -151,7 +111,7 @@ derivatives so it can page the hierarchy instead of blocking on browser-time Bha
 | 6 | `Sunlit Palace Gardens.spz` | 4,320,000 splats | 65,191,251 | `69d04aba292b07ed19fbba667028815d23402b12899b66b59cd1039e24e22574` |
 | 7 | `Mexican Courtyard Bedroom Fantasy.spz` | 4,320,000 splats | 64,030,640 | `7e9eddc6197a238a4183f181b09ff0a16167e16e1662543160cd4c7bdbf3b34a` |
 
-### Deployed primary archives
+### Deployed primary assets
 
 | # | Deployed file | Derivation/detail | Bytes | SHA-256 |
 | ---: | --- | --- | ---: | --- |
@@ -167,10 +127,10 @@ derivatives so it can page the hierarchy instead of blocking on browser-time Bha
 | 9 | `assets/worlds/fantasy-shimmering-spheres-texture-mesh.glb` | 593,231 triangles; 8K texture | 93,404,352 | `6fbb5d0dc3b81f17efae18c14d8c72ed421195707e354d09bd91f71451927577` |
 
 The scene 1-7 RAD files were reproduced with Spark 2.1.0's official `rust/build-lod`
-utility. For each archived source:
+utility. For each source:
 
 ```bash
-build-lod --quality --rad "/path/to/Archived World.spz"
+build-lod --quality --rad "/path/to/Source World.spz"
 ```
 
 Scene 8 prefers the texture mesh and uses its byte-identical SPZ only if the mesh cannot
@@ -191,17 +151,19 @@ texture mesh.
 | 8 | `assets/worlds/yellow-infinity-room-collider.glb` | 2,007,592 | `992f642a8e7f916b03e8e0056f48bfa4db9a3eb7fee4fdcb1ee7125c4e729c3f` |
 | 9 | `assets/worlds/fantasy-shimmering-spheres-collider.glb` | 1,456,868 | `de55cb326873edea64f3850b920943dcfd4b39ff1e127e88e9ff6613dff99515` |
 
-Colliders are inherited geometry used invisibly for downward height raycasts. Their presence
-does not imply navmesh pathfinding, obstacle avoidance or physics simulation.
+Colliders are scene geometry used invisibly for downward height raycasts and short-radius
+learner collision sweeps. Reference-height filtering keeps actors on a locally continuous
+terrain layer. Their presence does not imply navmesh pathfinding, semantic water labels,
+guide/party obstacle planning or general physics simulation.
 
 ## Geometry-preserving 8K mesh repack
 
-The archived scene-8 and scene-9 GLBs exceeded GitHub's 100 MB per-file limit because they
+The source scene-8 and scene-9 GLBs exceeded GitHub's 100 MB per-file limit because they
 embedded lossless PNG textures. `scripts/repack-world-mesh.mjs` parses the GLB container,
 extracts the PNG, uses macOS `sips` to encode JPEG quality 88, updates the image MIME type and
 buffer offsets, and rebuilds the GLB. It does not decimate the mesh or resize the texture.
 
-| Scene | Archived GLB bytes / SHA-256 | Original embedded PNG | Deployed embedded JPEG | Deployed GLB bytes / SHA-256 |
+| Scene | Source GLB bytes / SHA-256 | Original embedded PNG | Deployed embedded JPEG | Deployed GLB bytes / SHA-256 |
 | --- | --- | ---: | ---: | --- |
 | 8 | 96,625,264 / `3e310663b5dae8d9e8b7d7360b163009c9c0343fe7246409e97b2f01e0a8f342` | 32,007,568 bytes, 8192 x 8192 | 8,519,204 bytes, 8192 x 8192 | 73,136,900 / `cf1757021b4cd1432ce642d70288fbe258ed03aa53b3949741c9634cddc5ebdc` |
 | 9 | 181,220,104 / `00f12e181568183d2d8e97e141fa86d10ecd2834051c89cae93864acacb1e761` | 117,163,400 bytes, 8192 x 8192 | 29,347,648 bytes, 8192 x 8192 | 93,404,352 / `6fbb5d0dc3b81f17efae18c14d8c72ed421195707e354d09bd91f71451927577` |
@@ -221,9 +183,9 @@ node scripts/repack-world-mesh.mjs \
 ## Runtime quality and delivery record
 
 The default desktop path uses DPR 2, paged RAD, float32 extended-splat centers, a
-2,500,000-splat target, `lodRenderScale: 1`, `lodScale: 2` and `NoToneMapping`. Default
+4,320,000-splat target, `lodRenderScale: 1`, `lodScale: 2` and `NoToneMapping`. Default
 mobile uses DPR 1.5 and a 750,000-splat target with the same render/LOD scales. Lower explicit
-quality tiers change the runtime budget, not the deployed archive.
+quality tiers change the runtime budget, not the deployed asset.
 
 The server supports single HTTP byte ranges for all static assets and returns
 `Accept-Ranges`, `Content-Range`, exact `Content-Length`, ETags and immutable cache headers.
@@ -243,15 +205,12 @@ referenced by the canonical 8+1 spine or default route:
 
 Bright Gallery is explicitly not scene 1, a process world or the answer world.
 
-## Inherited Tripo companion ledger
+## Tripo companion asset ledger
 
-The eight deployed historical-character GLBs are browser-optimized copies of the
-corresponding full-size files in the prior MUSE archive. The prior project identifies the
-originals as Tripo outputs, and every archived GLB embeds `asset.generator: "Tripo"`.
-Complete original task IDs, model IDs, prompts, generation manifests, account receipts and
-output redistribution records have not been recovered.
+The eight deployed historical-character GLBs are browser-optimized copies of the corresponding
+full-size MUSE source files. Each source GLB embeds `asset.generator: "Tripo"`.
 
-| Companion | Archived source / bytes | Deployed file / bytes | SHA-256 |
+| Companion | Source export / bytes | Deployed file / bytes | SHA-256 |
 | --- | --- | --- | --- |
 | Claude Monet | `Claude Monet.glb` / 58,074,880 | `assets/characters/monet.glb` / 1,913,284 | `63d9679b1732b57b5c48e053a5878cd6baa37250720ad1f691aa76adf0e6128c` |
 | Vincent van Gogh | `Vincent van Gogh.glb` / 57,941,540 | `assets/characters/van-gogh.glb` / 1,943,768 | `fa3587b770321f1b4cc1da52db028d459a2d82990cc9cbd61203fb455eebb50e` |
@@ -274,38 +233,56 @@ npx --yes @gltf-transform/cli optimize "$INPUT" "$OUTPUT" \
   --texture-compress auto
 ```
 
-The temporary CLI version was not pinned in the prior deployment record, so the command
-documents the transformation parameters but does not guarantee byte-identical output from a
-future package version.
+The deployed hashes in this manifest are authoritative; future package versions may not
+produce byte-identical optimized output from the same command shape.
 
-The deployed companion files contain static meshes rather than inherited skins or animation
-clips. Runtime motion is a Build Week addition: approximate shader-region deformation and
+The deployed companion files contain static meshes rather than skins or animation clips.
+Submission Period runtime work added approximate shader-region deformation and
 root translation make the first selected companion guide and up to two other selected
-companions follow in formation, with collider-derived ground height. Roundtable staging uses
+companions follow in formation, with locally continuous collider-derived ground height and
+paired-foot formation validation. Gait cadence follows root speed, and the director holds
+distinct listening and reflection poses. Roundtable staging uses
 the same selected roster. The figures are AI interpretations, not authentic likeness
 reconstructions or endorsements by the named people. Yayoi Kusama is a living person; this
 repository does not describe her representation as a public-domain historical likeness.
 
+The nine-scene ambient cast is implemented entirely by `src/config/ambientLife.js` and
+`src/render/AmbientLife.js`. No creature GLB, texture, sample, downloaded pack or generated
+animal asset is part of the repository. This keeps the world files unchanged and avoids adding
+another asset dependency.
+
 ## Portrait ledger
 
-| Companion | Deployed file | Bytes | SHA-256 | Prior source record |
+| Companion | Deployed file | Bytes | SHA-256 | Source / note |
 | --- | --- | ---: | --- | --- |
 | Claude Monet | `assets/portraits/monet.jpg` | 273,567 | `0b86b2d30be83cfe6a17e8bd0293628676409696665017ad67abce83dd3fbb65` | [Monet self-portrait reproduction](https://commons.wikimedia.org/wiki/File:Autoportret_Claude_Monet.jpg) |
 | Vincent van Gogh | `assets/portraits/van-gogh.jpg` | 235,512 | `395005107ab6f908346f60e137b8d8c6c7d5a9cad029b0c2b50aff095fe68499` | [Van Gogh self-portrait reproduction](https://commons.wikimedia.org/wiki/File:Van_Gogh_self_portrait_1889.jpg) |
 | Socrates | `assets/portraits/socrates.jpg` | 2,196,932 | `57e89af7a476787b96e54ab6548ec4c2abdbcad5107451fa1e64326fe7543ae1` | [Classical Socrates bust photograph](https://commons.wikimedia.org/wiki/File:Bust_Socrates_Musei_Capitolini_MC1163.jpg); not a true-life portrait |
 | Frida Kahlo | `assets/portraits/frida.jpg` | 1,156,272 | `5e867b395b4871caa8e6b0371f5cddd17364598e83595d6b5967741ad9252d8a` | [Portrait attributed to Guillermo Kahlo](https://commons.wikimedia.org/wiki/File:Frida_Kahlo,_by_Guillermo_Kahlo.jpg) |
 | Pablo Picasso | `assets/portraits/picasso.jpg` | 193,854 | `c045320141c4297e1e45509da5a7560c6020f2fffb218a4f5f85bfbf809132ed` | [1908 Picasso portrait photograph](https://commons.wikimedia.org/wiki/File:Portrait_de_Picasso,_1908.jpg) |
-| Sigmund Freud | `assets/portraits/freud.jpg` | 268,788 | `074a72ff0d7b6e2863fad83744703e87e84653640693df0ca28f41d93b357c03` | Browser JPEG from prior archive `Sigmund Freud.png`; upstream URL/rights record not recovered |
-| Qi Baishi | `assets/portraits/qi-baishi.jpg` | 284,627 | `6791eddd834dbb0d6074b624e413fcf09bdb387c240834653204c5a74512eb34` | Browser JPEG from prior archive `Qi Baishi.png`; upstream URL/rights record not recovered |
-| Yayoi Kusama | `assets/portraits/yayoi-kusama.jpg` | 359,487 | `a4b6a84e8edf295ebb95982389cf1886eba95fbc146823d81055a61ded0eca20` | Browser JPEG from prior archive `Yayoi Kusama.png`; upstream URL/rights record not recovered |
+| Sigmund Freud | `assets/portraits/freud.jpg` | 268,788 | `074a72ff0d7b6e2863fad83744703e87e84653640693df0ca28f41d93b357c03` | Local MUSE character-reference image `Sigmund Freud.png` |
+| Qi Baishi | `assets/portraits/qi-baishi.jpg` | 284,627 | `6791eddd834dbb0d6074b624e413fcf09bdb387c240834653204c5a74512eb34` | Local MUSE character-reference image `Qi Baishi.png` |
+| Yayoi Kusama | `assets/portraits/yayoi-kusama.jpg` | 359,487 | `a4b6a84e8edf295ebb95982389cf1886eba95fbc146823d81055a61ded0eca20` | Local MUSE character-reference image `Yayoi Kusama.png` |
 
-The previous manifest labeled the five linked source records public domain. Downstream users
-must verify each current source page, file version and jurisdiction. No rights conclusion is
-made for the three archive-only portrait records.
+The linked source pages document the status of the five Wikimedia images. Downstream users
+must verify each current source page, file version and jurisdiction. The three local
+character-reference images are not described as public-domain documentary portraits.
 
-## Newly generated learner ledger
+The selection UI uses mechanically cropped single-view derivatives for the three local
+turnaround images. The originals remain unchanged and are the source of these crops:
 
-The learner is new work for this repository. Tripo's `generate_image` task invoked
+| Companion | Derived card | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| Sigmund Freud | `assets/portraits/freud-card.jpg` | 64,717 | `0128c0c643ccbfd1fcbd3eba739b04e45996d516e211b0152ab724b321d96f71` |
+| Qi Baishi | `assets/portraits/qi-baishi-card.jpg` | 60,983 | `425e11567f5b0c24620f0ada791fa1e2c04d16bcb51ee188ac7cacf0f9219041` |
+| Yayoi Kusama | `assets/portraits/yayoi-kusama-card.jpg` | 78,155 | `d9349ffe5eaedc539313ffc16c97faa1545c34a5a38b7e7f5f7ee9efd2be5c77` |
+
+These derivatives are AI character interpretations, not verified documentary portraits or
+endorsements by the named people.
+
+## Submission Period learner asset ledger
+
+The learner was produced during the Submission Period. Tripo's `generate_image` task invoked
 `model_version: gpt_image_2` for the accepted strict T-pose source. A separate Tripo
 multiview-image task generated consistent front, character-left, back and character-right
 views. Those views drove a detailed `v3.1-20260211` reconstruction. The selected legacy biped
@@ -333,11 +310,10 @@ output hash are in `assets/generated/learner-v2/manifest.json`; production and Q
 `assets/generated/learner-v1/manifest.json`. The learner is a fictional character, not a
 real-person likeness.
 
-## Inherited scene-image ledger
+## Scene-image asset ledger
 
-These nine PNGs are interpretive concept/evidence images copied from the prior project. They
-are not historical artworks and must not be represented as World Labs exports. Complete
-image-generation model/task records were not retained.
+These nine MUSE PNGs are interpretive concept/evidence images. They are not historical
+artworks and are not represented as World Labs exports.
 
 | # | File | Bytes | SHA-256 |
 | ---: | --- | ---: | --- |
@@ -365,12 +341,10 @@ image-generation model/task records were not retained.
 | Yellow Infinity Room | `assets/thumbs/yellow-polka-dot-infinity-room.jpg` | 232,248 | `08b6f119380142810f94902474be5bc747ad35eeb125e84ff8279f47f079cbb1` |
 | Shimmering Spheres | `assets/thumbs/fantasy-realm-of-shimmering-spheres.jpg` | 220,568 | `19eadff44b31fac8e51ea0016aeefd0c17ba03e73b40ede65fe9244f343902c9` |
 
-Thumbnail generation/export records are incomplete.
-
 ## Art Institute of Chicago Open Access artwork ledger
 
-`src/config/sceneCollections.js` retains the deterministic 36-work cast from
-`muse-infinity`, grouped as four globally unique works per world. This repository stores one
+`src/config/sceneCollections.js` defines the deterministic 36-work cast, grouped as four
+globally unique works per world. This repository stores one
 JPEG for each record under `assets/art/collection/`; the files were downloaded from the
 recorded Art Institute of Chicago IIIF `full/1686,/0/default.jpg` URLs so gallery rendering
 does not depend on a live image request. The title, creator, date and object-page source below
@@ -426,7 +400,7 @@ under CC0 except for the `description` field; this manifest does not copy that f
 [AIC website terms](https://www.artic.edu/terms). AIC also states that image users remain
 responsible for identifying and obtaining any necessary third-party permissions.
 
-The three earlier lower-resolution files remain for traceability but are not separate works
+Three lower-resolution compatibility files remain for traceability but are not separate works
 in the runtime cast:
 
 | Compatibility file | AIC source | Bytes | SHA-256 |
@@ -443,50 +417,26 @@ The canonical web-export SPZ worlds are y-up and keep their native frame; there 
 range before this declared scale is applied.
 
 `src/config/legacyAssets.js` is the executable record. `src/config/exhibitionSpine.js` is the
-ordered narrative/asset record. The runtime loads the matching inherited collider and uses it
+ordered narrative/asset record. The runtime loads the matching scene collider and uses it
 for ground height; route order and movement bounds remain deterministic.
 
-## World Labs records and rights status
+`src/config/artworkPlacements.js` records all 36 authored artwork anchors. Nine frames hide
+their supports only where a near-vertical collider is within 0.10 m behind the center and all
+four corners; the remaining twenty-seven use grounded stands in open geometry. Geometry QA
+uses each source JPEG's real aspect ratio, requires unobstructed center/corner sightlines and
+keeps every center 1.50 m above its local viewing ground. Absolute world Y is not a
+cross-world height contract.
 
-The earlier MUSE repository and asset archive identify the canonical spaces as World Labs
-Marble outputs. Read-only account lookups recovered three successful `marble-1.1` records:
-
-| Operation ID | World ID | Account display name | Canonical 8+1? |
-| --- | --- | --- | --- |
-| `a1e7f907-6840-4824-83a1-66c9017a78d3` | `705b7748-c0fc-4faa-ab95-1b293cc5fac2` | MUSE Bright Gallery Hall | No |
-| `c1c1063f-9d87-464e-af82-44a0ddd7ecf2` | `6758fe98-a006-4831-95c0-cd11b2ecdaad` | World of Light v2 (image-to-world) | No |
-| `ac3af15e-a305-49ab-ba98-8e0908c89b90` | `bea1cbce-d5e7-4125-9bda-71cdc86444b7` | MUSE - World of Light (text-to-world) | No |
-
-These records establish prior account activity but are not source IDs for the formal 8+1
-archive. That evidence package remains incomplete:
-
-- no complete World Labs world ID has been recovered for the canonical nine worlds;
-- complete generation prompts, source images, operation logs, account receipts and export
-  timestamps have not been recovered for every world;
-- explicit World Labs output redistribution records for these bundled exports have not been
-  recovered;
-- hackathon coupons, credits or account access do not by themselves establish redistribution
-  permission.
-
-The repository therefore records inherited provenance without claiming more rights than the
-available files and comments support.
-
-## Rights and unresolved records
+## Rights and use notes
 
 - Source code and documentation authored for this repository are MIT licensed.
-- The MIT grant does not relicense World Labs outputs, Tripo outputs, portraits, thumbnails,
-  scene concepts or museum images. Those remain subject to source/provider terms.
-- Complete World Labs IDs for the canonical nine worlds and output redistribution evidence
-  remain missing; the three recovered noncanonical account records do not close this gap.
-- Task IDs, original prompts/settings and redistribution evidence remain missing for the eight
-  inherited historical-character GLBs. The newer learner records its own task chain.
-- Upstream URL/rights records remain missing for the Freud, Qi Baishi and Yayoi Kusama
-  portraits. Kusama is living, so likeness and image rights require particular care.
-- Generation task/model records remain incomplete for the nine interpretive scene images and
-  world thumbnails.
-- No claim is made that historical figures authored, endorsed or spoke the generated
-  perspectives.
-
-Anyone redistributing generated assets outside this hackathon repository should first recover
-the provider account records and confirm the applicable output, likeness and redistribution
-terms.
+- Generated spatial and character assets remain subject to the applicable World Labs and Tripo
+  account terms; the repository MIT license does not replace those terms.
+- AIC artwork files and metadata follow the Open Access and CC0 source terms documented above.
+- Portrait use remains subject to each source page, applicable jurisdiction and likeness law.
+  Yayoi Kusama is a living person; her representation is not described as a public-domain
+  historical likeness.
+- Historical companion perspectives are labeled AI interpretations. They are not authentic
+  quotations, cloned voices, endorsements or statements by the named people.
+- Runtime package and asset-source notices are consolidated in
+  [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).

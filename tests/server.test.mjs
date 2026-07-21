@@ -23,21 +23,29 @@ test("status is bounded and never exposes secrets", () => withServer(async (base
   assert.equal(body.configured, false);
   assert.equal(body.openai, false);
   assert.equal(body.gateway, "official");
+  assert.equal(body.narration, false);
+  assert.equal(body.narration_provider, null);
+  assert.equal(body.narration_model, null);
+  assert.equal(body.world_forge, false);
   assert.doesNotMatch(JSON.stringify(body), /key/i);
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
 }));
 
-test("status identifies the allowlisted inherited GPT gateway without exposing credentials", () => withServer(async (base) => {
+test("legacy GPT gateway environment values cannot configure the language model", () => withServer(async (base) => {
   const response = await fetch(`${base}/api/status`);
   const body = await response.json();
   assert.equal(response.status, 200);
-  assert.equal(body.configured, true);
+  assert.equal(body.configured, false);
   assert.equal(body.openai, false);
   assert.equal(body.model, "gpt-5.6");
-  assert.equal(body.gateway, "inherited-gpt");
-  assert.equal(body.model_source, "request-configured");
+  assert.equal(body.gateway, "official");
+  assert.equal(body.model_source, "openai-api");
   assert.equal(body.realtime, false);
   assert.equal(body.realtime_model, null);
+  assert.equal(body.narration, false);
+  assert.equal(body.narration_provider, null);
+  assert.equal(body.narration_model, null);
+  assert.equal(body.world_forge, false);
   assert.doesNotMatch(JSON.stringify(body), /secret-value/);
 }, {
   env: {
@@ -93,6 +101,90 @@ test("dialogue endpoint grounds the local fallback in the trusted scene collecti
   assert.match(body.perspectives[0].text, /Water Lilies/);
   assert.doesNotMatch(JSON.stringify(body), /Injected title/);
 }));
+
+test("narration endpoint is bounded and reports an explicit no-key fallback", () => withServer(async (base) => {
+  const missing = await fetch(`${base}/api/narration`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ speaker_id: "monet", text: "Look at the reflected light." })
+  });
+  assert.equal(missing.status, 503);
+  assert.deepEqual(await missing.json(), { error: "service_unavailable" });
+
+  const invalid = await fetch(`${base}/api/narration`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ speaker_id: "custom-cloned-voice", text: "Speak this." })
+  });
+  assert.equal(invalid.status, 400);
+  assert.deepEqual(await invalid.json(), { error: "invalid_narration_speaker" });
+}));
+
+test("official narration endpoint returns generated speech without exposing credentials", () => {
+  let upstream;
+  return withServer(async (base) => {
+    const status = await (await fetch(`${base}/api/status`)).json();
+    assert.equal(status.narration, true);
+    assert.equal(status.narration_provider, "openai");
+    assert.equal(status.narration_model, "gpt-4o-mini-tts");
+
+    const response = await fetch(`${base}/api/narration`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Session-Id": "session-speech" },
+      body: JSON.stringify({ speaker_id: "frida", text: "Notice what the frame protects." })
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("content-type"), "audio/mpeg");
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.deepEqual([...new Uint8Array(await response.arrayBuffer())], [73, 68, 51]);
+    assert.equal(upstream.url, "https://api.openai.com/v1/audio/speech");
+    assert.equal(upstream.body.voice, "nova");
+    assert.equal(upstream.body.input, "Notice what the frame protects.");
+    assert.doesNotMatch(JSON.stringify(upstream.body), /test-key/);
+  }, {
+    env: { OPENAI_API_KEY: "test-key" },
+    fetchImpl: async (url, options) => {
+      upstream = { url, headers: options.headers, body: JSON.parse(options.body) };
+      return new Response(Uint8Array.from([73, 68, 51]), {
+        status: 200,
+        headers: { "Content-Type": "audio/mpeg" }
+      });
+    }
+  });
+});
+
+test("aborting a narration client cancels the upstream speech request", () => {
+  let upstreamSignal;
+  let markUpstreamStarted;
+  const upstreamStarted = new Promise((resolve) => { markUpstreamStarted = resolve; });
+  return withServer(async (base) => {
+    const controller = new AbortController();
+    const request = fetch(`${base}/api/narration`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ speaker_id: "mira", text: "Cancel this unfinished line." }),
+      signal: controller.signal
+    }).catch((error) => error);
+
+    await upstreamStarted;
+    assert.equal(upstreamSignal.aborted, false);
+    controller.abort();
+    await request;
+    for (let attempt = 0; attempt < 20 && !upstreamSignal.aborted; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.equal(upstreamSignal.aborted, true);
+  }, {
+    env: { OPENAI_API_KEY: "test-key" },
+    fetchImpl: (_url, options) => {
+      upstreamSignal = options.signal;
+      markUpstreamStarted();
+      return new Promise((_resolve, reject) => {
+        upstreamSignal.addEventListener("abort", () => reject(new Error("upstream_aborted")), { once: true });
+      });
+    }
+  });
+});
 
 test("realtime JSON call uses the trusted scene and artwork context", () => {
   let upstream;

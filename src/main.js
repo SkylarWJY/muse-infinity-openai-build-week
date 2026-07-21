@@ -6,6 +6,7 @@ import { JourneySession } from "./domain/JourneySession.js";
 import { MuseumEngine } from "./render/MuseumEngine.js";
 import { MuseApi } from "./services/api.js";
 import { ProfileStore } from "./services/profile.js";
+import { NarrationSession, ProceduralSoundscape } from "./services/sound-experience.js";
 import { VoiceSession } from "./services/voice.js";
 import { AppView } from "./ui/AppView.js";
 
@@ -15,6 +16,8 @@ const session = new LessonSession();
 const journey = new JourneySession();
 const view = new AppView();
 const firstScene = EXHIBITION_SPINE[0];
+const MIRA_SPEAKER = Object.freeze({ id: "mira", fullName: "Mira", name: "MIRA", portrait: null });
+const DECISION_QUESTION = "If art can alter reality, what responsibility should it carry?";
 const state = {
   status: { configured: false, openai: false, gateway: "official", realtime: false, world_forge: false, model: "gpt-5.6" },
   provider: { live: false, model: "curated-demo" },
@@ -34,6 +37,7 @@ const state = {
   busy: false,
   dialogueBusy: false,
   dialogueGeneration: 0,
+  narrationDisclosureShown: false,
   bootPromise: null,
   bootSettled: false
 };
@@ -47,8 +51,16 @@ const engine = new MuseumEngine(document.getElementById("world"), {
   onFollowChange: (enabled) => document.getElementById("follow-button").setAttribute("aria-pressed", String(enabled)),
   onWorldLayerStatus: ({ message }) => view.toast(message),
   onCompanionStatus: ({ live, companion }) => view.toast(live
-    ? `${companion.fullName} · archived 3D companion live`
+    ? `${companion.fullName} · 3D companion ready`
     : `${companion.fullName} · spatial fallback active`)
+});
+const soundscape = new ProceduralSoundscape();
+const narrator = new NarrationSession({
+  synthesize: (line, options) => api.narration(line, options),
+  onSpeaking: (speaking) => {
+    soundscape.setSpeaking("narration", speaking);
+    view.setNarrationState(speaking);
+  }
 });
 const voice = new VoiceSession({
   sessionId: api.sessionId,
@@ -77,15 +89,18 @@ view.bind({
   onRetryScene: retryProcessScene,
   onBeginSummoning: beginSummoning,
   onConveneRoundtable: conveneRoundtable,
+  onOpenDecision: openDecision,
   onDecision: chooseContradiction,
   onCompleteTransformation: completeTransformation,
   onPublishManifesto: publishManifesto,
   onEnterFinal: enterFinalWorld
 });
 bindMovementControls();
+bindSoundUnlock();
 view.showThreshold();
 view.setWorld(getWorld(firstScene.worldId));
-view.setSpeaker(getCompanion(journey.companions[0]));
+view.setSpeaker(MIRA_SPEAKER);
+view.setSoundState(true, "armed");
 
 state.bootPromise = engine.init()
   .then((world) => {
@@ -95,7 +110,7 @@ state.bootPromise = engine.init()
   })
   .catch((error) => {
     state.bootSettled = true;
-    view.toast(`Initial archive unavailable: ${readable(error.message)}`);
+    view.toast(`Initial world unavailable: ${readable(error.message)}`);
     return engine.activeWorld;
   });
 
@@ -111,6 +126,9 @@ window.__MUSE_APP__ = {
   askInquiry,
   canOpenDialogue,
   voiceActive: () => voice.active,
+  soundscape,
+  narrator,
+  soundState: () => ({ soundscape: soundscape.snapshot(), narration: narrator.snapshot() }),
   currentDialogueContext,
   continueLesson,
   beginSummoning,
@@ -120,12 +138,14 @@ window.__MUSE_APP__ = {
 
 api.status().then((status) => {
   state.status = status;
+  narrator.setRemoteEnabled(status.narration === true);
   view.setProvider(status);
 }).catch(() => view.toast("Server status unavailable; the local nine-world journey remains active."));
 
 function crossThreshold() {
   try {
     journey.crossThreshold();
+    setSoundStage(journey.stage);
     view.showLifeQuestion();
   } catch (error) {
     view.toast(readable(error.message));
@@ -135,6 +155,7 @@ function crossThreshold() {
 function startJourney(question) {
   try {
     journey.setQuestion(question);
+    setSoundStage(journey.stage);
     state.draftCompanions = [...journey.companions];
     view.showCompany(state.draftCompanions);
   } catch (error) {
@@ -160,13 +181,14 @@ async function curateJourney() {
   try {
     journey.setCompanions(state.draftCompanions);
     journey.beginCuration();
+    setSoundStage(journey.stage);
     state.selectedCompanions = [...journey.companions];
     voice.updateContext();
     const companions = selectedCompanionRecords();
     view.showCuration(journey.question, companions);
     view.setSpeaker(companions[0]);
 
-    engine.setCompanions(journey.companions).catch(() => view.toast("Archived companions unavailable; spatial stand-ins remain active."));
+    engine.setCompanions(journey.companions).catch(() => view.toast("Selected 3D companions unavailable; spatial stand-ins remain active."));
     let result;
     try {
       result = await api.lesson(journey.question);
@@ -182,6 +204,7 @@ async function curateJourney() {
     state.provider = providerRecord(result);
     session.start(result.data);
     view.setCurationReady();
+    narrate([{ speakerId: "mira", text: result.data.opening }], { replace: true });
   } catch (error) {
     view.toast(`Curation unavailable: ${readable(error.message)}`);
   } finally {
@@ -194,6 +217,7 @@ async function enterWalk() {
   state.busy = true;
   try {
     journey.acceptCuration();
+    setSoundStage(journey.stage);
     view.begin(session.plan, state.provider);
     await activateProcessScene(session.currentStopId);
   } catch (error) {
@@ -214,32 +238,40 @@ async function activateProcessScene(sceneId) {
   const scene = getExhibitionScene(sceneId);
   if (!scene || scene.isFinal) throw new Error(`unknown_process_scene:${sceneId}`);
   voice.stop();
+  narrator.stop();
+  soundscape.setStage("world_exploration");
   const worldConfig = getWorld(scene.worldId);
   state.dialogueGeneration += 1;
   state.dialogueBusy = false;
   state.currentSceneId = scene.id;
   state.worldId = scene.worldId;
+  view.setSpeaker(sceneSpeaker(scene));
   view.setWorld(worldConfig);
   view.showWalking(scene.id);
   view.renderRoute(session.plan, session.visited, scene.id);
 
-  let world;
-  const firstBootInFlight = scene.id === firstScene.id && !state.bootSettled;
-  if (firstBootInFlight) await state.bootPromise;
-  if (engine.activeWorld.id === scene.worldId && engine.isWorldReady(scene.worldId)) world = engine.activeWorld;
-  else world = await engine.setWorld(scene.worldId);
-  if (world.id !== scene.worldId) world = await engine.setWorld(scene.worldId);
-  if (world.id !== scene.worldId) throw new Error(`scene_activation_interrupted:${scene.id}`);
+  const transitionToken = view.beginWorldTransition(scene);
+  try {
+    let world;
+    const firstBootInFlight = scene.id === firstScene.id && !state.bootSettled;
+    if (firstBootInFlight) await state.bootPromise;
+    if (engine.activeWorld.id === scene.worldId && engine.isWorldReady(scene.worldId)) world = engine.activeWorld;
+    else world = await engine.setWorld(scene.worldId);
+    if (world.id !== scene.worldId) world = await engine.setWorld(scene.worldId);
+    if (world.id !== scene.worldId) throw new Error(`scene_activation_interrupted:${scene.id}`);
 
-  state.worldId = world.id;
-  view.setWorld(world);
-  if (!engine.isWorldReady(scene.worldId)) {
-    view.showArchiveRequired(scene);
-    throw new Error(`archive_unavailable:${scene.id}`);
+    state.worldId = world.id;
+    view.setWorld(world);
+    if (!engine.isWorldReady(scene.worldId)) {
+      view.showArchiveRequired(scene);
+      throw new Error(`scene_unavailable:${scene.id}`);
+    }
+    engine.navigateTo(scene.id);
+    postRoom("scene", scene.id);
+    return world;
+  } finally {
+    view.finishWorldTransition(transitionToken);
   }
-  engine.navigateTo(scene.id);
-  postRoom("scene", scene.id);
-  return world;
 }
 
 async function retryProcessScene() {
@@ -263,7 +295,7 @@ function handleGuideState(event) {
   if (engine.activeWorld.id !== expectedWorld) return;
   if (!engine.isWorldReady(expectedWorld)) {
     view.showArchiveRequired(scene);
-    view.toast("The source archive must be live before this question can open.");
+    view.toast("The complete scene must be live before this question can open.");
     return;
   }
   if (!event.correspondence.synced) {
@@ -273,6 +305,10 @@ function handleGuideState(event) {
   const stop = session.arrive();
   view.showQuestion(stop);
   view.renderRoute(session.plan, session.visited, session.currentStopId);
+  narrate([{
+    speakerId: scene?.guideId || "mira",
+    text: `${stop.guide_line} ${stop.prompt}`
+  }], { replace: true });
 }
 
 function answerQuestion(value) {
@@ -299,6 +335,10 @@ async function askInquiry(question) {
     const result = await api.dialogue(currentDialogueContext(normalizedQuestion));
     if (!isCurrentInquiry(sceneId, generation)) return;
     view.showInquiryReply(result);
+    narrate((result?.perspectives || []).map((item) => ({
+      speakerId: item.speakerId || "mira",
+      text: item.text
+    })));
     const effect = result?.perspectives?.find((item) => item?.effect)?.effect;
     if (effect) engine.applyEffect(sceneId, effect);
   } catch (error) {
@@ -337,7 +377,7 @@ function recordEvidence(resolveAnswer) {
     }
     if (!engine.isWorldReady(expectedWorld)) {
       view.showArchiveRequired(getExhibitionScene(currentId));
-      view.toast("This fallback view cannot create evidence. Retry the source archive.");
+      view.toast("This fallback view cannot create evidence. Retry the complete scene.");
       return;
     }
     const correspondence = engine.director.correspondence();
@@ -352,8 +392,11 @@ function recordEvidence(resolveAnswer) {
     journey.recordSceneVisit(currentId);
     engine.director.listen();
     engine.applyEffect(currentId, choice.effect);
-    engine.director.reflect();
     view.showFeedback(choice);
+    narrate([{
+      speakerId: getExhibitionScene(currentId)?.guideId || "mira",
+      text: choice.feedback
+    }], { replace: true });
     view.renderRoute(session.plan, session.visited, null);
     postRoom("answer", choice.label);
     postRoom("effect", choice.effect);
@@ -380,6 +423,7 @@ async function continueLesson() {
     }));
     state.recap = recap.data;
     view.showRecap(recap.data, digest);
+    narrate([{ speakerId: "mira", text: recap.data?.summary }], { replace: true });
     state.profile = profileStore.record(session.plan.learning_goal, recap.data);
   } catch (error) {
     view.toast(readable(error.message));
@@ -393,6 +437,7 @@ function beginSummoning() {
   try {
     voice.stop();
     journey.beginSummoning();
+    setSoundStage(journey.stage);
     const digest = currentDigest();
     view.showSummoning(digest, selectedCompanionRecords(), state.recap);
     state.salonPromise = requestSalon(digest);
@@ -407,6 +452,7 @@ async function conveneRoundtable() {
   state.busy = true;
   try {
     journey.openRoundtable();
+    setSoundStage(journey.stage);
     const companions = selectedCompanionRecords();
     view.showRoundtable(null, companions, state.salonProvider);
     const result = await (state.salonPromise || requestSalon(currentDigest()));
@@ -414,6 +460,13 @@ async function conveneRoundtable() {
     state.salonProvider = providerRecord(result);
     await engine.showSalonCharacters(true);
     view.showRoundtable(state.salon, companions, state.salonProvider);
+    narrate([
+      ...(state.salon?.perspectives || []).map((item) => ({
+        speakerId: item.character_id || "mira",
+        text: item.stance || item.text
+      })),
+      { speakerId: "mira", text: state.salon?.synthesis }
+    ], { replace: true });
   } catch (error) {
     view.toast(readable(error.message));
   } finally {
@@ -439,6 +492,7 @@ function chooseContradiction(axis) {
   try {
     if (journey.stage === "roundtable") journey.completeRoundtable(state.salon);
     journey.chooseContradiction(axis);
+    setSoundStage(journey.stage);
     state.contradiction = axis;
     view.showTransformation(axis, state.salon);
   } catch (error) {
@@ -455,7 +509,9 @@ async function completeTransformation() {
     state.salon = result.data;
     state.salonProvider = providerRecord(result);
     journey.completeTransformation(state.salon);
+    setSoundStage(journey.stage);
     view.showManifesto(state.salon, { axis: state.contradiction, ...state.salonProvider });
+    narrate([{ speakerId: "mira", text: state.salon?.principle }], { replace: true });
   } catch (error) {
     view.setTransformationBusy(false);
     view.toast(readable(error.message));
@@ -481,6 +537,7 @@ function publishManifesto(value) {
   try {
     const manifesto = journey.publishManifesto(value);
     view.setManifestoPublished(manifesto);
+    narrate([{ speakerId: "mira", text: manifesto, remote: false }], { replace: true });
   } catch (error) {
     view.toast(readable(error.message));
   }
@@ -489,9 +546,11 @@ function publishManifesto(value) {
 async function enterFinalWorld() {
   if (state.busy) return;
   state.busy = true;
+  let transitionToken = null;
   try {
     voice.stop();
     const scene = journey.prepareFinalWorld();
+    transitionToken = view.beginWorldTransition(scene);
     engine.activeStopId = null;
     await engine.showSalonCharacters(false);
     const world = await engine.setWorld(scene.worldId);
@@ -505,19 +564,27 @@ async function enterFinalWorld() {
         published: true,
         text: journey.manifesto
       });
-      view.toast("The archived answer world is unavailable. Your manifesto is preserved; retry when the source asset is ready.");
+      view.toast("The answer world is unavailable. Your manifesto is preserved; retry when the spatial scene is ready.");
       return;
     }
     journey.enterFinalWorld();
-    view.toast("Opening 09 / ANSWER · archived 8K realization");
+    setSoundStage("final_answer");
+    view.toast("Opening 09 / ANSWER · high-resolution spatial realization");
     state.dialogueGeneration += 1;
     state.dialogueBusy = false;
     state.currentSceneId = scene.id;
+    view.setSpeaker(MIRA_SPEAKER);
     view.enterFinalWorld(world, state.salon);
+    narrate([{
+      speakerId: "mira",
+      text: `${state.salon?.principle || journey.manifesto} ${FINAL_SCENE.question}`,
+      remote: Boolean(state.salon?.principle)
+    }], { replace: true });
     postRoom("scene", FINAL_SCENE.id);
   } catch (error) {
     view.toast(readable(error.message));
   } finally {
+    if (transitionToken !== null) view.finishWorldTransition(transitionToken);
     state.busy = false;
   }
 }
@@ -567,7 +634,7 @@ async function handleDrawerAction(action, button) {
       renderDrawer("atlas");
       view.toast(engine.isWorldReady(world.id)
         ? `${world.name} · Atlas comparison only`
-        : `${world.name} · archive unavailable; comparison fallback only`);
+        : `${world.name} · scene unavailable; comparison fallback only`);
     } else if (action === "forge") {
       button.disabled = true;
       const result = await api.forge(valueOf("forge-prompt"), valueOf("forge-token"));
@@ -603,6 +670,20 @@ function handleAction(action) {
   if (action === "close-drawer") view.closeDrawer();
   else if (action === "home") window.location.reload();
   else if (action === "voice") toggleVoice();
+  else if (action === "sound") toggleSound();
+}
+
+function openDecision() {
+  setSoundStage("decision");
+  view.showDecision(DECISION_QUESTION, state.salon);
+  narrate([{ speakerId: "socrates", text: DECISION_QUESTION }], { replace: true });
+}
+
+async function toggleSound() {
+  const enabled = soundscape.setEnabled(!soundscape.enabled);
+  narrator.setEnabled(enabled);
+  const ready = enabled ? await soundscape.unlock() : false;
+  view.setSoundState(enabled, enabled ? (ready ? "on" : "unavailable") : "off");
 }
 
 async function toggleVoice() {
@@ -615,10 +696,11 @@ async function toggleVoice() {
     return;
   }
   try {
+    narrator.stop();
     await voice.start({ realtime: state.status.realtime === true });
     if (!state.status.realtime) {
       view.toast(state.status.configured
-        ? "Browser voice · GPT-5.6 dialogue via inherited gateway"
+        ? "Browser voice · GPT-5.6 dialogue via OpenAI"
         : "Browser voice · curated local dialogue");
     }
   } catch (error) {
@@ -629,6 +711,36 @@ async function toggleVoice() {
 
 function setVoiceState(value) {
   view.setVoiceState(value);
+  soundscape.setSpeaking("conversation", !["off", "error"].includes(value));
+}
+
+function setSoundStage(stage) {
+  narrator.stop();
+  soundscape.setStage(stage);
+}
+
+function narrate(lines, options = {}) {
+  if (voice.active || !soundscape.enabled) return Promise.resolve();
+  const playable = (lines || []).filter((line) => String(line?.text || "").trim());
+  if (state.status.narration && !state.narrationDisclosureShown && playable.some((line) => line.remote !== false)) {
+    state.narrationDisclosureShown = true;
+    view.toast("Guide voices are AI-generated interpretations, not the historical figures themselves.");
+  }
+  return narrator.enqueue(playable, options);
+}
+
+function bindSoundUnlock() {
+  const unlock = () => {
+    window.removeEventListener("pointerdown", unlock);
+    window.removeEventListener("keydown", unlock);
+    if (!soundscape.enabled) return;
+    void soundscape.unlock().then((ready) => {
+      const enabled = soundscape.enabled;
+      view.setSoundState(enabled, enabled ? (ready ? "on" : "unavailable") : "off");
+    });
+  };
+  window.addEventListener("pointerdown", unlock, { once: true });
+  window.addEventListener("keydown", unlock, { once: true });
 }
 
 function bindMovementControls() {
@@ -694,9 +806,7 @@ function providerRecord(result = {}) {
   return {
     live: result.live === true,
     model: result.model,
-    reason: result.reason,
-    gateway: result.gateway,
-    model_source: result.model_source
+    reason: result.reason
   };
 }
 
@@ -735,6 +845,10 @@ function currentDialogueContext(question = "") {
 
 function selectedCompanionRecords() {
   return state.selectedCompanions.map(getCompanion).filter(Boolean);
+}
+
+function sceneSpeaker(scene) {
+  return getCompanion(scene?.guideId) || MIRA_SPEAKER;
 }
 
 function canConveneSalon() {

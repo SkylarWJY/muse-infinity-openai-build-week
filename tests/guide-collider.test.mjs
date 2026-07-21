@@ -21,6 +21,9 @@ test("all eight process guides ground their targets to real colliders and reach 
     layer.activeWorld = world;
     layer.collider = await loadCollider(loader, world);
     scene.add(layer.collider);
+    layer.buildGroundIndex(layer.collider);
+    await layer.buildArtworks(world, layer.buildToken);
+    layer.layoutArtworks(world);
 
     const avatar = new ProceduralAvatar();
     avatar.group.position.set(world.profile.guideSpawn.x, world.profile.groundY, world.profile.guideSpawn.z);
@@ -30,16 +33,26 @@ test("all eight process guides ground their targets to real colliders and reach 
     engine.activeWorld = world;
     engine.worldLayer = layer;
     engine.director = director;
+    engine.guide = avatar;
     engine.activeStopId = null;
 
     const stop = stopsForWorld(world.id)[0];
+    const pose = layer.stopPose(stop.id);
+    assert.ok(pose, `${world.id}: production artwork pose must exist`);
     engine.navigateTo(stop.id);
-    const expectedGround = layer.groundHeightAt(stop.guideAnchor[0], stop.guideAnchor[2]);
+    const expectedGround = layer.walkableGroundHeightAt(
+      pose.guideAnchor[0],
+      pose.guideAnchor[2],
+      pose.guideAnchor[1],
+      0.35
+    );
+    assert.ok(Number.isFinite(expectedGround), `${world.id}: production guide pose must use a walkable collider layer`);
     assert.ok(Math.abs(director.target.y - expectedGround) < 0.0001, `${world.id}: target must use collider ground`);
 
     for (let frame = 0; frame < 1_200 && director.state !== "asking"; frame += 1) {
+      const previous = avatar.group.position.clone();
       director.update(1 / 60);
-      avatar.group.position.y = layer.groundHeightAt(avatar.group.position.x, avatar.group.position.z);
+      engine.updateGuideGround(previous);
     }
     const correspondence = director.correspondence();
     assert.equal(director.state, "asking", `${world.id}: guide did not finish arrival`);

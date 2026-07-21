@@ -212,6 +212,166 @@ test("collider raycasts ground the visitor on real terrain", () => {
   assert.ok(Math.abs(layer.groundHeightAt(0, 0) - 2.1) < 0.0001);
 });
 
+test("continuous ground sampling ignores a raised decorative layer and rejects abrupt ledges", () => {
+  const scene = new THREE.Scene();
+  const layer = new WorldLayer(scene, { textureLoader: { loadAsync: async () => null } });
+  layer.activeWorld = getWorld("grand-conservatory-with-lush-gardens");
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(4, 0.2, 4), new THREE.MeshBasicMaterial());
+  floor.position.y = -0.1;
+  const decoration = new THREE.Mesh(new THREE.BoxGeometry(1, 0.2, 1), new THREE.MeshBasicMaterial());
+  decoration.position.y = 1;
+  const collider = new THREE.Group();
+  collider.add(floor, decoration);
+  collider.updateMatrixWorld(true);
+  layer.collider = collider;
+  scene.add(collider);
+
+  assert.ok(Math.abs(layer.walkableGroundHeightAt(0, 0, 0, 0.35)) < 0.0001);
+  assert.equal(layer.walkableGroundHeightAt(0, 0, 0.55, 0.2), null);
+});
+
+test("continuous ground sampling reuses a five-centimeter movement cell", () => {
+  const layer = new WorldLayer(new THREE.Scene(), { textureLoader: { loadAsync: async () => null } });
+  layer.activeWorld = getWorld("grand-conservatory-with-lush-gardens");
+  layer.collider = new THREE.Group();
+  let samples = 0;
+  layer.groundHitsAt = () => {
+    samples += 1;
+    return [0.1];
+  };
+
+  assert.equal(layer.walkableGroundHeightAt(0, 0, 0.1, 0.35), 0.1);
+  assert.equal(layer.walkableGroundHeightAt(0.02, 0.02, 0.1, 0.35), 0.1);
+  assert.equal(samples, 1);
+});
+
+test("the collider ground index preserves raycast heights without per-step mesh traversal", () => {
+  const scene = new THREE.Scene();
+  const layer = new WorldLayer(scene, { textureLoader: { loadAsync: async () => null } });
+  layer.activeWorld = getWorld("grand-conservatory-with-lush-gardens");
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(8, 0.2, 8), new THREE.MeshBasicMaterial());
+  floor.position.y = -0.1;
+  const platform = new THREE.Mesh(new THREE.BoxGeometry(2, 0.2, 2), new THREE.MeshBasicMaterial());
+  platform.position.y = 1.9;
+  const collider = new THREE.Group();
+  collider.add(floor, platform);
+  collider.updateMatrixWorld(true);
+  layer.collider = collider;
+  scene.add(collider);
+
+  const raycastHeights = layer.groundHitsAt(0, 0).sort((left, right) => left - right);
+  layer.buildGroundIndex(collider, 1);
+  layer.raycaster.intersectObject = () => { throw new Error("unexpected_raycast"); };
+  const indexedHeights = layer.groundHitsAt(0, 0).sort((left, right) => left - right);
+  assert.equal(indexedHeights.length, raycastHeights.length);
+  assert.ok(indexedHeights.every((height, index) => Math.abs(height - raycastHeights[index]) < 0.0001));
+});
+
+test("horizontal movement stops at vertical collider faces without treating the floor as a wall", () => {
+  const scene = new THREE.Scene();
+  const layer = new WorldLayer(scene, { textureLoader: { loadAsync: async () => null } });
+  layer.activeWorld = getWorld("grand-conservatory-with-lush-gardens");
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(8, 0.2, 8), new THREE.MeshBasicMaterial());
+  floor.position.y = -0.1;
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3, 8), new THREE.MeshBasicMaterial());
+  wall.position.set(0, 1.5, 0);
+  const collider = new THREE.Group();
+  collider.add(floor, wall);
+  collider.updateMatrixWorld(true);
+  layer.collider = collider;
+  scene.add(collider);
+
+  const openMove = layer.resolveHorizontalMove(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(-0.8, 0, 0), 0.25);
+  assert.ok(Math.abs(openMove.x + 0.8) < 0.0001);
+  const blockedMove = layer.resolveHorizontalMove(new THREE.Vector3(-0.31, 0, 0), new THREE.Vector3(-0.2, 0, 0), 0.25);
+  assert.ok(Math.abs(blockedMove.x + 0.31) < 0.0001);
+  const slideMove = layer.resolveHorizontalMove(new THREE.Vector3(-0.31, 0, 0), new THREE.Vector3(0.2, 0, 1), 0.25);
+  assert.ok(slideMove.x < -0.28, "the visitor capsule must remain outside the wall");
+  assert.ok(slideMove.z > 0.2, "the unblocked component should slide along the wall");
+  const awayMove = layer.resolveHorizontalMove(new THREE.Vector3(-0.31, 0, 0), new THREE.Vector3(-0.8, 0, 0), 0.25);
+  assert.ok(Math.abs(awayMove.x + 0.8) < 0.0001);
+});
+
+test("horizontal movement catches narrow obstacles inside the visitor radius", () => {
+  const scene = new THREE.Scene();
+  const layer = new WorldLayer(scene, { textureLoader: { loadAsync: async () => null } });
+  layer.activeWorld = getWorld("grand-conservatory-with-lush-gardens");
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(8, 0.2, 8), new THREE.MeshBasicMaterial());
+  floor.position.y = -0.1;
+  const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.02, 3, 0.02), new THREE.MeshBasicMaterial());
+  pillar.position.set(0, 1.5, 0);
+  const collider = new THREE.Group();
+  collider.add(floor, pillar);
+  collider.updateMatrixWorld(true);
+  layer.collider = collider;
+  scene.add(collider);
+
+  for (const lateralOffset of [-0.24, -0.205, -0.14, -0.075, -0.015, 0.015, 0.075, 0.14, 0.205, 0.24]) {
+    pillar.position.z = lateralOffset;
+    pillar.updateMatrixWorld(true);
+    layer.horizontalCollisionCache = null;
+    const blocked = layer.resolveHorizontalMove(
+      new THREE.Vector3(-0.5, 0, 0),
+      new THREE.Vector3(0.5, 0, 0),
+      0.25
+    );
+    assert.ok(blocked.x < 0,
+      `the visitor radius passed beside the pillar at offset ${lateralOffset}`);
+  }
+});
+
+test("indexed horizontal collision avoids traversing the full inherited collider", () => {
+  const scene = new THREE.Scene();
+  const layer = new WorldLayer(scene, { textureLoader: { loadAsync: async () => null } });
+  layer.activeWorld = getWorld("grand-conservatory-with-lush-gardens");
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(8, 0.2, 8), new THREE.MeshBasicMaterial());
+  floor.position.y = -0.1;
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3, 8), new THREE.MeshBasicMaterial());
+  wall.position.set(0, 1.5, 0);
+  const collider = new THREE.Group();
+  collider.add(floor, wall);
+  collider.updateMatrixWorld(true);
+  layer.collider = collider;
+  layer.buildGroundIndex(collider, 1);
+  wall.raycast = () => { throw new Error("unexpected_full_collider_raycast"); };
+  scene.add(collider);
+
+  const blocked = layer.resolveHorizontalMove(
+    new THREE.Vector3(-0.31, 0, 0),
+    new THREE.Vector3(-0.2, 0, 0),
+    0.25
+  );
+  assert.ok(Math.abs(blocked.x + 0.31) < 0.0001);
+});
+
+test("horizontal clearance is reused across short same-direction steps", () => {
+  const scene = new THREE.Scene();
+  const layer = new WorldLayer(scene, { textureLoader: { loadAsync: async () => null } });
+  layer.activeWorld = getWorld("grand-conservatory-with-lush-gardens");
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(20, 0.2, 20), new THREE.MeshBasicMaterial());
+  floor.position.y = -0.1;
+  floor.updateMatrixWorld(true);
+  layer.collider = floor;
+  scene.add(floor);
+  const intersectObject = layer.raycaster.intersectObject.bind(layer.raycaster);
+  let raycasts = 0;
+  layer.raycaster.intersectObject = (...args) => {
+    raycasts += 1;
+    return intersectObject(...args);
+  };
+
+  let position = new THREE.Vector3(-2, 0, 0);
+  let initialRaycasts = 0;
+  for (let step = 0; step < 10; step += 1) {
+    const desired = position.clone().add(new THREE.Vector3(0.05, 0, 0));
+    position = layer.resolveHorizontalMove(position, desired, 0.25);
+    if (step === 0) assert.ok(raycasts > 0, "the first movement must scan the collider");
+    if (step === 0) initialRaycasts = raycasts;
+  }
+  assert.equal(raycasts, initialRaycasts,
+    `same-direction clearance repeated its initial ${initialRaycasts} raycasts`);
+});
+
 test("Spark retirement remains tracked through pager work and disposes after it settles", async () => {
   const pending = deferred();
   const pager = sparkPager();

@@ -6,12 +6,24 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { ALL_EXHIBITION_SCENES } from "../src/config/exhibitionSpine.js";
 import { ARCHIVED_WORLDS } from "../src/config/legacyAssets.js";
+import { artworkPlacementsForScene } from "../src/config/artworkPlacements.js";
 import { artworksForScene } from "../src/config/sceneCollections.js";
 import { WorldLayer } from "../src/render/WorldLayer.js";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const UP = new THREE.Vector3(0, 1, 0);
 const ACTIVE_ARTWORK_SCALE = 1.025;
+const MINIMUM_WALL_MOUNTS = Object.freeze({
+  "threshold-conservatory": 2,
+  "court-of-light": 1,
+  "water-and-light": 1,
+  "sunset-frames": 0,
+  "burning-sky": 1,
+  "petal-transition": 4,
+  "living-memory": 0,
+  "infinite-repetition": 0,
+  "personal-dream-world": 0
+});
 
 globalThis.ProgressEvent ??= class ProgressEvent {
   constructor(type, init = {}) { Object.assign(this, { type }, init); }
@@ -46,16 +58,83 @@ test("all four artworks stay grounded, separated, bounded, and guide-facing in e
   const loader = new GLTFLoader();
   for (const world of ARCHIVED_WORLDS) {
     const scene = new THREE.Scene();
-    const layer = new WorldLayer(scene, { textureLoader: { loadAsync: async () => null } });
+    const layer = new WorldLayer(scene, {
+      textureLoader: {
+        loadAsync: async (url) => {
+          const dimensions = jpegDimensions(fs.readFileSync(path.join(ROOT, url.slice(1))));
+          const texture = new THREE.Texture();
+          texture.image = dimensions;
+          return texture;
+        }
+      }
+    });
     layer.activeWorld = world;
     layer.collider = await loadCollider(loader, world);
     scene.add(layer.collider);
+    const samplePoints = [
+      world.profile.spawn,
+      world.profile.guideSpawn,
+      ...artworkPlacementsForScene(world.sceneId).flatMap((placement) => [
+        { x: placement.x, z: placement.z },
+        { x: placement.guideAnchor[0], z: placement.guideAnchor[2] }
+      ])
+    ];
+    const raycastGround = samplePoints.map(({ x, z }) => layer.groundHitsAt(x, z).sort((left, right) => left - right));
+    layer.buildGroundIndex(layer.collider);
+    samplePoints.forEach(({ x, z }, index) => {
+      const indexedGround = layer.groundHitsAt(x, z).sort((left, right) => left - right);
+      assert.equal(indexedGround.length, raycastGround[index].length,
+        `${world.sceneId} indexed ground count changed at ${x},${z}`);
+      assert.ok(indexedGround.every((height, heightIndex) => Math.abs(height - raycastGround[index][heightIndex]) < 0.0001),
+        `${world.sceneId} indexed ground height changed at ${x},${z}`);
+    });
     await layer.buildArtworks(world, layer.buildToken);
     layer.layoutArtworks(world);
 
     const records = [...layer.artworks.values()].sort((left, right) => left.index - right.index);
+    if (world.sceneId === "personal-dream-world") {
+      const right = new THREE.Vector3(Math.cos(world.profile.yaw), 0, Math.sin(world.profile.yaw));
+      const player = new THREE.Vector3(world.profile.spawn.x, 0, world.profile.spawn.z).addScaledVector(right, 0.5);
+      player.y = layer.groundHeightAt(player.x, player.z);
+      const target = player.clone().add(new THREE.Vector3(0, 1.45, 0));
+      const pitch = world.profile.cameraPitch ?? -0.14;
+      const distance = world.profile.cameraDistance ?? 5.6;
+      const cameraYaw = -world.profile.yaw;
+      const camera = target.clone().add(new THREE.Vector3(
+        Math.sin(cameraYaw) * Math.cos(pitch) * distance,
+        1.25 + Math.sin(-pitch) * distance,
+        Math.cos(cameraYaw) * Math.cos(pitch) * distance
+      ));
+      scene.updateMatrixWorld(true);
+      const cameraPlanar = camera.clone();
+      cameraPlanar.y = player.y;
+      const cameraPath = new THREE.Line3(player, cameraPlanar);
+      for (const record of records) {
+        const bounds = new THREE.Box3().setFromObject(record.frame);
+        const center = bounds.getCenter(new THREE.Vector3());
+        center.y = player.y;
+        const nearest = cameraPath.closestPointToPoint(center, true, new THREE.Vector3());
+        const footprint = bounds.getSize(new THREE.Vector3());
+        const clearance = Math.hypot(footprint.x, footprint.z) / 2 + 0.35;
+        assert.ok(nearest.distanceTo(center) > clearance,
+          `personal-dream-world initial camera corridor is blocked by ${record.frame.name || record.artwork.id}`);
+      }
+    }
+    let mountedCount = 0;
     assert.equal(records.length, 4, world.sceneId);
     assert.deepEqual(records.map((record) => record.artwork.id), artworksForScene(world.sceneId).map((artwork) => artwork.id));
+
+    const routeStart = new THREE.Vector3(world.profile.guideSpawn.x, 0, world.profile.guideSpawn.z);
+    routeStart.y = layer.groundHeightAt(routeStart.x, routeStart.z);
+    const routeTarget = new THREE.Vector3(...records[0].frame.userData.guideAnchor);
+    let routeY = routeStart.y;
+    for (const fraction of [0.2, 0.4, 0.6, 0.8, 1]) {
+      const x = THREE.MathUtils.lerp(routeStart.x, routeTarget.x, fraction);
+      const z = THREE.MathUtils.lerp(routeStart.z, routeTarget.z, fraction);
+      const groundY = layer.walkableGroundHeightAt(x, z, routeY, 0.35);
+      assert.ok(Number.isFinite(groundY), `${world.sceneId} guide route crosses a terrain break at ${fraction}`);
+      routeY = groundY;
+    }
 
     for (const record of records) {
       const { frame, border } = record;
@@ -68,20 +147,37 @@ test("all four artworks stay grounded, separated, bounded, and guide-facing in e
       assert.ok(frame.position.x <= world.profile.bounds.maxX - 0.95, `${world.sceneId}:${record.artwork.id} right bound`);
       assert.ok(frame.position.z >= world.profile.bounds.minZ + 0.95, `${world.sceneId}:${record.artwork.id} near bound`);
       assert.ok(frame.position.z <= world.profile.bounds.maxZ - 0.95, `${world.sceneId}:${record.artwork.id} far bound`);
-      assert.equal(layer.hasGroundAt(frame.position.x, frame.position.z), true, `${world.sceneId}:${record.artwork.id} frame has no ground`);
       assert.equal(layer.hasGroundAt(guideX, guideZ), true, `${world.sceneId}:${record.artwork.id} guide has no ground`);
-      assert.ok(Math.abs(frame.position.y - layer.groundHeightAt(frame.position.x, frame.position.z) - 0.02) < 0.0001,
-        `${world.sceneId}:${record.artwork.id} frame is floating`);
       assert.ok(Math.abs(guideY - layer.groundHeightAt(guideX, guideZ)) < 0.0001,
         `${world.sceneId}:${record.artwork.id} guide anchor is floating`);
 
+      const supportsVisible = frame.userData.supports.every((support) => support.visible);
+      const localFrameGroundY = supportsVisible
+        ? layer.walkableGroundHeightAt(frame.position.x, frame.position.z, guideY, 0.45)
+        : guideY;
+      if (supportsVisible) {
+        assert.equal(layer.hasGroundAt(frame.position.x, frame.position.z), true, `${world.sceneId}:${record.artwork.id} frame has no ground`);
+        assert.ok(Number.isFinite(localFrameGroundY), `${world.sceneId}:${record.artwork.id} frame changed terrain layer`);
+        assert.ok(Math.abs(frame.position.y - localFrameGroundY - 0.02) < 0.0001,
+          `${world.sceneId}:${record.artwork.id} freestanding frame is floating`);
+        assert.ok(Math.abs(frame.position.y - guideY) <= 0.45,
+          `${world.sceneId}:${record.artwork.id} freestanding frame crossed a terrain layer`);
+      } else {
+        mountedCount += 1;
+        assert.ok(Math.abs(frame.position.y - guideY - 0.02) < 0.0001,
+          `${world.sceneId}:${record.artwork.id} wall frame is not aligned to the guide sightline`);
+      }
+
       const facing = new THREE.Vector3(0, 0, 1).applyAxisAngle(UP, frame.rotation.y);
       const towardGuide = new THREE.Vector3(guideX - frame.position.x, 0, guideZ - frame.position.z).normalize();
-      assert.ok(facing.dot(towardGuide) > 0.995, `${world.sceneId}:${record.artwork.id} faces away from its guide`);
+      assert.ok(facing.dot(towardGuide) > (supportsVisible ? 0.995 : 0.6), `${world.sceneId}:${record.artwork.id} faces away from its guide`);
 
       const frameCenter = frame.position.clone();
       frameCenter.y += 1.48;
       const guideEye = new THREE.Vector3(guideX, guideY + 1.48, guideZ);
+      const viewingGroundY = localFrameGroundY;
+      assert.ok(Math.abs(frameCenter.y - viewingGroundY - 1.5) < 0.0001,
+        `${world.sceneId}:${record.artwork.id} center is not at the 1.5m viewing height`);
       const centerSightline = frameCenter.distanceTo(guideEye);
       assert.ok(centerSightline >= 2.2,
         `${world.sceneId}:${record.artwork.id} is only ${centerSightline.toFixed(2)}m from its guide`);
@@ -104,13 +200,16 @@ test("all four artworks stay grounded, separated, bounded, and guide-facing in e
           `${world.sceneId}:${record.artwork.id} ${label} is occluded at ${obstruction?.distance?.toFixed(2)}m of ${sightline.length().toFixed(2)}m`);
       }
 
-      const supportsVisible = frame.userData.supports.every((support) => support.visible);
       if (!supportsVisible) {
-        const towardWall = frameCenter.clone().sub(guideEye).setY(0).normalize();
-        const backingRay = new THREE.Raycaster(frameCenter, towardWall, 0, 0.1);
-        const backingWall = backingRay.intersectObject(layer.collider, true)[0];
-        assert.ok(backingWall,
-          `${world.sceneId}:${record.artwork.id} hides its supports without a backing wall within 0.10m`);
+        const backingWallGap = layer.backingWallGap({
+          x: frame.position.x,
+          z: frame.position.z,
+          groundY: frame.position.y,
+          yaw: frame.rotation.y,
+          guideAnchor: frame.userData.guideAnchor
+        }, { halfWidth, halfHeight });
+        assert.ok(backingWallGap !== null,
+          `${world.sceneId}:${record.artwork.id} hides its supports without full-frame backing within 0.10m`);
       }
     }
 
@@ -120,6 +219,8 @@ test("all four artworks stay grounded, separated, bounded, and guide-facing in e
         assert.ok(distance >= 1.99, `${world.sceneId}: artworks ${left}/${right} overlap at ${distance.toFixed(2)}m`);
       }
     }
+    assert.ok(mountedCount >= MINIMUM_WALL_MOUNTS[world.sceneId],
+      `${world.sceneId} mounted ${mountedCount}/4 artworks; expected at least ${MINIMUM_WALL_MOUNTS[world.sceneId]}`);
     await layer.clear();
   }
 });
@@ -173,6 +274,116 @@ test("full-frame sightlines reject collider geometry immediately in front of an 
   blocker.material.dispose();
 });
 
+test("wall placement does not require floor geometry directly underneath a vertical wall", () => {
+  const scene = new THREE.Scene();
+  const layer = new WorldLayer(scene);
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(5, 0.2, 5), new THREE.MeshBasicMaterial());
+  floor.position.y = -0.1;
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 6, 5), new THREE.MeshBasicMaterial());
+  wall.position.set(-3, 3, 0);
+  const collider = new THREE.Group();
+  collider.add(floor, wall);
+  collider.updateMatrixWorld(true);
+  layer.collider = collider;
+  layer.activeWorld = {
+    worldScale: 1,
+    profile: {
+      spawn: { x: 0, z: 0 },
+      groundY: 0,
+      bounds: { minX: -4, maxX: 4, minZ: -4, maxZ: 4 }
+    }
+  };
+  scene.add(collider);
+
+  const placement = layer.wallPlacementAt(
+    layer.activeWorld,
+    0,
+    0,
+    new THREE.Vector3(0, 0, -1),
+    new THREE.Vector3(-1, 0, 0),
+    { halfWidth: 0.6, halfHeight: 0.6 }
+  );
+  assert.ok(placement);
+  assert.equal(placement.freestanding, false);
+  assert.ok(Math.abs(placement.groundY - 0.02) < 0.0001);
+});
+
+test("an authored wall mount is rejected at runtime when its backing collider disappears", () => {
+  const scene = new THREE.Scene();
+  const layer = new WorldLayer(scene);
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(8, 0.2, 8), new THREE.MeshBasicMaterial());
+  floor.position.y = -0.1;
+  floor.updateMatrixWorld(true);
+  layer.collider = floor;
+  layer.activeWorld = {
+    id: "changed-gallery",
+    profile: {
+      groundY: 0,
+      bounds: { minX: -4, maxX: 4, minZ: -4, maxZ: 4 }
+    }
+  };
+  scene.add(floor);
+
+  assert.throws(
+    () => layer.resolveAuthoredArtworkPlacement({
+      x: 0,
+      z: -2.4,
+      groundY: 0.02,
+      yaw: 0,
+      guideAnchor: [0, 0, 0],
+      lookAt: [0, 1.5, -2.4],
+      freestanding: false
+    }),
+    /artwork_placement_unavailable:changed-gallery/
+  );
+  floor.geometry.dispose();
+  floor.material.dispose();
+});
+
+test("an authored wall mount becomes a visible stand until its collider is available", () => {
+  const layer = new WorldLayer(new THREE.Scene());
+  layer.activeWorld = {
+    id: "loading-gallery",
+    profile: {
+      groundY: 0,
+      bounds: { minX: -4, maxX: 4, minZ: -4, maxZ: 4 }
+    }
+  };
+
+  const placement = layer.resolveAuthoredArtworkPlacement({
+    x: 0,
+    z: -2.4,
+    groundY: 0.02,
+    yaw: 0,
+    guideAnchor: [0, 0, 0],
+    lookAt: [0, 1.5, -2.4],
+    freestanding: false
+  });
+
+  assert.equal(placement.freestanding, true);
+  assert.equal(placement.groundY, 0.02);
+});
+
+test("an authored wall mount rejects a nonvertical backing surface", () => {
+  const layer = new WorldLayer(new THREE.Scene());
+  layer.collider = new THREE.Group();
+  layer.colliderHit = () => ({
+    face: { normal: new THREE.Vector3(0, 1, 0) },
+    object: { matrixWorld: new THREE.Matrix4() },
+    distance: 0.04
+  });
+
+  const gap = layer.backingWallGap({
+    x: 0,
+    z: -2.4,
+    groundY: 0.02,
+    yaw: 0,
+    guideAnchor: [0, 0, 0]
+  }, { halfWidth: 0.8, halfHeight: 0.8 });
+
+  assert.equal(gap, null);
+});
+
 test("an impossible layout fails explicitly instead of returning overlapping fallback coordinates", () => {
   const scene = new THREE.Scene();
   const layer = new WorldLayer(scene);
@@ -208,4 +419,29 @@ async function loadCollider(loader, world) {
 
 function planarDistance(left, right) {
   return Math.hypot(left.x - right.x, left.z - right.z);
+}
+
+function jpegDimensions(buffer) {
+  let offset = 2;
+  while (offset + 9 < buffer.length) {
+    if (buffer[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = buffer[offset + 1];
+    if (marker === 0xd8 || marker === 0xd9 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+      offset += 2;
+      continue;
+    }
+    const length = buffer.readUInt16BE(offset + 2);
+    if (length < 2 || offset + length + 2 > buffer.length) break;
+    if (marker >= 0xc0 && marker <= 0xc3) {
+      return {
+        height: buffer.readUInt16BE(offset + 5),
+        width: buffer.readUInt16BE(offset + 7)
+      };
+    }
+    offset += length + 2;
+  }
+  throw new Error("jpeg_dimensions_unavailable");
 }

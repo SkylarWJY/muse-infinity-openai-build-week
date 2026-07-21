@@ -28,9 +28,6 @@ export default defineConfig({
       PORT: port,
       HOST: "127.0.0.1",
       OPENAI_API_KEY: "",
-      MUSE_GPT_GATEWAY_API_KEY: "",
-      OPENAI_BASE_URL: "https://api.openai.com",
-      OPENAI_MODEL: "gpt-5.6",
       WORLDLABS_API_KEY: "",
       INTEGRATION_ADMIN_TOKEN: ""
     }

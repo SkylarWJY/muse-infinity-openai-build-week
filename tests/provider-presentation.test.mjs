@@ -2,33 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { providerPresentation } from "../src/ui/AppView.js";
 
-test("a configured inherited gateway is not presented as a live response", () => {
-  const presentation = providerPresentation({
-    configured: true,
-    live: false,
-    gateway: "inherited-gpt",
-    model: "gpt-5.6",
-    model_source: "request-configured"
-  });
+test("no official key is presented as the deterministic curated fallback", () => {
+  const presentation = providerPresentation({ configured: false, openai: false, gateway: "official", model: "gpt-5.6" });
 
-  assert.equal(presentation.label, "GPT-5.6 CONFIGURED · INHERITED GATEWAY · MODEL REQUESTED");
-  assert.equal(presentation.shortLabel, "GPT-5.6 · GATEWAY · REQUEST");
-  assert.equal(presentation.badge, "GPT-5.6 · GATEWAY READY");
-  assert.doesNotMatch(`${presentation.label} ${presentation.badge}`, /LIVE/);
-});
-
-test("a successful inherited response is presented as live with reported model evidence", () => {
-  const presentation = providerPresentation({
-    configured: true,
-    live: true,
-    gateway: "inherited-gpt",
-    model: "gpt-5.6",
-    model_source: "gateway-response-reported"
-  });
-
-  assert.equal(presentation.label, "GPT-5.6 LIVE · INHERITED GATEWAY · MODEL RESPONSE REPORTED");
-  assert.equal(presentation.shortLabel, "GPT-5.6 · GATEWAY · RESPONSE");
-  assert.equal(presentation.badge, "GPT-5.6 · GATEWAY LIVE");
+  assert.equal(presentation.label, "GPT-5.6 READY · CURATED FALLBACK ACTIVE");
+  assert.equal(presentation.shortLabel, "CURATED DEMO");
+  assert.equal(presentation.badge, "CURATED FALLBACK");
 });
 
 test("an official key is shown as configured until an API response succeeds", () => {

@@ -21,6 +21,23 @@ export class MuseApi {
       body: { ...digest, contradiction, prior_concept: priorConcept }
     });
   }
+  async narration({ speakerId, text }, { signal } = {}) {
+    const timeoutSignal = AbortSignal.timeout(30_000);
+    const requestSignal = signal && typeof AbortSignal.any === "function"
+      ? AbortSignal.any([signal, timeoutSignal])
+      : (signal || timeoutSignal);
+    const response = await fetch("/api/narration", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Session-Id": this.sessionId },
+      body: JSON.stringify({ speaker_id: speakerId, text, session_id: this.sessionId }),
+      signal: requestSignal
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw Object.assign(new Error(payload.error || `http_${response.status}`), { status: response.status });
+    }
+    return response.blob();
+  }
   createRoom(display_name) { return this.request("/api/rooms", { method: "POST", body: { display_name } }); }
   joinRoom(roomId, display_name) { return this.request(`/api/rooms/${encodeURIComponent(roomId)}/join`, { method: "POST", body: { display_name } }); }
   roomEvents(roomId, cursor = 0) { return this.request(`/api/rooms/${encodeURIComponent(roomId)}/events?cursor=${cursor}`, { timeout: 5000 }); }

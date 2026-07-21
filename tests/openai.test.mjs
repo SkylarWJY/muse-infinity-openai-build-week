@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { OpenAIService, OPENAI_ENDPOINTS, OPENAI_REQUEST_BUDGET_MS, resolveOpenAIEndpoints, sanitizeDialogueContext } from "../services/openai.js";
+import { NARRATION_MODEL, OpenAIService, OPENAI_ENDPOINTS, OPENAI_REQUEST_BUDGET_MS, resolveOpenAIEndpoints, sanitizeDialogueContext } from "../services/openai.js";
 import { ALLOWED_EFFECTS, PROCESS_SCENE_IDS, createFallbackLesson, createFallbackSalon, createFallbackTransformation, createSessionDigest } from "../shared/contracts.js";
 import { MUSE_API_TIMEOUT_MS } from "../src/services/api.js";
 
@@ -74,33 +74,33 @@ test("the primary provider attempt keeps most of the budget for a valid slow res
   assert.equal(calls, 1);
 });
 
-test("the inherited GPT gateway is explicit, HTTPS-only and still fixed to GPT-5.6", async () => {
+test("the language model provider is fixed to the official OpenAI endpoint and GPT-5.6", async () => {
   let request;
   const fetchImpl = async (url, options) => {
     request = { url, headers: options.headers, body: JSON.parse(options.body) };
     return { ok: true, json: async () => ({ output_text: JSON.stringify(createFallbackLesson("notice light")) }) };
   };
   const service = new OpenAIService({
-    gatewayApiKey: "gateway-test-key",
-    baseUrl: "https://api.baizhiyuan.cloud/",
+    apiKey: "official-test-key",
+    gatewayApiKey: "ignored-legacy-key",
+    baseUrl: "https://example.com",
     model: "not-an-allowed-model",
     fetchImpl
   });
 
   const result = await service.createLesson("notice light", "session");
   assert.equal(result.live, true);
-  assert.equal(service.gateway, "inherited-gpt");
-  assert.equal(result.gateway, "inherited-gpt");
-  assert.equal(result.model_source, "request-configured");
+  assert.equal(service.gateway, "official");
+  assert.equal(result.gateway, "official");
+  assert.equal(result.model_source, "openai-api");
   assert.equal(result.response_model, undefined);
-  assert.equal(request.url, "https://api.baizhiyuan.cloud/v1/responses");
-  assert.equal(request.headers.Authorization, "Bearer gateway-test-key");
+  assert.equal(request.url, "https://api.openai.com/v1/responses");
+  assert.equal(request.headers.Authorization, "Bearer official-test-key");
   assert.equal(request.body.model, "gpt-5.6");
-  assert.throws(() => resolveOpenAIEndpoints("http://api.openai.com"), /invalid_openai_base_url/);
-  assert.throws(() => resolveOpenAIEndpoints("https://example.com"), /untrusted_openai_base_url/);
+  assert.deepEqual(resolveOpenAIEndpoints("https://example.com"), OPENAI_ENDPOINTS);
 });
 
-test("the inherited gateway is response-reported only when its payload identifies GPT-5.6", async () => {
+test("the official OpenAI response may report the fixed GPT-5.6 model", async () => {
   const fetchImpl = async () => ({
     ok: true,
     json: async () => ({
@@ -109,34 +109,14 @@ test("the inherited gateway is response-reported only when its payload identifie
     })
   });
   const result = await new OpenAIService({
-    gatewayApiKey: "gateway-test-key",
-    baseUrl: "https://api.baizhiyuan.cloud",
+    apiKey: "official-test-key",
     fetchImpl
   }).createLesson("notice light", "session");
 
   assert.equal(result.live, true);
   assert.equal(result.model, "gpt-5.6");
   assert.equal(result.response_model, "gpt-5.6");
-  assert.equal(result.model_source, "gateway-response-reported");
-});
-
-test("the inherited gateway rejects a response that reports another model", async () => {
-  const fetchImpl = async () => ({
-    ok: true,
-    json: async () => ({
-      model: "another-model",
-      output_text: JSON.stringify(createFallbackLesson("notice light"))
-    })
-  });
-  const result = await new OpenAIService({
-    gatewayApiKey: "gateway-test-key",
-    baseUrl: "https://api.baizhiyuan.cloud",
-    fetchImpl
-  }).createLesson("notice light", "session");
-
-  assert.equal(result.live, false);
-  assert.equal(result.model, "curated-demo");
-  assert.equal(result.reason, "invalid_response");
+  assert.equal(result.model_source, "openai-api");
 });
 
 test("the official endpoint rejects a response that explicitly reports another model", async () => {
@@ -149,7 +129,6 @@ test("the official endpoint rejects a response that explicitly reports another m
   });
   const result = await new OpenAIService({
     apiKey: "official-test-key",
-    baseUrl: "https://api.openai.com",
     fetchImpl
   }).createLesson("notice light", "session");
 
@@ -158,22 +137,19 @@ test("the official endpoint rejects a response that explicitly reports another m
   assert.equal(result.reason, "invalid_response");
 });
 
-test("official and inherited credentials are origin-bound and cannot cross", async () => {
+test("only OPENAI_API_KEY-compatible constructor input enables the language model", async () => {
   let calls = 0;
   const fetchImpl = async () => { calls += 1; throw new Error("credential_must_not_be_sent"); };
-  const gatewayWithOfficialKey = new OpenAIService({
-    apiKey: "official-secret",
-    baseUrl: "https://api.baizhiyuan.cloud",
-    fetchImpl
-  });
-  const officialWithGatewayKey = new OpenAIService({
-    gatewayApiKey: "gateway-secret",
-    baseUrl: "https://api.openai.com",
+  const service = new OpenAIService({
+    gatewayApiKey: "ignored-legacy-secret",
+    baseUrl: "https://example.com",
     fetchImpl
   });
 
-  assert.equal((await gatewayWithOfficialKey.createLesson("look", "gateway")).reason, "not_configured");
-  assert.equal((await officialWithGatewayKey.createLesson("look", "official")).reason, "not_configured");
+  assert.equal(service.configured, false);
+  assert.equal(service.realtimeConfigured, false);
+  assert.equal(service.narrationConfigured, false);
+  assert.equal((await service.createLesson("look", "official")).reason, "not_configured");
   assert.equal(calls, 0);
 });
 
@@ -452,19 +428,75 @@ test("realtime call carries sanitized museum context and language guidance to th
   assert.match(session.instructions, /untrusted JSON data/i);
 });
 
-test("the inherited gateway cannot receive an official key or advertise Realtime", async () => {
+test("Realtime cannot be enabled without the official OpenAI credential", async () => {
   let calls = 0;
   const service = new OpenAIService({
-    apiKey: "official-secret",
-    gatewayApiKey: "gateway-secret",
-    baseUrl: "https://api.baizhiyuan.cloud",
+    gatewayApiKey: "ignored-legacy-secret",
+    baseUrl: "https://example.com",
     realtimeModel: "not-an-allowed-realtime-model",
     fetchImpl: async () => { calls += 1; throw new Error("should_not_run"); }
   });
 
-  assert.equal(service.configured, true);
+  assert.equal(service.configured, false);
   assert.equal(service.realtimeConfigured, false);
   assert.equal(service.realtimeModel, "gpt-realtime-2.1");
   await assert.rejects(() => service.createRealtimeCall("v=0\r\noffer", "session"), /realtime_not_configured/);
+  assert.equal(calls, 0);
+});
+
+test("official narration uses a fixed OpenAI TTS model and allowlisted synthetic voice", async () => {
+  let request;
+  const controller = new AbortController();
+  const service = new OpenAIService({
+    apiKey: "test-key",
+    fetchImpl: async (url, options) => {
+      request = { url, options, body: JSON.parse(options.body) };
+      return new Response(Uint8Array.from([73, 68, 51]), {
+        status: 200,
+        headers: { "Content-Type": "audio/mpeg" }
+      });
+    }
+  });
+
+  const result = await service.createNarration({
+    speakerId: "monet",
+    text: "Look first at the changing light."
+  }, "session-narration", { signal: controller.signal });
+
+  assert.equal(service.narrationConfigured, true);
+  assert.equal(request.url, OPENAI_ENDPOINTS.speech);
+  assert.equal(request.body.model, NARRATION_MODEL);
+  assert.equal(request.body.input, "Look first at the changing light.");
+  assert.equal(request.body.voice, "coral");
+  assert.equal(request.body.response_format, "mp3");
+  assert.match(request.body.instructions, /synthetic museum interpretation/i);
+  assert.equal(request.options.signal.aborted, false);
+  controller.abort();
+  assert.equal(request.options.signal.aborted, true);
+  assert.equal(result.contentType, "audio/mpeg");
+  assert.deepEqual([...result.bytes], [73, 68, 51]);
+});
+
+test("narration rejects unknown speakers and requires the official OpenAI credential", async () => {
+  let calls = 0;
+  const official = new OpenAIService({
+    apiKey: "test-key",
+    fetchImpl: async () => { calls += 1; throw new Error("should_not_run"); }
+  });
+  await assert.rejects(
+    () => official.createNarration({ speakerId: "injected-voice", text: "Speak this." }),
+    /invalid_narration_speaker/
+  );
+
+  const missingKey = new OpenAIService({
+    gatewayApiKey: "ignored-legacy-key",
+    baseUrl: "https://example.com",
+    fetchImpl: async () => { calls += 1; throw new Error("should_not_run"); }
+  });
+  assert.equal(missingKey.narrationConfigured, false);
+  await assert.rejects(
+    () => missingKey.createNarration({ speakerId: "mira", text: "Speak this." }),
+    /narration_not_configured/
+  );
   assert.equal(calls, 0);
 });

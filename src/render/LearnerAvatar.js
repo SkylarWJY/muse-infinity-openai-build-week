@@ -18,7 +18,7 @@ export class LearnerAvatar {
     this.group.name = "learner-avatar";
     this.group.userData.actor = "Learner";
     this.group.userData.asset = asset;
-    this.group.userData.model = "gpt-image-2-tripo-v31-biped-v2";
+    this.group.userData.model = "gpt-image-2-tripo-v3.1-rig-v1";
     this.group.userData.motion = "idle";
     this.group.userData.fallback = true;
 

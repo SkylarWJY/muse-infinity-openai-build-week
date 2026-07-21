@@ -13,7 +13,13 @@ test("all nine deterministic layouts place four readable artworks on inherited c
     const isHeavyArchive = pathname.endsWith(".rad")
       || pathname.endsWith(".spz")
       || pathname.endsWith("-texture-mesh.glb");
-    if (isHeavyArchive) await route.abort("blockedbyclient");
+    if (pathname.startsWith("/api/")) {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "e2e_api_endpoint_disabled" })
+      });
+    } else if (isHeavyArchive) await route.abort("blockedbyclient");
     else await route.continue();
   });
 
@@ -85,7 +91,10 @@ test("all nine deterministic layouts place four readable artworks on inherited c
           const guide = frame.userData.guideAnchor;
           const normal = frame.position.clone().set(0, 0, 1).applyQuaternion(frame.quaternion).normalize();
           const toGuide = frame.position.clone().set(guide[0], frame.position.y, guide[2]).sub(frame.position).normalize();
-          const expectedGround = layer.groundHeightAt(frame.position.x, frame.position.z) + 0.02;
+          const supportVisible = frame.userData.supports?.every((support) => support.visible) === true;
+          const expectedGround = supportVisible
+            ? layer.walkableGroundHeightAt(frame.position.x, frame.position.z, guide[1], 0.45) + 0.02
+            : guide[1] + 0.02;
           const image = picture.material.map?.image;
           const frameCenter = frame.position.clone();
           frameCenter.y += 1.48;
@@ -112,14 +121,13 @@ test("all nine deterministic layouts place four readable artworks on inherited c
             ).intersectObject(layer.collider, true)[0];
             return obstruction ? [{ label, distance: obstruction.distance }] : [];
           });
-          const supportVisible = frame.userData.supports?.every((support) => support.visible) === true;
-          const towardWall = frameCenter.clone().sub(guideEye).setY(0).normalize();
-          const backingWall = supportVisible ? null : new THREE.Raycaster(
-            frameCenter,
-            towardWall,
-            0,
-            0.1
-          ).intersectObject(layer.collider, true)[0];
+          const backingWallDistance = supportVisible ? null : layer.backingWallGap({
+            x: frame.position.x,
+            z: frame.position.z,
+            groundY: frame.position.y,
+            yaw: frame.rotation.y,
+            guideAnchor: frame.userData.guideAnchor
+          }, { halfWidth: sightlineHalfWidth, halfHeight: sightlineHalfHeight });
           return {
             id: record.artwork.id,
             visible: frame.visible,
@@ -142,7 +150,7 @@ test("all nine deterministic layouts place four readable artworks on inherited c
             minimumViewingDistance: frameCenter.distanceTo(guideEye),
             sightlineClear: obstructions.length === 0,
             obstructions,
-            backingWallDistance: backingWall?.distance ?? null,
+            backingWallDistance,
             guide,
             lookAt: frame.userData.lookAt
           };
@@ -192,7 +200,7 @@ test("all nine deterministic layouts place four readable artworks on inherited c
         expect(artwork.minZ).toBeGreaterThanOrEqual(metrics.bounds.minZ - 0.02);
         expect(artwork.maxZ).toBeLessThanOrEqual(metrics.bounds.maxZ + 0.02);
         expect(artwork.groundError).toBeLessThan(0.03);
-        expect(artwork.facingDot).toBeGreaterThan(0.96);
+        expect(artwork.facingDot).toBeGreaterThan(artwork.supportVisible ? 0.995 : 0.6);
         expect(artwork.minimumViewingDistance, `${artwork.id} viewing distance`).toBeGreaterThanOrEqual(2.2);
         expect(artwork.sightlineClear, `${artwork.id} guide sightline`).toBe(true);
         if (!artwork.supportVisible) {

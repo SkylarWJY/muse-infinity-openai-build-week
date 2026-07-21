@@ -42,11 +42,11 @@ test("desktop scene quality restores the source-detail budget", () => {
     devicePixelRatioCap: 2,
     enableLod: true,
     lod: true,
-    lodSplatCount: 2_500_000,
+    lodSplatCount: 4_320_000,
     lodRenderScale: 1,
     lodScale: 2,
     pagedExtSplats: true,
-    maxPagedSplats: 4_194_304,
+    maxPagedSplats: 4_718_592,
     minSortIntervalMs: 80
   });
   const mobile = resolveSceneQuality({ mobile: true, mode: "high" });

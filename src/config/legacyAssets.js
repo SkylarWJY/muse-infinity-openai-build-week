@@ -114,9 +114,8 @@ const CANONICAL_WORLDS = [
     thumb: "/assets/thumbs/yellow-polka-dot-infinity-room.jpg",
     sourceSplats: 1_920_000,
     worldScale: 2,
-    companionBoost: true,
     palette: palette(0x100e08, 0x2d281c, 0x4b3e23, 0xffd43b),
-    profile: profile(-2.76, 0.5, 0, -4.43, 8.48, -2.68, 5.45, -Math.PI / 2, 200, 0.2)
+    profile: profile(-2.76, 0.5, 0, -4.43, 8.48, -2.68, 5.45, -Math.PI / 2, 200, 0.2, 6.8)
   },
   {
     id: "fantasy-realm-of-shimmering-spheres",
@@ -143,9 +142,9 @@ export const COMPANIONS = Object.freeze([
   companion("socrates", "Socrates", "SOCRATES", "Every image is a claim waiting to be examined.", "#d2c9bb"),
   companion("frida", "Frida Kahlo", "FRIDA", "The image becomes a body, a wound, and an offering.", "#c85a74"),
   companion("picasso", "Pablo Picasso", "PICASSO", "One viewpoint is never enough to hold the whole truth.", "#df786d"),
-  companion("freud", "Sigmund Freud", "FREUD", "Inherited desires often speak before conscious intention.", "#8d8294"),
-  companion("qi-baishi", "Qi Baishi", "QI BAISHI", "A spare mark can still contain a living world.", "#76926a"),
-  companion("yayoi-kusama", "Yayoi Kusama", "KUSAMA", "Repetition can dissolve the boundary of the self.", "#e6bf32")
+  companion("freud", "Sigmund Freud", "FREUD", "Inherited desires often speak before conscious intention.", "#8d8294", "/assets/portraits/freud-card.jpg"),
+  companion("qi-baishi", "Qi Baishi", "QI BAISHI", "A spare mark can still contain a living world.", "#76926a", "/assets/portraits/qi-baishi-card.jpg"),
+  companion("yayoi-kusama", "Yayoi Kusama", "KUSAMA", "Repetition can dissolve the boundary of the self.", "#e6bf32", "/assets/portraits/yayoi-kusama-card.jpg")
 ]);
 
 export function getWorld(id) {
@@ -230,7 +229,7 @@ function scene(id, title, artist, image) {
   return Object.freeze({ id, stop_id: id, title, artist, image });
 }
 
-function companion(id, fullName, name, lens, color) {
+function companion(id, fullName, name, lens, color, portrait = `/assets/portraits/${id}.jpg`) {
   return Object.freeze({
     id,
     fullName,
@@ -238,7 +237,7 @@ function companion(id, fullName, name, lens, color) {
     lens,
     color,
     model: `/assets/characters/${id}.glb`,
-    portrait: `/assets/portraits/${id}.jpg`,
+    portrait,
     provenance: "Optimized from the corresponding muse-infinity character GLB"
   });
 }

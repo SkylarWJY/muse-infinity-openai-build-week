@@ -5,7 +5,7 @@ import { isIP } from "node:net";
 import path from "node:path";
 import { loadEnvFile } from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { OpenAIService } from "./services/openai.js";
+import { NARRATION_MODEL, OpenAIService } from "./services/openai.js";
 import { RoomService } from "./services/rooms.js";
 import { WorldLabsService } from "./services/worldLabs.js";
 import { PHILOSOPHY_AXES, createFallbackLesson, createSessionDigest, normalizeText } from "./shared/contracts.js";
@@ -41,25 +41,24 @@ const MIME = new Map([
 export function createMuseServer({ env = process.env, fetchImpl = fetch, roomService, staticReadStreamFactory = createReadStream } = {}) {
   const openai = new OpenAIService({
     apiKey: env.OPENAI_API_KEY,
-    gatewayApiKey: env.MUSE_GPT_GATEWAY_API_KEY,
-    baseUrl: env.OPENAI_BASE_URL,
-    model: env.OPENAI_MODEL,
     fetchImpl,
     safetySalt: env.SAFETY_ID_SALT || "muse-build-week"
   });
   const worlds = new WorldLabsService({ apiKey: env.WORLDLABS_API_KEY, adminToken: env.INTEGRATION_ADMIN_TOKEN, fetchImpl });
   const rooms = roomService || new RoomService();
   const modelBudget = new RequestBudget({ limit: 30, windowMs: 10 * 60 * 1000 });
+  const speechBudget = new RequestBudget({ limit: 60, windowMs: 10 * 60 * 1000 });
 
   return http.createServer(async (req, res) => {
     setHeaders(res);
     if (req.method === "OPTIONS") return sendEmpty(res, 204);
     try {
       const url = new URL(req.url || "/", "http://localhost");
-      if (url.pathname.startsWith("/api/")) return await handleApi({ req, res, url, openai, worlds, rooms, modelBudget });
+      if (url.pathname.startsWith("/api/")) return await handleApi({ req, res, url, openai, worlds, rooms, modelBudget, speechBudget });
       if (req.method !== "GET" && req.method !== "HEAD") return sendJson(res, 405, { error: "method_not_allowed" });
       return await serveStatic(req, res, url.pathname, staticReadStreamFactory);
     } catch (error) {
+      if (res.destroyed || res.writableEnded) return;
       const status = Number(error?.statusCode) || 500;
       if (status >= 500) console.error(JSON.stringify({ event: "request_error", route: req.url, error: error?.message || "unknown" }));
       return sendJson(res, status, { error: status >= 500 ? "service_unavailable" : String(error?.message || "bad_request") });
@@ -67,17 +66,21 @@ export function createMuseServer({ env = process.env, fetchImpl = fetch, roomSer
   });
 }
 
-async function handleApi({ req, res, url, openai, worlds, rooms, modelBudget }) {
+async function handleApi({ req, res, url, openai, worlds, rooms, modelBudget, speechBudget }) {
   if (req.method === "GET" && url.pathname === "/api/status") {
+    const narrationProvider = openai.narrationConfigured ? "openai" : null;
     return sendJson(res, 200, {
       configured: openai.configured,
-      openai: openai.configured && openai.gateway === "official",
+      openai: openai.configured,
       model: openai.model,
       gateway: openai.gateway,
       model_source: openai.modelSource,
       dialogue: openai.configured,
       realtime: openai.realtimeConfigured,
       realtime_model: openai.realtimeConfigured ? openai.realtimeModel : null,
+      narration: Boolean(narrationProvider),
+      narration_provider: narrationProvider,
+      narration_model: narrationProvider ? NARRATION_MODEL : null,
       world_forge: worlds.configured,
       rooms: true
     });
@@ -137,6 +140,27 @@ async function handleApi({ req, res, url, openai, worlds, rooms, modelBudget }) 
     const answer = await openai.createRealtimeCall(sdp, req.headers["x-session-id"], context);
     res.writeHead(200, { "Content-Type": "application/sdp" });
     return res.end(answer);
+  }
+  if (req.method === "POST" && url.pathname === "/api/narration") {
+    if (!speechBudget.take(clientKey(req))) return sendJson(res, 429, { error: "rate_limited" });
+    const body = await readJson(req);
+    const controller = new AbortController();
+    const abortUpstream = () => {
+      if (!res.writableEnded) controller.abort();
+    };
+    res.once("close", abortUpstream);
+    try {
+      const audio = await openai.createNarration({
+        speakerId: body.speaker_id,
+        text: body.text
+      }, body.session_id || req.headers["x-session-id"], { signal: controller.signal });
+      return sendBinary(res, 200, audio.bytes, {
+        "Cache-Control": "no-store",
+        "Content-Type": audio.contentType
+      });
+    } finally {
+      res.off("close", abortUpstream);
+    }
   }
   if (req.method === "POST" && url.pathname === "/api/worlds/generate") {
     const body = await readJson(req);
@@ -398,6 +422,12 @@ function readText(req, limit = BODY_LIMIT) {
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(body) });
+  res.end(body);
+}
+
+function sendBinary(res, status, payload, headers = {}) {
+  const body = Buffer.isBuffer(payload) ? payload : Buffer.from(payload || []);
+  res.writeHead(status, { ...headers, "Content-Length": body.length });
   res.end(body);
 }
 

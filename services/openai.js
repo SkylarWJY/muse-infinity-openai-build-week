@@ -22,9 +22,20 @@ import {
 } from "../shared/contracts.js";
 
 const OFFICIAL_OPENAI_BASE_URL = "https://api.openai.com";
-const INHERITED_GPT_GATEWAY_URL = "https://api.baizhiyuan.cloud";
-const TRUSTED_OPENAI_BASE_URLS = new Set([OFFICIAL_OPENAI_BASE_URL, INHERITED_GPT_GATEWAY_URL]);
 export const OPENAI_REQUEST_BUDGET_MS = 55_000;
+export const NARRATION_MODEL = "gpt-4o-mini-tts";
+
+const NARRATION_VOICES = new Map([
+  ["mira", "marin"],
+  ["monet", "coral"],
+  ["van-gogh", "cedar"],
+  ["socrates", "onyx"],
+  ["frida", "nova"],
+  ["picasso", "echo"],
+  ["freud", "sage"],
+  ["qi-baishi", "verse"],
+  ["yayoi-kusama", "shimmer"]
+]);
 
 const COMPANIONS_BY_ID = new Map(HISTORICAL_COMPANIONS.map((item) => [item.id, item]));
 const EFFECTS = new Set(ALLOWED_EFFECTS);
@@ -42,18 +53,15 @@ const DIALOGUE_DEVELOPER_INPUT = [
 export class OpenAIService {
   constructor({
     apiKey,
-    gatewayApiKey,
-    baseUrl = OFFICIAL_OPENAI_BASE_URL,
-    model = OPENAI_MODEL,
     fetchImpl = fetch,
     timeoutMs = OPENAI_REQUEST_BUDGET_MS,
     safetySalt = "muse-build-week"
   } = {}) {
-    this.endpoints = resolveOpenAIEndpoints(baseUrl);
-    this.gateway = this.endpoints.baseUrl === OFFICIAL_OPENAI_BASE_URL ? "official" : "inherited-gpt";
-    this.apiKey = this.gateway === "official" ? (apiKey || "") : (gatewayApiKey || "");
-    this.model = model === OPENAI_MODEL ? model : OPENAI_MODEL;
-    this.modelSource = this.gateway === "official" ? "openai-api" : "request-configured";
+    this.endpoints = resolveOpenAIEndpoints();
+    this.gateway = "official";
+    this.apiKey = apiKey || "";
+    this.model = OPENAI_MODEL;
+    this.modelSource = "openai-api";
     this.realtimeModel = REALTIME_MODEL;
     this.fetch = fetchImpl;
     this.timeoutMs = timeoutMs;
@@ -65,7 +73,11 @@ export class OpenAIService {
   }
 
   get realtimeConfigured() {
-    return this.gateway === "official" && this.configured;
+    return this.configured;
+  }
+
+  get narrationConfigured() {
+    return this.configured;
   }
 
   liveMetadata(payload = {}) {
@@ -77,9 +89,7 @@ export class OpenAIService {
       live: true,
       model: this.model,
       gateway: this.gateway,
-      model_source: this.gateway === "inherited-gpt" && responseModel
-        ? "gateway-response-reported"
-        : this.modelSource,
+      model_source: this.modelSource,
       ...(responseModel ? { response_model: responseModel } : {})
     };
   }
@@ -272,6 +282,43 @@ export class OpenAIService {
     return response.text();
   }
 
+  async createNarration({ speakerId, text } = {}, sessionId, { signal } = {}) {
+    const voice = NARRATION_VOICES.get(normalizeText(speakerId, 48).toLowerCase());
+    if (!voice) throw Object.assign(new Error("invalid_narration_speaker"), { statusCode: 400 });
+    const input = normalizeText(text, 800);
+    if (!input) throw Object.assign(new Error("narration_text_required"), { statusCode: 400 });
+    if (!this.narrationConfigured) {
+      throw Object.assign(new Error("narration_not_configured"), { statusCode: 503 });
+    }
+
+    const response = await this.fetch(this.endpoints.speech, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+        "OpenAI-Safety-Identifier": this.safetyIdentifier(sessionId)
+      },
+      body: JSON.stringify({
+        model: NARRATION_MODEL,
+        voice,
+        input,
+        instructions: "Read this as a clearly synthetic museum interpretation. Be warm, reflective, and concise. Do not imitate or claim to be any historical person. Preserve the input language.",
+        response_format: "mp3"
+      }),
+      signal: combineSignals(signal, AbortSignal.timeout(Math.min(this.timeoutMs, 30_000)))
+    });
+    if (!response.ok) {
+      try { await response.body?.cancel?.(); } catch {}
+      throw Object.assign(new Error(`narration_http_${response.status}`), { statusCode: 502 });
+    }
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (!bytes.length) throw Object.assign(new Error("empty_narration_audio"), { statusCode: 502 });
+    return {
+      bytes,
+      contentType: "audio/mpeg"
+    };
+  }
+
   async requestJson(url, body) {
     const response = await this.fetch(url, {
       method: "POST",
@@ -287,21 +334,17 @@ export class OpenAIService {
   }
 }
 
-export function resolveOpenAIEndpoints(baseUrl = OFFICIAL_OPENAI_BASE_URL) {
-  let url;
-  try {
-    url = new URL(String(baseUrl || OFFICIAL_OPENAI_BASE_URL));
-  } catch {
-    throw new Error("invalid_openai_base_url");
-  }
-  if (url.protocol !== "https:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
-    throw new Error("invalid_openai_base_url");
-  }
-  if (!TRUSTED_OPENAI_BASE_URLS.has(url.origin)) throw new Error("untrusted_openai_base_url");
+function combineSignals(external, timeout) {
+  if (!external) return timeout;
+  return typeof AbortSignal.any === "function" ? AbortSignal.any([external, timeout]) : external;
+}
+
+export function resolveOpenAIEndpoints() {
   return Object.freeze({
-    baseUrl: url.origin,
-    responses: `${url.origin}/v1/responses`,
-    realtime: `${url.origin}/v1/realtime/calls`
+    baseUrl: OFFICIAL_OPENAI_BASE_URL,
+    responses: `${OFFICIAL_OPENAI_BASE_URL}/v1/responses`,
+    realtime: `${OFFICIAL_OPENAI_BASE_URL}/v1/realtime/calls`,
+    speech: `${OFFICIAL_OPENAI_BASE_URL}/v1/audio/speech`
   });
 }
 

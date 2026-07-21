@@ -6,14 +6,14 @@ const mobile = { width: 390, height: 844 };
 const appUrl = process.env.MUSE_E2E_BASE_URL || "/?quality=high";
 
 const PROCESS = Object.freeze([
-  { sceneId: "threshold-conservatory", worldId: "grand-conservatory-with-lush-gardens", title: "The Threshold Conservatory" },
-  { sceneId: "court-of-light", worldId: "elegant-floral-palace-interior", title: "The Court of Light" },
-  { sceneId: "water-and-light", worldId: "enchanted-water-garden-sanctuary", title: "The Garden of Water and Light" },
-  { sceneId: "sunset-frames", worldId: "dreamlike-coastal-villa-gardens", title: "The Sunset Frame Gallery" },
-  { sceneId: "burning-sky", worldId: "van-gogh-inspired-gallery-interior", title: "The Studio of the Burning Sky" },
-  { sceneId: "petal-transition", worldId: "sunlit-palace-gardens", title: "The Petal Transition Hall" },
-  { sceneId: "living-memory", worldId: "mexican-courtyard-bedroom-fantasy", title: "The Courtyard of Living Memory" },
-  { sceneId: "infinite-repetition", worldId: "yellow-polka-dot-infinity-room", title: "The Infinite Repetition Chamber" }
+  { sceneId: "threshold-conservatory", worldId: "grand-conservatory-with-lush-gardens", title: "The Threshold Conservatory", speaker: "MIRA" },
+  { sceneId: "court-of-light", worldId: "elegant-floral-palace-interior", title: "The Court of Light", speaker: "FREUD" },
+  { sceneId: "water-and-light", worldId: "enchanted-water-garden-sanctuary", title: "The Garden of Water and Light", speaker: "MONET" },
+  { sceneId: "sunset-frames", worldId: "dreamlike-coastal-villa-gardens", title: "The Sunset Frame Gallery", speaker: "PICASSO" },
+  { sceneId: "burning-sky", worldId: "van-gogh-inspired-gallery-interior", title: "The Studio of the Burning Sky", speaker: "VAN GOGH" },
+  { sceneId: "petal-transition", worldId: "sunlit-palace-gardens", title: "The Petal Transition Hall", speaker: "QI BAISHI" },
+  { sceneId: "living-memory", worldId: "mexican-courtyard-bedroom-fantasy", title: "The Courtyard of Living Memory", speaker: "FRIDA" },
+  { sceneId: "infinite-repetition", worldId: "yellow-polka-dot-infinity-room", title: "The Infinite Repetition Chamber", speaker: "KUSAMA" }
 ]);
 
 const FINAL = Object.freeze({
@@ -71,6 +71,17 @@ const COMPANION_NAMES = Object.freeze([
   "Yayoi Kusama"
 ]);
 
+const COMPANION_PORTRAITS = Object.freeze([
+  "/assets/portraits/monet.jpg",
+  "/assets/portraits/van-gogh.jpg",
+  "/assets/portraits/socrates.jpg",
+  "/assets/portraits/frida.jpg",
+  "/assets/portraits/picasso.jpg",
+  "/assets/portraits/freud-card.jpg",
+  "/assets/portraits/qi-baishi-card.jpg",
+  "/assets/portraits/yayoi-kusama-card.jpg"
+]);
+
 test.describe.configure({ mode: "serial" });
 
 test("the canonical ten-stage journey carries eight worlds into one gated answer world", async ({ page }) => {
@@ -120,6 +131,7 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
         learnerRig: engine.player.model?.userData.motionRig,
         learnerClips: engine.player.model?.userData.animationClips,
         sourceGradeSkinWeights: engine.player.model?.userData.sourceGradeSkinWeights,
+        ambient: engine.ambient.metrics(),
         actors: engine.scene.children.filter((item) => item.userData?.actor).length
       };
     });
@@ -134,11 +146,19 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
       companion: "monet",
       companionAsset: "/assets/characters/monet.glb",
       learnerReady: true,
-      learnerModel: "gpt-image-2-tripo-v31-biped-v2",
+      learnerModel: "gpt-image-2-tripo-v3.1-rig-v1",
       learnerFallback: false,
       learnerRig: "skeletal-animation",
       learnerClips: ["preset:biped:wait", "preset:biped:walk"],
       sourceGradeSkinWeights: true,
+      ambient: {
+        sceneId: PROCESS[0].sceneId,
+        count: 3,
+        kinds: ["butterfly", "bird"],
+        articulatedCount: 3,
+        pointCount: 0,
+        moving: true
+      },
       party: ["van-gogh", "socrates"],
       partyAssets: ["/assets/characters/van-gogh.glb", "/assets/characters/socrates.glb"],
       actors: 4
@@ -164,14 +184,22 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     const firstLegPose = await playerLegPose(page);
     await page.waitForTimeout(220);
     const secondLegPose = await playerLegPose(page);
+    await page.waitForFunction((startPositions) => window.__MUSE_APP__.engine.partyActors.every((actor, index) => {
+      const start = startPositions[index];
+      return actor.group.userData.motion === "walk"
+        && Math.hypot(actor.group.position.x - start[0], actor.group.position.z - start[2]) > 0.08;
+    }), partyBefore);
+    const partyGaitA = await partyMotionPoses(page);
+    await page.waitForTimeout(180);
+    const partyGaitB = await partyMotionPoses(page);
     await page.keyboard.up("w");
     await page.waitForFunction(() => window.__MUSE_APP__.engine.player.group.userData.motion === "idle");
-    await page.waitForTimeout(350);
     const after = await playerPosition(page);
     const partyAfter = await partyPositions(page);
     expect(planarDistance(before, after)).toBeGreaterThan(0.15);
     for (const [index, position] of partyAfter.entries()) {
       expect(planarDistance(partyBefore[index], position)).toBeGreaterThan(0.08);
+      expect(poseDistance(partyGaitA[index], partyGaitB[index])).toBeGreaterThan(0.01);
     }
     expect(poseDistance(firstLegPose, secondLegPose)).toBeGreaterThan(0.02);
 
@@ -204,6 +232,10 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "life-question");
     expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("life_question");
 
+    await page.setViewportSize({ width: 1280, height: 600 });
+    expect((await mobileLayout(page, "#entry-panel")).panelTouchesMission).toBe(false);
+    await page.setViewportSize(desktop);
+
     await page.getByRole("button", { name: "How composition moves my attention" }).click();
     await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "company");
     expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("companion_selection");
@@ -211,6 +243,7 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     expect(await page.locator(".companion-copy b").allTextContents()).toEqual(COMPANION_NAMES);
     await expect(page.locator("[data-companion][aria-pressed='true']")).toHaveCount(3);
     await expect.poll(() => loadedImages(page, ".companion-choice img")).toBe(8);
+    expect(await imagePaths(page, ".companion-choice img")).toEqual(COMPANION_PORTRAITS);
 
     await page.setViewportSize(mobile);
     const companyLayout = await mobileLayout(page, "#entry-panel");
@@ -219,7 +252,10 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     expect(companyLayout.panelTouchesMovement).toBe(false);
     expect(companyLayout.panelTouchesMission).toBe(false);
     expect(companyLayout.columns).toBe(2);
-    expect(companyLayout.panelScrollable).toBe(true);
+    expect(companyLayout.panelScrollable).toBe(false);
+    expect(companyLayout.gridScrollable).toBe(true);
+    expect(companyLayout.gridTouchesFooter).toBe(false);
+    expect(companyLayout.footerInsidePanel).toBe(true);
     await page.screenshot({ path: "artifacts/screenshots/mobile-eight-companion-chooser.png" });
     await page.setViewportSize(desktop);
 
@@ -238,6 +274,14 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("ai_curation");
     await expect(page.locator(".curation-route > li")).toHaveCount(8);
     expect(await page.locator(".curation-route > li span").allTextContents()).toEqual(PROCESS.map((item) => item.title));
+    await expect(page.locator(".curation-company .portrait-chip img")).toHaveCount(3);
+    await expect.poll(() => loadedImages(page, ".curation-company .portrait-chip img")).toBe(3);
+    expect(await imagePaths(page, ".curation-company .portrait-chip img")).toEqual(COMPANION_PORTRAITS.slice(0, 3));
+    await expect(page.locator(".curation-route > li > img")).toHaveCount(8);
+    await expect.poll(() => loadedImages(page, ".curation-route > li > img")).toBe(8);
+    expect(await imagePaths(page, ".curation-route > li > img")).toEqual(
+      PROCESS.map((item) => `/assets/thumbs/${item.worldId}.jpg`)
+    );
     await page.waitForFunction(() => {
       const button = document.querySelector("[data-entry-action='enter-walk']");
       return button && !button.disabled && window.__MUSE_APP__.state.busy === false;
@@ -291,8 +335,13 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
         await installLightweightWorldSwitches(page);
       }
       await arriveAtCurrentStop(page);
+      await page.waitForFunction((sceneId) => {
+        const ambient = window.__MUSE_APP__.engine.ambient?.metrics?.();
+        return ambient?.sceneId === sceneId && ambient.count > 0 && ambient.moving === true;
+      }, expected.sceneId);
       expect(await page.evaluate(() => window.__MUSE_APP__.canOpenDialogue())).toBe(true);
       await expect(page.locator("#stop-title")).toContainText(expected.title);
+      await expect(page.locator("#speaker-name")).toHaveText(expected.speaker);
       await expect(page.locator("[data-answer]")).toHaveCount(2);
 
       if (index === 1) await verifyCurrentArchiveFailureBlocksEvidence(page, expected, index);
@@ -359,7 +408,7 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
       }
 
       if (index === PROCESS.length - 2) await restoreRealWorldSwitches(page);
-      if (index === 1) await verifyAtlasCannotInterruptTransition(page);
+      if (index === 1) await verifyAtlasCannotInterruptTransition(page, PROCESS[index + 1]);
       else if (index === 2) await verifyArchiveFailureRequiresRetry(page, PROCESS[index + 1]);
       else await page.locator("#continue-button").click();
       if (index < PROCESS.length - 1) {
@@ -372,6 +421,7 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
 
     expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("world_exploration");
     await expect(page.locator(".evidence-count b")).toHaveText("08");
+    await expect(page.locator("#chapter-label")).toHaveText("WORLD EXPLORATION / 04");
     await expect(page.locator("[data-entry-action='enter-final']")).toHaveCount(0);
 
     await page.locator("[data-drawer='atlas']").click();
@@ -390,6 +440,7 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
   await test.step("Summoning, Roundtable, Decision and Transformation retain all evidence", async () => {
     await page.locator("[data-entry-action='begin-summoning']").click();
     await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "summoning");
+    await expect(page.locator("#chapter-label")).toHaveText("SUMMONING / 05");
     expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("summoning");
     await expect(page.locator(".summoning-ledger > li.recorded")).toHaveCount(8);
     await expect(page.locator(".summoning-ledger > li").nth(2)).toContainText(FREE_OBSERVATION);
@@ -409,15 +460,18 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
         && engine.partyActors.every((actor) => actor.group.visible === false);
     });
     await expect(page.locator(".roundtable-thread")).toHaveCount(3);
+    await expect(page.locator("#chapter-label")).toHaveText("ROUNDTABLE / 06");
     await expect(page.locator("[data-entry-action='enter-final']")).toHaveCount(0);
 
     await page.locator("[data-entry-action='open-decision']").click();
     await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "decision");
+    await expect(page.locator("#chapter-label")).toHaveText("DECISION / 07");
     await expect(page.locator("[data-decision]")).toHaveCount(3);
     expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("roundtable");
 
     await page.locator("[data-decision='emotion']").click();
     await expect(page.locator("#entry-panel")).toHaveAttribute("data-stage", "transformation");
+    await expect(page.locator("#chapter-label")).toHaveText("TRANSFORMATION / 08");
     expect(await page.evaluate(() => window.__MUSE_APP__.journey.stage)).toBe("world_transformation");
     const provisionalConcept = await page.evaluate(() => window.__MUSE_APP__.journey.finalConcept);
     expect(provisionalConcept.evidence_scene_ids).toEqual(PROCESS.map((item) => item.sceneId));
@@ -448,6 +502,7 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     expect(transformedConcept.finalConcept.synthesis).not.toBe(provisionalConcept.synthesis);
     expect(transformedConcept.manifestoDraft).toBe(transformedConcept.finalConcept.principle);
     await expect(page.locator(".manifesto-axis")).toContainText("Emotion");
+    await expect(page.locator("#chapter-label")).toHaveText("MANIFESTO / 09");
     expect(await journeySnapshot(page)).toMatchObject({ stage: "manifesto", manifesto: "", finalWorldEntered: false });
   });
 
@@ -511,7 +566,17 @@ test("the canonical ten-stage journey carries eight worlds into one gated answer
     expect(finalArchive.meshCount).toBeGreaterThan(0);
     expect(finalArchive.triangles).toBeGreaterThan(590_000);
 
+    await page.waitForFunction((sceneId) => {
+      const ambient = window.__MUSE_APP__.engine.ambient?.metrics?.();
+      return ambient?.sceneId === sceneId
+        && ambient.count === 24
+        && ambient.kinds?.includes("firefly")
+        && ambient.moving === true;
+    }, FINAL.sceneId);
+
     await expect(page.locator("#entry-panel")).toContainText(FINAL.name);
+    await expect(page.locator("#chapter-label")).toHaveText("09 / ANSWER");
+    await expect(page.locator("#dialogue")).toBeHidden();
     const pixels = await canvasPixels(page, "artifacts/screenshots/desktop-final-shimmering-spheres-8k.png");
     expect(pixels.variance).toBeGreaterThan(140);
     expect(pixels.nonDominantRatio).toBeGreaterThan(0.1);
@@ -590,6 +655,22 @@ async function installCuratedModelRoutes(page, interceptedModelRequests, dialogu
         body: JSON.stringify({ data: createFallbackSalon(body), live: false, model: "curated-demo", reason: "e2e_isolated" })
       });
     }
+    if (request.method() === "POST" && pathname === "/api/lesson/recap") {
+      const body = request.postDataJSON();
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          live: false,
+          model: "curated-demo",
+          data: {
+            title: "Your learning map",
+            summary: `You tested ${body.visits?.length || 0} observations against visible details.`,
+            evidence: body.visits || []
+          }
+        })
+      });
+    }
     if (request.method() === "POST" && pathname === "/api/salon/transform") {
       interceptedModelRequests.push(pathname);
       const body = request.postDataJSON();
@@ -617,8 +698,8 @@ async function installCuratedModelRoutes(page, interceptedModelRequests, dialogu
           fallback: false,
           model: "gpt-5.6",
           response_model: "gpt-5.6",
-          gateway: "inherited-gpt",
-          model_source: "gateway-response-reported"
+          gateway: "official",
+          model_source: "openai-api"
         })
       });
     }
@@ -630,13 +711,17 @@ async function installCuratedModelRoutes(page, interceptedModelRequests, dialogu
         body: JSON.stringify({ error: "e2e_model_endpoint_disabled" })
       });
     }
-    return route.continue();
+    return route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "e2e_api_endpoint_disabled" })
+    });
   });
 }
 
 async function verifyLiveInquiry(page, dialogueRequests) {
   await page.locator("#inquiry-input").fill(LIVE_INQUIRY.question);
-  await page.locator(".inquiry-form").evaluate((form) => form.requestSubmit());
+  await page.locator(".inquiry-form button[type='submit']").click();
 
   const visitorTurn = page.locator("#inquiry-thread .visitor-turn").last();
   await expect(visitorTurn.locator("b")).toHaveText("YOU");
@@ -645,7 +730,7 @@ async function verifyLiveInquiry(page, dialogueRequests) {
   const replies = page.locator("#inquiry-thread .company-turn");
   await expect(replies).toHaveCount(LIVE_INQUIRY.perspectives.length);
   for (const [index, perspective] of LIVE_INQUIRY.perspectives.entries()) {
-    await expect(replies.nth(index).locator("b")).toHaveText(`${perspective.speaker} · GPT-5.6 · INHERITED GATEWAY`);
+    await expect(replies.nth(index).locator("b")).toHaveText(`${perspective.speaker} · GPT-5.6 · OPENAI API`);
     await expect(replies.nth(index).locator("p")).toHaveText(perspective.text);
   }
 
@@ -721,7 +806,9 @@ async function installLightweightWorldSwitches(page) {
     engine.worldLayer.scenery.visible = true;
     window.__MUSE_REAL_SET_WORLD__ = engine.setWorld.bind(engine);
     window.__MUSE_REAL_GROUND_HEIGHT__ = engine.worldLayer.groundHeightAt.bind(engine.worldLayer);
+    window.__MUSE_REAL_WALKABLE_GROUND_HEIGHT__ = engine.worldLayer.walkableGroundHeightAt.bind(engine.worldLayer);
     engine.worldLayer.groundHeightAt = () => engine.worldLayer.activeWorld?.profile?.groundY || 0;
+    engine.worldLayer.walkableGroundHeightAt = (_x, _z, referenceY) => referenceY;
     engine.setWorld = async (worldId) => {
       const token = ++engine.worldToken;
       const world = WORLDS.find((item) => item.id === worldId) || WORLDS[0];
@@ -732,6 +819,7 @@ async function installLightweightWorldSwitches(page) {
       engine.worldLayer.activeWorld = world;
       engine.activeWorld = world;
       engine.activeWorldLive = true;
+      engine.ambient.setWorld(world.sceneId, { bounds: world.profile.bounds });
       engine.director.paused = false;
       return world;
     };
@@ -747,11 +835,12 @@ async function restoreRealWorldSwitches(page) {
     const { engine } = window.__MUSE_APP__;
     engine.setWorld = window.__MUSE_REAL_SET_WORLD__;
     engine.worldLayer.groundHeightAt = window.__MUSE_REAL_GROUND_HEIGHT__;
+    engine.worldLayer.walkableGroundHeightAt = window.__MUSE_REAL_WALKABLE_GROUND_HEIGHT__;
     engine.worldLayer.isLive = window.__MUSE_REAL_IS_LIVE__;
   });
 }
 
-async function verifyAtlasCannotInterruptTransition(page) {
+async function verifyAtlasCannotInterruptTransition(page, expected) {
   await page.evaluate(() => {
     const { engine } = window.__MUSE_APP__;
     const setWorld = engine.setWorld.bind(engine);
@@ -765,15 +854,21 @@ async function verifyAtlasCannotInterruptTransition(page) {
   });
   await page.locator("#continue-button").click();
   await page.waitForFunction(() => window.__MUSE_APP__.state.busy === true);
-  await page.locator("[data-drawer='atlas']").click();
+  const transition = page.locator("#world-transition");
+  await expect(transition).toBeVisible();
+  await expect(transition).toHaveClass(/is-visible/);
+  await expect(page.locator("#world-transition-title")).toHaveText(expected.title);
+  await expect.poll(() => loadedImages(page, "#world-transition-image")).toBe(1);
+  expect(await imagePaths(page, "#world-transition-image")).toEqual([`/assets/thumbs/${expected.worldId}.jpg`]);
+  expect(await page.locator(".world-transition-shade").evaluate((shade) => getComputedStyle(shade).pointerEvents)).not.toBe("none");
+  await page.locator("[data-drawer='atlas']").evaluate((button) => button.click());
   await expect(page.locator("[data-drawer-action='world']:not([disabled])")).toHaveCount(0);
-  await page.locator("[data-drawer-action='world']").first().evaluate((button) => {
-    button.disabled = false;
-    button.click();
-  });
-  await expect(page.locator("#toast")).toContainText("world transition in progress");
+  expect(await page.evaluate(() => window.__MUSE_APP__.engine.activeWorld.id)).not.toBe(expected.worldId);
   await page.evaluate(() => window.__MUSE_RELEASE_WORLD_SWITCH__());
   await page.waitForFunction(() => window.__MUSE_APP__.state.busy === false);
+  expect(await page.evaluate(() => window.__MUSE_APP__.engine.activeWorld.id)).toBe(expected.worldId);
+  await expect(transition).toBeHidden({ timeout: 3_000 });
+  await expect(transition).not.toHaveClass(/is-visible|is-leaving/);
   await page.locator("[data-action='close-drawer']").click();
 }
 
@@ -955,6 +1050,17 @@ async function partyPositions(page) {
   return page.evaluate(() => window.__MUSE_APP__.engine.partyActors.map((actor) => actor.group.position.toArray()));
 }
 
+async function partyMotionPoses(page) {
+  return page.evaluate(() => window.__MUSE_APP__.engine.partyActors.map((actor) => [
+    actor.motionAngles.leftArmX,
+    actor.motionAngles.rightArmX,
+    actor.motionAngles.leftLegX,
+    actor.motionAngles.rightLegX,
+    actor.motionAngles.leftKneeX,
+    actor.motionAngles.rightKneeX
+  ]));
+}
+
 async function playerLegPose(page) {
   return page.evaluate(() => {
     const model = window.__MUSE_APP__.engine.player.model;
@@ -972,6 +1078,10 @@ function poseDistance(left, right) {
 
 async function loadedImages(page, selector) {
   return page.locator(selector).evaluateAll((images) => images.filter((image) => image.complete && image.naturalWidth > 0).length);
+}
+
+async function imagePaths(page, selector) {
+  return page.locator(selector).evaluateAll((images) => images.map((image) => new URL(image.currentSrc || image.src, document.baseURI).pathname));
 }
 
 function captureErrors(page) {
@@ -1005,10 +1115,25 @@ async function mobileLayout(page, panelSelector) {
       && left.bottom > right.top + 1);
     const cards = [...document.querySelectorAll("[data-companion]")];
     const panelRect = rect(panel);
+    const grid = panel?.querySelector(".companion-grid");
+    const footer = panel?.querySelector(".company-footer");
+    const gridRect = rect(grid);
+    const footerRect = rect(footer);
+    const scrollable = (element) => Boolean(element
+      && /^(?:auto|scroll)$/.test(getComputedStyle(element).overflowY)
+      && element.scrollHeight > element.clientHeight);
+    const inside = (inner, outer) => Boolean(inner && outer
+      && inner.top >= outer.top - 1
+      && inner.right <= outer.right + 1
+      && inner.bottom <= outer.bottom + 1
+      && inner.left >= outer.left - 1);
     return {
       documentOverflow: document.documentElement.scrollWidth - window.innerWidth,
       panelOverflow: panel.scrollWidth - panel.clientWidth,
-      panelScrollable: panel.scrollHeight > panel.clientHeight,
+      panelScrollable: scrollable(panel),
+      gridScrollable: scrollable(grid),
+      gridTouchesFooter: overlaps(gridRect, footerRect),
+      footerInsidePanel: inside(footerRect, panelRect),
       panelTouchesMovement: overlaps(panelRect, rect(movement)),
       panelTouchesMission: overlaps(panelRect, rect(mission)),
       columns: new Set(cards.map((card) => Math.round(card.getBoundingClientRect().left))).size

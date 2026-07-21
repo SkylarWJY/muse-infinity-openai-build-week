@@ -19,6 +19,7 @@ export class ArchivedAvatar {
     this.group.name = `archived-avatar-${companion.id}`;
     this.group.userData.actor = companion.fullName;
     this.group.userData.asset = companion.model;
+    this.group.userData.motion = "idle";
     this.visual = new THREE.Group();
     this.group.add(this.visual);
     this.fallback = new ProceduralAvatar({ coat: 0x263432, accent: colorNumber(companion.color), skin: 0x8f604d, scale: 0.82, name: companion.fullName });
@@ -90,6 +91,9 @@ export class ArchivedAvatar {
   setMotion(speed, gesture = this.gesture) {
     this.speed = Number(speed) || 0;
     this.gesture = gesture;
+    this.group.userData.motion = Math.abs(this.speed) > 0.01
+      ? "walk"
+      : gesture === "open" ? "idle" : gesture;
     if (!this.ready) this.fallback?.setMotion(this.speed, gesture);
   }
 
@@ -99,7 +103,7 @@ export class ArchivedAvatar {
       return;
     }
     const moving = Math.min(1, Math.abs(this.speed) / 1.8);
-    const step = Math.sin(elapsed * 7.2 + this.phase);
+    const step = Math.sin(elapsed * archivedGaitCadence(this.speed) + this.phase);
     const targetY = this.baseY + Math.abs(step) * 0.025 * moving + Math.sin(elapsed * 1.4 + this.phase) * 0.006;
     const targetLean = step * 0.008 * moving + (this.gesture === "reflect" ? -0.018 : 0);
     const damping = 1 - Math.exp(-dt * 8);
@@ -136,7 +140,7 @@ function disposeAvatarTree(root) {
 
 export function resolveArchivedMotionPose({ speed = 0, gesture = "open", elapsed = 0, phase = 0 } = {}) {
   const moving = Math.min(1, Math.abs(Number(speed) || 0) / 1.8);
-  const cycle = elapsed * 7.2 + phase;
+  const cycle = elapsed * archivedGaitCadence(speed) + phase;
   const stride = Math.sin(cycle) * 0.72 * moving;
   const idle = Math.sin(elapsed * 1.7 + phase) * (1 - moving);
   const pose = {
@@ -162,6 +166,11 @@ export function resolveArchivedMotionPose({ speed = 0, gesture = "open", elapsed
     pose.rightArmZ = -0.12;
     pose.rightElbowX = -0.48;
     pose.leftArmZ = -0.1;
+  } else if (gesture === "listen") {
+    pose.leftArmZ = -0.055 - idle * 0.012;
+    pose.rightArmZ = 0.055 + idle * 0.012;
+    pose.leftElbowX = 0.025;
+    pose.rightElbowX = 0.025;
   } else {
     pose.leftArmZ = -0.18 - idle * 0.025;
     pose.rightArmZ = 0.18 + idle * 0.025;
@@ -169,6 +178,10 @@ export function resolveArchivedMotionPose({ speed = 0, gesture = "open", elapsed
     pose.rightElbowX = 0.08 + Math.max(0, -idle) * 0.08;
   }
   return pose;
+}
+
+export function archivedGaitCadence(speed) {
+  return THREE.MathUtils.clamp(Math.abs(Number(speed) || 0) * 4.5, 2.8, 10.5);
 }
 
 function installMotionShader(material, uniforms) {

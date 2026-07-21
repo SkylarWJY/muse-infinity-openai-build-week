@@ -44,7 +44,8 @@ test("the infinity and answer worlds prefer archived 8K texture meshes", () => {
   assert.equal(infinity.splat, "/assets/worlds/yellow-infinity-room.spz");
   assert.deepEqual(infinity.profile.spawn, { x: -5.52, z: 1 });
   assert.equal(infinity.profile.cameraPitch, 0.2);
-  assert.equal(infinity.profile.cameraDistance, 5.6);
+  assert.equal(infinity.profile.cameraDistance, 6.8);
+  assert.equal(infinity.companionBoost, undefined);
   const answer = getWorld("fantasy-realm-of-shimmering-spheres");
   assert.equal(answer.render, "mesh");
   assert.equal(answer.mesh, "/assets/worlds/fantasy-shimmering-spheres-texture-mesh.glb");
@@ -75,6 +76,10 @@ test("all eight muse-infinity companions are selectable and deployable", () => {
     assert.match(companion.portrait, /^\/assets\/portraits\/.+\.jpg$/);
     assertDeployable(companion.model);
     assertDeployable(companion.portrait);
+    const portrait = fs.readFileSync(path.join(ROOT, companion.portrait.slice(1)));
+    const dimensions = jpegDimensions(portrait);
+    assert.ok(dimensions.height > dimensions.width * 1.15,
+      `${companion.id} companion card must use a portrait crop, received ${dimensions.width}x${dimensions.height}`);
   }
   assert.equal(getCompanion("van-gogh").fullName, "Vincent van Gogh");
   assert.equal(getCompanion("yayoi-kusama").fullName, "Yayoi Kusama");
@@ -87,4 +92,26 @@ function assertDeployable(url) {
   assert.equal(stat.isSymbolicLink(), false, `asset must not be a symlink: ${url}`);
   assert.equal(stat.isFile(), true, `asset must be a file: ${url}`);
   assert.ok(stat.size > 1024, `asset is unexpectedly small: ${url}`);
+}
+
+function jpegDimensions(bytes) {
+  assert.deepEqual([...bytes.subarray(0, 2)], [0xff, 0xd8]);
+  let offset = 2;
+  while (offset + 8 < bytes.length) {
+    if (bytes[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = bytes[offset + 1];
+    if (marker === 0xd8 || marker === 0xd9) {
+      offset += 2;
+      continue;
+    }
+    const length = bytes.readUInt16BE(offset + 2);
+    if (marker >= 0xc0 && marker <= 0xc3) {
+      return { height: bytes.readUInt16BE(offset + 5), width: bytes.readUInt16BE(offset + 7) };
+    }
+    offset += 2 + length;
+  }
+  throw new Error("jpeg_dimensions_not_found");
 }
