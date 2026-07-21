@@ -1,0 +1,202 @@
+{
+  "version": 2,
+  "status": "canonical",
+  "generated_at": "2026-07-20",
+  "subject": "Original fictional adult East Asian museum learner",
+  "source_image": {
+    "provider": "Tripo generate_image API",
+    "model_version": "gpt_image_2",
+    "task_id": "99ea065b-9ebf-4ea8-906f-ac7b653b97dc",
+    "prompt": "One original fictional adult East Asian museum learner, full body, production character reference for clean humanoid rigging. Exact orthographic front view and strict perfectly symmetrical T-pose: arms straight and exactly horizontal, elbows unbent, palms down, fingers straight together and visible. Legs anatomically correct, straight, parallel and hip-width apart; uninterrupted empty background must remain visible from crotch through inner thighs, knees, calves, ankles and between both shoes. Feet parallel and toes forward; balanced shoulders and hips; entire hair, hands and shoes visible with generous margins. Friendly refined face, neat short black hair, calm neutral expression. Only three simple close-fitting items: a seamless muted teal short-sleeve crew-neck T-shirt, straight charcoal trousers, and plain white slip-on shoes. Bare forearms, bare wrists and visible ankles. Absolutely no watch, wristband, bracelet, cuff, belt, zipper, strap, pocket, jacket, coat, layered garment, loose fabric, jewelry, bag or prop. Premium stylized realism, detailed face and materials, clean rig-friendly silhouette and physically plausible anatomy. Uniform light gray background and even shadowless studio light. No floor line, text, watermark, crop, fused or duplicate limb.",
+    "sheet": {
+      "path": "source/learner-front-gpt-image-2.png",
+      "content_type": "image/png",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 324558,
+      "sha256": "e4518e5aa1feeb988c9567d3a7ec07b1720609bcb1d16ba9034c1828d7e5548e"
+    }
+  },
+  "multiview": {
+    "provider": "Tripo generate-multiview-image API",
+    "task_id": "d0368de5-5b4f-4717-8d85-d648948dd3d2",
+    "source_task_id": "99ea065b-9ebf-4ea8-906f-ac7b653b97dc"
+  },
+  "views": [
+    {
+      "name": "front",
+      "path": "turnaround/front.png",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 95806,
+      "sha256": "cb34d45d2d026f1a704919dcde5d380c40fdef5178f911d75e2fec10962c6168"
+    },
+    {
+      "name": "left",
+      "path": "turnaround/left.png",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 81993,
+      "sha256": "fad148cae70c3d73f05033067fc194b6aa0de5389c6fc4d6a311d191997930ea"
+    },
+    {
+      "name": "back",
+      "path": "turnaround/back.png",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 101098,
+      "sha256": "79ea239c7b91394c4b9725f446e972450df7d7e41fd21a7523cfe60129975b45"
+    },
+    {
+      "name": "right",
+      "path": "turnaround/right.png",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 79474,
+      "sha256": "f12b3bc67fb99349f19ba93bbd7f904f00f8fb62732b3628ebf9cf40a4812169"
+    }
+  ],
+  "model": {
+    "provider": "Tripo multiview_to_model API",
+    "task_id": "51cd2e5d-c3db-42ab-a5df-b3730ce93aa1",
+    "request": {
+      "model_version": "v3.1-20260211",
+      "original_task_id": "d0368de5-5b4f-4717-8d85-d648948dd3d2",
+      "face_limit": 40000,
+      "geometry_quality": "detailed",
+      "texture": true,
+      "pbr": true,
+      "texture_quality": "extreme",
+      "texture_alignment": "original_image",
+      "orientation": "align_image",
+      "auto_size": true,
+      "export_uv": true
+    }
+  },
+  "rig": {
+    "provider": "Tripo animation API",
+    "prerigcheck_task_id": "54663c84-2dc0-4e8a-980b-eede85d5082a",
+    "task_id": "f25c7ad5-a39c-4416-95b9-a1bbb3155857",
+    "request": {
+      "type": "animate_rig",
+      "original_model_task_id": "51cd2e5d-c3db-42ab-a5df-b3730ce93aa1",
+      "out_format": "glb",
+      "model_version": "v1.0-20240301",
+      "rig_type": "biped",
+      "spec": "tripo"
+    },
+    "joints": 41
+  },
+  "animation": {
+    "provider": "Tripo animation API",
+    "task_id": "020188c8-61c1-48b3-817a-f0df47fda278",
+    "clips": [
+      "preset:biped:wait",
+      "preset:biped:walk"
+    ],
+    "request": {
+      "type": "animate_retarget",
+      "original_model_task_id": "f25c7ad5-a39c-4416-95b9-a1bbb3155857",
+      "out_format": "glb",
+      "animations": [
+        "preset:biped:wait",
+        "preset:biped:walk"
+      ],
+      "bake_animation": true,
+      "export_with_geometry": true,
+      "animate_in_place": true
+    }
+  },
+  "offline_skin_weight_correction": {
+    "reason": "The retargeted export left low thigh-twist influences on 24 upper-torso and shoulder vertices.",
+    "input_sha256": "857087ac6124ee099ff3d01f33148269c4607593e51b686e742d632b4fdd8226",
+    "tool": "../../../scripts/normalize-learner-skin-weights.mjs",
+    "affected_vertices": 24,
+    "removed_joints": ["L_ThighTwist01", "R_ThighTwist01"],
+    "maximum_removed_weight": 0.04823172837495804,
+    "operation": "Zero only the invalid cross-region influence and renormalize each affected vertex's remaining weights before deployment.",
+    "output_sha256": "970134d492d1186dc551e60642cc24778254557571b52b1601423b5cd8965f15",
+    "runtime_sanitizer_required": false
+  },
+  "qa_report": {
+    "script": "../../../scripts/qa-learner-glb.mjs",
+    "path": "qa-report.json",
+    "bytes": 4354,
+    "sha256": "1408a618028f157326a8729c7ee506b323b4152316dd8cca59911163fd6a73ba",
+    "pass": true,
+    "hard_findings": 0,
+    "animation_samples": 832,
+    "hard_edge_explosions": 0,
+    "invalid_skin_weights": 0,
+    "cross_region_influences": 0
+  },
+  "output": {
+    "path": "../../characters/learner.glb",
+    "bytes": 5009688,
+    "vertices": 21672,
+    "triangles": 37659,
+    "joints": 41,
+    "clips": [
+      "preset:biped:wait",
+      "preset:biped:walk"
+    ],
+    "clip_durations_seconds": {
+      "preset:biped:wait": 6,
+      "preset:biped:walk": 2.375
+    },
+    "sha256": "970134d492d1186dc551e60642cc24778254557571b52b1601423b5cd8965f15"
+  },
+  "rejected_attempts": [
+    {
+      "stage": "source_image",
+      "task_id": "c8b1d6bf-4be8-41df-bea8-014b9c1c23fd",
+      "reason": "Unrequested black wrist accessories introduced avoidable rigging risk."
+    },
+    {
+      "stage": "multiview_edit",
+      "task_id": "9b443952-8965-41cd-8844-b295219fe3f3",
+      "reason": "The side-view edit redrew the arm along the forward axis."
+    },
+    {
+      "stage": "multiview_edit",
+      "task_id": "854fe0ab-d49b-440f-bdc8-7e20eefb47b9",
+      "reason": "The side-view edit redrew the arm along the backward axis."
+    },
+    {
+      "stage": "model",
+      "task_id": "4e78862a-37c2-4e80-a89d-aa05ab25aed0",
+      "reason": "The P1 reconstruction was materially rougher than the selected v3.1 model."
+    },
+    {
+      "stage": "rig_and_animation",
+      "task_ids": [
+        "ea4b6170-95da-4eb0-81e3-3138cf5c28b0",
+        "2eed5b7a-74f4-42f0-9d6d-18bca2899ae2"
+      ],
+      "reason": "The v2.5 rig retarget folded the spine and head and displaced the arms."
+    },
+    {
+      "stage": "rig_and_animation",
+      "task_ids": [
+        "2805561f-ba64-4011-9adf-3757ec5ab970",
+        "39a10244-c5d1-48f4-a463-fdf08160ff57"
+      ],
+      "reason": "The P1 v2.5 chain lacked reliable semantic arm bones and failed the motion gate."
+    },
+    {
+      "stage": "animation",
+      "task_id": "2ccb0153-bdc1-47df-9741-cc66b890d0e6",
+      "reason": "The biped idle preset produced excessive foot sliding."
+    },
+    {
+      "stage": "animation",
+      "task_id": "329ddbfc-c82f-453d-a096-5f2383a2a4bd",
+      "reason": "The biped standing-relax preset produced excessive foot sliding."
+    },
+    {
+      "stage": "animation",
+      "task_id": "49b3018f-dedf-4adb-94d7-2baa4c1ad531",
+      "reason": "The biped run preset kept its lowest sole 0.110 m above the bind ground and failed the ground-contact gate."
+    }
+  ]
+}

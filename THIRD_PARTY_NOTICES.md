@@ -1,105 +1,191 @@
 # Third-party notices
 
-## Current prototype
+The repository's MIT license applies to source code and documentation authored here. It does
+not relicense the generated spatial/character assets or source images listed below. Exact
+bytes, hashes and transformations are maintained in `docs/PROVENANCE.md`. The
+[OpenAI Build Week Official Rules](https://openai.devpost.com/rules) allow authorized
+third-party SDKs, APIs and data subject to their applicable terms; this file records those
+project dependencies and sources.
 
-No stock third-party 3D models, copied source code, cloned voices, or private museum data are bundled in this project. Generated world and companion assets were created for MUSE∞ through authorized service accounts and are distributed separately in the public `worlds-v1` GitHub Release. Bundled background-music recordings and artwork images use public-domain or open-access sources documented below.
+## Runtime packages
 
-## OpenAI Codex, GPT-5.6 and Responses API
+- Three.js `0.180.0`, MIT License: <https://github.com/mrdoob/three.js>
+- Spark `@sparkjsdev/spark` `2.1.0`, MIT License:
+  <https://github.com/sparkjsdev/spark>
+- Playwright Test `1.61.1`, Apache-2.0 License, development/test only:
+  <https://github.com/microsoft/playwright>
 
-- Codex using GPT-5.6 was used as the implementation and iteration partner for the source, tests and documentation in this repository under human product direction and review.
-- The live dialogue and closing-roundtable path defaults to OpenAI `gpt-5.6` through the Responses API.
-- OpenAI credentials are server-side only and are not included in the repository.
-- Model output is presented as interpretive AI language, not authentic quotation or endorsement by any historical person.
+## Background music
 
-## Background music (public-domain recordings via Wikimedia Commons)
+MUSE includes three public-domain instrumental recordings inherited from MUSE Infinity. They
+play only after a visitor gesture and duck beneath narration. The runtime does not alter or
+claim ownership of the recordings.
 
-- `assets/audio/promenade.ogg` — Modest Mussorgsky, *Pictures at an Exhibition* — Promenade (allegro giusto). Public-domain recording. Source: https://commons.wikimedia.org/wiki/File:Modest_Mussorgsky_-_pictures_at_an_exhibition_-_promenade_-_allegro_giusto,_nel_modo_russico_senza_allegrezza,_ma.ogg
-- `assets/audio/clair-de-lune.opus` — Claude Debussy, *Clair de lune* (piano solo). Public-domain recording. Source: https://commons.wikimedia.org/wiki/File:Clair_de_Lune_by_Claude_Debussy_(1905,_piano_solo).opus
-- `assets/audio/gymnopedie.ogg` — Erik Satie, *Gymnopédie No. 1* (perf. Robin Alciatore). Public-domain recording. Source: https://commons.wikimedia.org/wiki/File:Erik_Satie_-_gymnopedies_-_la_1_ere._lent_et_douloureux.ogg
+- `assets/audio/promenade.ogg` — Modest Mussorgsky, *Pictures at an Exhibition* — Promenade
+  (allegro giusto). Public-domain recording. Source:
+  <https://commons.wikimedia.org/wiki/File:Modest_Mussorgsky_-_pictures_at_an_exhibition_-_promenade_-_allegro_giusto,_nel_modo_russico_senza_allegrezza,_ma.ogg>
+- `assets/audio/clair-de-lune.opus` — Claude Debussy, *Clair de lune* (piano solo).
+  Public-domain recording. Source:
+  <https://commons.wikimedia.org/wiki/File:Clair_de_Lune_by_Claude_Debussy_(1905,_piano_solo).opus>
+- `assets/audio/gymnopedie.ogg` — Erik Satie, *Gymnopédie No. 1* (performed by Robin
+  Alciatore). Public-domain recording. Source:
+  <https://commons.wikimedia.org/wiki/File:Erik_Satie_-_gymnopedies_-_la_1_ere._lent_et_douloureux.ogg>
 
-Web typography requests:
+Exact byte hashes are asserted in `tests/music-provenance.test.mjs`. A very quiet original Web
+Audio texture remains underneath the recordings; it uses no samples or reference audio.
 
-- DM Sans — Google Fonts / SIL Open Font License
-- Gilda Display — Google Fonts / SIL Open Font License
+## OpenAI model services
 
-Original generated concept assets are documented in `docs/ASSET_PIPELINE.md` and stored under `assets/generated/`. They are concept/UI assets for this project, not historical records, licensed museum collection images, or authentic likenesses of named people.
+MUSE requests GPT-5.6 Responses through one of two exact disclosed remote origins: official OpenAI at
+`https://api.openai.com`, or the authorized OpenAI-compatible gateway at
+`https://api.baizhiyuan.cloud`. A local operator may explicitly reuse their current Codex auth
+and its exact loopback `/v1` Responses transport. Compatible transports are used for GPT-5.6 reasoning only.
+OpenAI Realtime and `gpt-4o-mini-tts` narration are enabled only with the official origin. TTS
+renders already-visible lines as speech; it is not used for language reasoning. Supported
+browsers may use
+`SpeechRecognition` and `SpeechSynthesis` as speech-only fallbacks. Recognized text still uses
+the configured GPT-5.6 dialogue path or its labeled curated local fallback. Runtime reasoning
+model and remote-origin selection are fixed to checked-in exact allowlists; local Codex mode is
+limited to a user-owned auth file and an exact loopback provider.
 
-Generated stage backgrounds currently bundled:
+Use of each service is governed by the terms associated with the operator's authorized
+account. API credentials remain server-side and are not bundled as software or committed to
+the repository. The competition permits authorized third-party services; this notice separates
+their roles rather than implying an OpenAI-only product boundary.
 
-- `assets/generated/muse-hero-romantic-v2.png`
-- `assets/generated/muse-hero-conservatory-v3.png`
-- `assets/generated/between-worlds-romantic-v2.png`
-- `assets/generated/world-selection-gallery-v2.png`
-- `assets/generated/monet-light-world-v2.png`
-- `assets/generated/museum-salon-romantic-v2.png`
-- `assets/generated/transformation-romantic-v2.png`
-- `assets/generated/manifesto-garden-v2.png`
+## MiniMax speech service
 
-## Bundled open-access museum assets
+When `MINIMAX_API_KEY` is configured, MUSE uses the documented MiniMax T2A v2 endpoint with
+`speech-2.8-turbo` for the primary nine-character narration cast. MiniMax receives only an
+allowlisted speaker identifier and the bounded line already visible in the interface. It does
+not receive the visitor's question, observations, scene evidence, lesson prompt or final concept,
+and it performs no language reasoning for MUSE. The integration uses generic system voices, not
+voice cloning or a claim to reproduce any historical person's real voice.
 
-The following public-domain artwork images were downloaded from the Art Institute of Chicago Open Access API / IIIF service at the recommended 843px size:
+The response is decoded as a bounded MP3 for immediate playback, is not written to repository or
+application storage, and its browser object URL is revoked after playback. The implementation
+follows the [MiniMax T2A HTTP documentation](https://platform.minimax.io/docs/api-reference/speech-t2a-http)
+and is operated subject to the [MiniMax Open Platform Terms](https://platform.minimax.io/protocol/terms-of-service).
 
-- `assets/museum/monet-water-lilies-1906.jpg` — Claude Monet, *Water Lilies*, 1906. Source: https://www.artic.edu/artworks/16568/water-lilies
-- `assets/museum/van-gogh-bedroom-1889.jpg` — Vincent van Gogh, *The Bedroom*, 1889. Source: https://www.artic.edu/artworks/28560/the-bedroom
-- `assets/museum/seurat-grande-jatte-1884.jpg` — Georges Seurat, *A Sunday on La Grande Jatte — 1884*, 1884-86. Source: https://www.artic.edu/artworks/27992/a-sunday-on-la-grande-jatte-1884
+## World Labs scene assets
 
-The following historical portrait images were downloaded from Wikimedia Commons pages marked as public domain:
+The nine canonical spaces, their colliders, thumbnails and interpretive scene images are
+prepared assets inherited from `muse-infinity`. Scenes 1-7 deploy Spark quality RAD derivatives
+built from World Labs SPZ sources; scene 8 deploys an 8K texture mesh with its SPZ as a
+fallback; scene 9 deploys an 8K texture mesh. Nine inherited 1672 x 941 scene PNGs are used as
+readiness-transition posters while those real world assets initialize.
+Exact filenames, derivations, bytes and hashes are recorded in `docs/PROVENANCE.md`.
 
-- `assets/museum/portrait-claude-monet.jpg` — Claude Monet self-portrait reproduction. Source: https://commons.wikimedia.org/wiki/File:Autoportret_Claude_Monet.jpg
-- `assets/museum/portrait-vincent-van-gogh.jpg` — Vincent van Gogh self-portrait reproduction. Source: https://commons.wikimedia.org/wiki/File:Van_Gogh_self_portrait_1889.jpg
-- `assets/museum/portrait-berthe-morisot.jpg` — Berthe Morisot archival portrait. Source: https://commons.wikimedia.org/wiki/File:Berthe_Morisot,_1875.jpg
-- `assets/museum/portrait-pablo-picasso.jpg` — Pablo Picasso portrait photograph, 1908, anonymous photographer. Source: https://commons.wikimedia.org/wiki/File:Portrait_de_Picasso,_1908.jpg
-- `assets/museum/portrait-frida-kahlo.jpg` — Frida Kahlo portrait photograph by Guillermo Kahlo. Source: https://commons.wikimedia.org/wiki/File:Frida_Kahlo,_by_Guillermo_Kahlo.jpg
-- `assets/museum/portrait-hilma-af-klint.jpg` — Hilma af Klint portrait photograph published in 1901, unknown photographer. Source: https://commons.wikimedia.org/wiki/File:Hilma_af_Klint,_portrait_photograph_published_in_1901.jpg
-- `assets/museum/portrait-socrates.jpg` — photograph of the classical Socrates bust at the Capitoline Museums. Source: https://commons.wikimedia.org/wiki/File:Bust_Socrates_Musei_Capitolini_MC1163.jpg — the sculpture is an ancient representational tradition, not a true-life portrait.
+The older `bright-gallery.spz`, `van-gogh-gallery.spz` and `infinity-room.spz` derivatives
+remain only as noncanonical compatibility records. They are not used by the 8+1 route.
 
-## AI-generated interpretive character inputs
+World Labs produced prepared assets and also backs an optional auxiliary Forge endpoint. Forge
+requires both a server-side World Labs key and an exact admin token, accepts an administrator's
+spatial prompt, and returns an isolated generation operation; it is outside the canonical 8+1
+journey and receives no visitor question, evidence or conversation data. World Labs does not
+provide language reasoning. Generated asset use remains subject to the terms of the authorized
+account; the repository's MIT license does not replace those terms.
 
-The following original turnaround sheets were generated for this project from the public-domain portrait references listed above:
+World Labs Marble's **Record** workflow exports MP4 capture, not an animated GLB. MUSE does not
+claim a Marble-generated transition GLB and does not ship a Marble MP4. The current transition
+uses the inherited high-resolution scene posters and the checked-in local RAD/GLB worlds.
 
-- `assets/generated/turnarounds/claude-monet-turnaround-v1.png`
-- `assets/generated/turnarounds/vincent-van-gogh-turnaround-v1.png`
-- `assets/generated/turnarounds/berthe-morisot-turnaround-v1.png`
-- `assets/generated/turnarounds/pablo-picasso-turnaround-v1.png`
-- `assets/generated/turnarounds/frida-kahlo-turnaround-v1.png`
-- `assets/generated/turnarounds/hilma-af-klint-turnaround-v1.png`
-- `assets/generated/turnarounds/socrates-bust-turnaround-v1.png`
+## Tripo character assets
 
-They are multi-view production references for possible 3D generation. Side and back views, clothing continuation, lighting and geometry are AI interpretations rather than authentic historical records. Socrates is explicitly a reconstruction of a classical bust, not the historical person. No third-party 3D model or cloned voice is included.
+These browser-optimized GLBs were derived from MUSE Tripo character outputs:
 
-The files under `assets/generated/turnarounds/views/` are mechanical crops of those same seven project-owned sheets, created solely to provide Tripo's required `[front, left, back, right]` input order. They introduce no additional source material.
+- `assets/characters/monet.glb`
+- `assets/characters/van-gogh.glb`
+- `assets/characters/socrates.glb`
+- `assets/characters/frida.glb`
+- `assets/characters/picasso.glb`
+- `assets/characters/freud.glb`
+- `assets/characters/qi-baishi.glb`
+- `assets/characters/yayoi-kusama.glb`
 
-## World Labs Marble generated worlds
+The fictional learner profiles are separate Submission Period assets:
 
-- The walkable `.spz` worlds and their `.glb` collider meshes were generated for MUSE∞ through World Labs Marble using project-authored prompts and project-owned or documented reference material.
-- The large generated outputs are distributed in the public GitHub Release `worlds-v1`, not stored in the Git tree.
-- The application uses the generated assets locally during judging; no paid World Labs generation call is required for the offline test path.
-- Use of the World Labs service and generated outputs remains subject to the applicable account and service terms accepted by the entrant.
+- `assets/characters/learner-girl.glb`, a user-provided Tripo export mechanically optimized for
+  browser delivery. It is a static mesh; bounded runtime shader articulation is not provider-made
+  skeletal animation.
+- `assets/characters/learner.glb`, designed with GPT Image 2 through Tripo's image task, then
+  reconstructed, PBR-textured, rigged and animated by Tripo. This is the retained `original`
+  profile rather than the current UI default.
 
-## Tripo generated companion models
+The white-dove ambient asset is another Submission Period production output:
 
-- Companion `.glb` files were generated for MUSE∞ through Tripo from the project-owned multiview turnaround inputs documented above.
-- The generated companion files are distributed in the public GitHub Release `worlds-v1`, not stored in the Git tree.
-- No marketplace model, third-party character mesh, or cloned biometric voice is included.
-- Use of the Tripo service and generated outputs remains subject to the applicable account and service terms accepted by the entrant.
+- `assets/creatures/white-dove.glb`, sourced with Tripo's hosted GPT Image 2 task and rebuilt as
+  a detailed PBR model with Tripo v3.1. Its full task, prompt, credit, post-process and hash
+  record is `assets/generated/ambient-avian-v1/manifest.json`.
 
-## MiniMax synthetic narration
+Tripo is an asset-production tool only; this repository has no Tripo runtime API. The learner
+and dove generation manifests are checked in. The dove is a static mesh without a skin or
+animation clip; runtime path motion is not described as provider-generated skeletal animation.
+The named companion figures are interpretive representations and do not claim endorsement,
+quotation or authentic reconstruction.
 
-- MiniMax `speech-2.8-turbo` is an optional live runtime integration for synthetic per-character narration.
-- The project selects synthetic catalogue voices and does not clone or imitate a real person's recorded voice.
-- No MiniMax credential is included, and the judging path remains functional without the service.
+Tripo output rights depend on the generating account tier under Tripo's current terms. Confirm
+the applicable account and output rights before commercial redistribution; the repository's
+MIT license does not relicense these GLBs or their GPT Image 2 source views.
 
-## Runtime open-source dependency
+## Companion portrait images
 
-- Three.js `0.180.0` — MIT License — https://github.com/mrdoob/three.js
-- Use: local WebGL rendering for the walkable museum gallery.
+The following five portrait files have Wikimedia Commons source pages:
 
-## Runtime open-access collection service
+- Claude Monet self-portrait reproduction:
+  <https://commons.wikimedia.org/wiki/File:Autoportret_Claude_Monet.jpg>
+- Vincent van Gogh self-portrait reproduction:
+  <https://commons.wikimedia.org/wiki/File:Van_Gogh_self_portrait_1889.jpg>
+- Classical Socrates bust photograph, not a true-life portrait:
+  <https://commons.wikimedia.org/wiki/File:Bust_Socrates_Musei_Capitolini_MC1163.jpg>
+- Frida Kahlo portrait attributed to Guillermo Kahlo:
+  <https://commons.wikimedia.org/wiki/File:Frida_Kahlo,_by_Guillermo_Kahlo.jpg>
+- 1908 Pablo Picasso portrait photograph:
+  <https://commons.wikimedia.org/wiki/File:Portrait_de_Picasso,_1908.jpg>
 
-- Art Institute of Chicago Open Access API and IIIF Image API.
-- Documentation: https://api.artic.edu/docs/
-- The runtime filters records to those marked `is_public_domain` and retains a link to the museum record.
+The shipped files are under `assets/portraits/`. Downstream users should verify each current
+Commons file page and jurisdiction-specific status before redistribution.
 
-## Evaluated but not included
+The Freud, Qi Baishi and Yayoi Kusama files are local MUSE character-reference images and are
+not described as public-domain documentary portraits. Yayoi Kusama is living; neither her
+portrait nor generated representation is described as a public-domain historical likeness.
 
-React Three Fiber / Drei, OpenVGAL, Open Museum MCP and the Cleveland Museum of Art Open Access API were evaluated but are not dependencies of the submitted project.
+`freud-card.jpg`, `qi-baishi-card.jpg` and `yayoi-kusama-card.jpg` are mechanically cropped
+single-view derivatives of those same local turnaround images. The crops do not change their
+character-interpretation or likeness status; exact hashes are recorded in
+`docs/PROVENANCE.md`.
+
+## Artwork images
+
+The runtime gallery uses 36 locally stored JPEGs under `assets/art/collection/`, four globally
+unique works for each of the nine scenes. Their object metadata and IIIF source URLs came from
+the Art Institute of Chicago public API and Open Access program. The complete title, artist,
+date, object-page link, local filename, byte count and SHA-256 ledger is in
+`docs/PROVENANCE.md`.
+
+The Art Institute designates qualifying Open Access images CC0 and asks users to include the
+artist, title, date and institution caption. Its API documents artwork response data as CC0
+except for the `description` field, which this gallery does not copy. Use remains subject to
+the museum's website terms, and downstream users remain responsible for any third-party
+permissions. See the official [Open Access Images policy](https://www.artic.edu/open-access/open-access-images),
+[public API documentation](https://api.artic.edu/docs/) and
+[website terms](https://www.artic.edu/terms).
+
+The older `assets/art/water-lilies.jpg`, `assets/art/bedroom.jpg` and
+`assets/art/grande-jatte.jpg` are retained lower-resolution compatibility copies of three
+works also represented in the 36-work collection. They are not additional unique works.
+
+No cloned voice, recorded narration, stock interface illustration or alternate reasoning-model
+runtime is bundled. MiniMax and optional OpenAI TTS narration map characters to generic system
+voices and never claim to be a historical person. MP3 responses are used for immediate playback,
+are not written into the repository or application storage, and their browser object URLs are
+revoked after playback. If remote speech is unavailable, browser `SpeechSynthesis` reads the
+same visible text.
+
+Dynamic text dialogue requests GPT-5.6 through the configured exact-allowlist origin. With the
+official origin, the independent Voice control can use OpenAI Realtime WebRTC with the built-in
+`marin` voice; the authorized compatible gateway remains reasoning-only. Where supported, its
+browser fallback uses `SpeechRecognition` for input, the same GPT-5.6 or curated local dialogue
+path for the response, and `SpeechSynthesis` for output. Text interaction remains available
+when microphone permission or speech services are unavailable; no fallback adds another
+language/reasoning model.

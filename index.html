@@ -2,57 +2,127 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f1eadf" />
-    <title>MUSE∞ — The Impossible Museum</title>
-    <meta name="description" content="An AI-native dream museum where one personal question becomes a walkable 3D gallery of open-access artworks, GPT-5.6 companions, and living world transformations." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=Gilda+Display&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <div id="visual-backdrop" aria-hidden="true"></div>
-    <div id="world-environment" aria-hidden="true"></div>
-    <canvas id="world" aria-hidden="true"></canvas>
-    <div class="grain" aria-hidden="true"></div>
-
-    <header class="topbar">
-      <button class="wordmark" data-action="reset" aria-label="Reset experience">MUSE<span>∞</span></button>
-      <div class="chapter"><span id="chapterNumber">00</span><i></i><span id="chapterName">THRESHOLD</span></div>
-      <div class="top-actions">
-        <button class="quiet-button" data-action="toggle-performance" id="performanceLabel" aria-label="Toggle performance mode">AUTO</button>
-        <button class="quiet-button" data-action="toggle-voice" id="voiceToggle" aria-pressed="true" aria-label="Toggle music and master narration">SOUND ◉</button>
-        <button class="icon-button" data-action="toggle-audio" aria-label="Toggle ambient sound"><span id="audioIcon">◌</span></button>
-        <button class="quiet-button" data-action="reset">RESET</button>
-      </div>
-    </header>
-
-    <main id="experience" aria-live="polite"></main>
-
-    <aside class="philosophy-meter" id="meter" aria-label="Philosophy state">
-      <div><span>PERCEPTION</span><b id="meterPerception"></b></div>
-      <div><span>EMOTION</span><b id="meterEmotion"></b></div>
-      <div><span>INVENTION</span><b id="meterInvention"></b></div>
-    </aside>
-
-    <footer class="footer">
-      <span>AN AI INTERPRETATION — NOT AUTHENTIC QUOTATION · <b id="worldStatus">LOCAL MEMORY</b></span>
-      <span id="discovery">DISCOVERY 00%</span>
-    </footer>
-
-    <section id="debugPanel" class="debug-panel" hidden aria-label="Development controls"></section>
-
-    <noscript>This experience requires JavaScript.</noscript>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#eee9df" />
+    <meta name="description" content="MUSE Infinity is an immersive museum built around one question, explored with artists and thinkers across nine living worlds." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23eee9df'/%3E%3Cpath d='M14 49V15h9l9 17 9-17h9v34h-8V29L35 43h-6l-7-14v20z' fill='%2338203d'/%3E%3C/svg%3E" />
+    <title>MUSE∞ | An immersive museum built around one question</title>
+    <link rel="stylesheet" href="/styles.css" />
     <script type="importmap">
       {
         "imports": {
-          "three": "./node_modules/three/build/three.module.js",
-          "three/addons/": "./node_modules/three/examples/jsm/",
-          "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/2.1.0/spark.module.js"
+          "three": "/vendor/three.module.js",
+          "three/addons/loaders/GLTFLoader.js": "/vendor/loaders/GLTFLoader.js",
+          "three/addons/postprocessing/Pass.js": "/vendor/Pass.js",
+          "@sparkjsdev/spark": "/vendor/spark.module.js"
         }
       }
     </script>
-    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <main id="app" data-narrative-stage="threshold">
+      <div id="world" aria-label="Interactive museum world"></div>
+      <div class="world-wash" aria-hidden="true"></div>
+
+      <section class="world-transition is-visible is-image-ready" id="world-transition" aria-live="polite" aria-busy="true">
+        <img id="world-transition-image" src="/assets/scenes/01-entrance-conservatory.png" alt="" decoding="async" fetchpriority="high" />
+        <div class="world-transition-shade" aria-hidden="true"></div>
+        <div class="world-transition-copy">
+          <small id="world-transition-kicker">MUSE · PROLOGUE</small>
+          <h2 id="world-transition-title">The Threshold Conservatory</h2>
+          <span id="world-transition-status">AWAKENING THE ARCHIVE</span>
+        </div>
+      </section>
+
+      <header class="topbar">
+        <button class="brand" type="button" data-action="home" aria-label="Restart MUSE">
+          <span class="brand-mark">M</span><span>MUSE∞</span>
+        </button>
+        <div class="world-state" aria-live="polite">
+          <span class="pulse" aria-hidden="true"></span>
+          <strong id="world-name">GRAND CONSERVATORY</strong>
+          <span id="sync-state">SCENE SYNC</span>
+        </div>
+        <nav class="tools" aria-label="World tools">
+          <button type="button" data-drawer="atlas" title="World Atlas"><span aria-hidden="true">◇</span><span class="tool-label">Atlas</span></button>
+          <button type="button" data-action="sound" id="sound-tool" aria-pressed="true" title="Generative score and synthetic guide narration"><span aria-hidden="true">♪</span><span class="tool-label">Sound</span></button>
+          <button type="button" data-action="voice" id="voice-tool" title="Voice"><span aria-hidden="true">◍</span><span class="tool-label">Voice</span></button>
+          <details class="tool-more">
+            <summary title="More world tools"><span aria-hidden="true">•••</span><span class="tool-label">More</span></summary>
+            <div class="tool-menu">
+              <button type="button" data-drawer="forge" title="World Forge"><span aria-hidden="true">✦</span><span>Forge</span></button>
+              <button type="button" data-drawer="salon" title="Perspective Salon"><span aria-hidden="true">◌</span><span>Salon</span></button>
+              <button type="button" data-drawer="room" title="Shared room"><span aria-hidden="true">◎</span><span>Room</span></button>
+              <button type="button" data-drawer="profile" title="Learner profile"><span aria-hidden="true">○</span><span>Profile</span></button>
+              <button type="button" data-drawer="evidence" title="Evidence"><span aria-hidden="true">i</span><span>Evidence</span></button>
+            </div>
+          </details>
+        </nav>
+      </header>
+
+      <aside class="mission-rail" id="question-progress" aria-label="Question exploration progress">
+        <div class="mission-kicker">QUESTION EXPLORATION</div>
+        <blockquote id="question-progress-question">Choose the question you will carry.</blockquote>
+        <div class="question-progress-meta"><strong id="question-progress-value">0%</strong><span id="world-progress-value">0 / 8 WORLDS</span></div>
+        <div class="question-progress-meter" id="question-progress-meter" role="progressbar" aria-label="Question exploration" aria-valuemin="0" aria-valuemax="24" aria-valuenow="0"><i id="question-progress-fill"></i></div>
+        <p id="question-progress-copy">Your company has not entered the first world yet.</p>
+        <ol id="route-list" hidden aria-hidden="true">
+          <li data-route="0" class="available"><b>01</b><span>The Threshold Conservatory</span><small>NEXT</small></li>
+          <li data-route="1" class="locked"><b>02</b><span>The Court of Light</span><small>LOCKED</small></li>
+          <li data-route="2" class="locked"><b>03</b><span>The Garden of Water and Light</span><small>LOCKED</small></li>
+          <li data-route="3" class="locked"><b>04</b><span>The Sunset Frame Gallery</span><small>LOCKED</small></li>
+          <li data-route="4" class="locked"><b>05</b><span>The Studio of the Burning Sky</span><small>LOCKED</small></li>
+          <li data-route="5" class="locked"><b>06</b><span>The Petal Transition Hall</span><small>LOCKED</small></li>
+          <li data-route="6" class="locked"><b>07</b><span>The Courtyard of Living Memory</span><small>LOCKED</small></li>
+          <li data-route="7" class="locked"><b>08</b><span>The Infinite Repetition Chamber</span><small>LOCKED</small></li>
+        </ol>
+      </aside>
+
+      <section class="entry-panel" id="entry-panel" data-stage="threshold" aria-labelledby="entry-title">
+        <p class="eyebrow">00 / THRESHOLD</p>
+        <h1 id="entry-title">MUSE&infin;</h1>
+        <p class="threshold-offer">An immersive museum built around one question</p>
+        <p class="entry-copy threshold-copy">Enter with a question. Walk beside artists and thinkers. Let eight worlds change how you see it.</p>
+        <button type="button" class="entry-primary" data-entry-action="cross-threshold">Enter the museum <span aria-hidden="true">→</span></button>
+        <div class="entry-meta"><span id="model-badge">CURATED FALLBACK</span><span>8 process worlds · 8 companions · 1 answer world</span></div>
+      </section>
+
+      <section class="dialogue" id="dialogue" hidden aria-live="polite">
+        <div class="speaker"><img id="speaker-portrait" hidden alt=""/><span class="speaker-dot"></span><b id="speaker-name">MIRA</b><span id="guide-state">WALKING</span></div>
+        <h2 id="stop-title">Explore with your company</h2>
+        <p id="guide-line"></p>
+        <div class="inquiry-thread" id="inquiry-thread" hidden aria-live="polite"></div>
+        <div class="answers" id="answers"></div>
+        <button type="button" class="continue-button" id="continue-button" hidden>Continue <span aria-hidden="true">→</span></button>
+      </section>
+
+      <section class="companion-conversation" id="companion-conversation" hidden aria-live="polite" aria-atomic="true">
+        <button type="button" class="conversation-bubble" data-conversation-action="next" aria-label="Continue to the next speaker">
+          <span class="conversation-speaker"><img id="companion-conversation-portrait" hidden alt=""/><b id="companion-conversation-speaker">MUSE</b><small id="companion-conversation-progress">1 / 1</small></span>
+          <span class="conversation-line" id="companion-conversation-line"></span>
+        </button>
+        <div class="conversation-actions">
+          <button type="button" id="companion-conversation-skip" data-conversation-action="skip">Skip artwork</button>
+          <button type="button" id="companion-conversation-next" data-conversation-action="next">Next voice</button>
+        </div>
+      </section>
+
+      <aside class="drawer" id="drawer" hidden aria-live="polite">
+        <header><div><p id="drawer-kicker">WORLD LAYER</p><h2 id="drawer-title">Atlas</h2></div><button type="button" data-action="close-drawer" aria-label="Close">×</button></header>
+        <div id="drawer-body"></div>
+      </aside>
+
+      <div class="movement-controls" id="movement-controls" aria-label="Movement controls">
+        <div class="joystick" id="joystick" aria-label="Move"><span></span></div>
+      </div>
+
+      <footer class="statusbar">
+        <span id="chapter-label">THRESHOLD / 00</span>
+        <span id="provider-label">GPT READY · CURATED FALLBACK ACTIVE</span>
+      </footer>
+      <div class="toast" id="toast" role="status" hidden></div>
+    </main>
+    <noscript>MUSE requires JavaScript.</noscript>
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>

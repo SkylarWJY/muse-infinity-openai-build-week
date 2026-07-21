@@ -1,0 +1,306 @@
+{
+  "schemaVersion": 1,
+  "asset": "white-dove",
+  "purpose": "Original ambient avian game asset for Muse",
+  "startedAt": "2026-07-21T06:04:42.535Z",
+  "completedAt": "2026-07-21T06:11:42.000Z",
+  "providers": [
+    {
+      "role": "source-image",
+      "name": "OpenAI-compatible gateway",
+      "baseUrl": "https://api.baizhiyuan.cloud",
+      "model": "gpt-image-2",
+      "invokedBy": "Codex imagegen skill CLI",
+      "selected": false,
+      "outcome": "HTTP 403: request blocked"
+    },
+    {
+      "role": "source-image-fallback",
+      "name": "Tripo AI OpenAPI v2",
+      "baseUrl": "https://api.tripo3d.ai/v2/openapi",
+      "model": "gpt_image_2",
+      "selected": true
+    },
+    {
+      "role": "multiview-3d-rig",
+      "name": "Tripo AI OpenAPI v2",
+      "baseUrl": "https://api.tripo3d.ai/v2/openapi",
+      "model": "v3.1-20260211"
+    }
+  ],
+  "model3d": "v3.1-20260211",
+  "rigModel": "v2.5-20260210",
+  "prompt": "Single original adult white rock dove (Columba livia), complete body centered, flying-neutral animation bind pose: wings fully extended horizontally with clearly separated primary feathers, tail gently fanned, feet tucked but distinct, head facing forward, symmetrical anatomy. Clean photoreal game-asset reference, accurate feather layering, subtle pearl-gray wing shadows, coral feet, black eyes, small pale beak. Isolated on plain neutral light-gray background, even soft studio lighting, sharp focus, orthographic-like full-body view, no crop. One bird only. No pedestal, props, scenery, text, logo, watermark, motion blur, duplicate limbs, merged wings, stylization.",
+  "constraints": {
+    "productionChains": 1,
+    "rigOnlyWhen": "pre-rig output is riggable and rig_type is avian",
+    "retargetAnimation": false,
+    "reason": "Tripo exposes no avian animation preset; do not spend credits on an invalid retarget."
+  },
+  "creditEstimate": {
+    "currency": "Tripo API credits",
+    "generateImage": 10,
+    "generateMultiviewImage": 10,
+    "multiviewToModelDetailed": 50,
+    "preRigCheck": 0,
+    "conditionalAvianRig": 25,
+    "totalWithoutRig": 70,
+    "maximumWithRig": 95,
+    "actualConsumed": 60,
+    "note": "The rejected gateway request produced no image. This estimate covers the selected Tripo-hosted GPT Image 2 production chain.",
+    "source": "https://platform.tripo3d.ai/docs/billing"
+  },
+  "balanceBefore": {
+    "balance": 2425,
+    "frozen": 0
+  },
+  "balanceAfter": {
+    "balance": 2365,
+    "frozen": 0
+  },
+  "postProcess": {
+    "performedAt": "2026-07-21T06:10:00.000Z",
+    "reason": "The single generated chain produced correct rock-dove anatomy but gray plumage. A deterministic local base-color correction was required to satisfy the white-dove art direction without starting a second paid generation chain.",
+    "method": "Whiten neutral and iridescent feather pixels while preserving saturated coral feet, dark eyes, beak details, geometry, UVs, ORM texture, and normal map; then repack the GLB with four-byte chunk alignment.",
+    "generatedInput": "base-color-original.jpg",
+    "correctedTexture": "base-color-white.jpg",
+    "modelRegeneration": false
+  },
+  "tasks": [
+    {
+      "label": "gpt-image-2-reference",
+      "taskId": "474f2e91-f828-402d-a83a-dd2d5f075126",
+      "submittedAt": "2026-07-21T06:04:42.727Z",
+      "request": {
+        "type": "generate_image",
+        "model_version": "gpt_image_2",
+        "prompt": "Single original adult white rock dove (Columba livia), complete body centered, flying-neutral animation bind pose: wings fully extended horizontally with clearly separated primary feathers, tail gently fanned, feet tucked but distinct, head facing forward, symmetrical anatomy. Clean photoreal game-asset reference, accurate feather layering, subtle pearl-gray wing shadows, coral feet, black eyes, small pale beak. Isolated on plain neutral light-gray background, even soft studio lighting, sharp focus, orthographic-like full-body view, no crop. One bird only. No pedestal, props, scenery, text, logo, watermark, motion blur, duplicate limbs, merged wings, stylization."
+      },
+      "status": "success",
+      "type": "generate_image",
+      "progress": 100,
+      "consumedCredit": 10,
+      "createdAt": "2026-07-21T06:04:43.000Z",
+      "completedAt": "2026-07-21T06:05:08.330Z",
+      "outputKeys": [
+        "generated_image"
+      ]
+    },
+    {
+      "label": "consistent-multiview",
+      "taskId": "d6d2dad0-7812-4776-9fdf-e1fa7f419501",
+      "submittedAt": "2026-07-21T06:05:09.135Z",
+      "request": {
+        "type": "generate_multiview_image",
+        "file": {
+          "type": "png",
+          "url": "<redacted-ephemeral-input>"
+        }
+      },
+      "status": "success",
+      "type": "generate_multiview_image",
+      "progress": 100,
+      "consumedCredit": 10,
+      "createdAt": "2026-07-21T06:05:09.000Z",
+      "completedAt": "2026-07-21T06:05:38.122Z",
+      "outputKeys": [
+        "generate_multiview_image"
+      ]
+    },
+    {
+      "label": "v3.1-multiview-model",
+      "taskId": "48a6ad9a-b56d-4287-bbd4-83745e4e6cb4",
+      "submittedAt": "2026-07-21T06:05:38.288Z",
+      "request": {
+        "type": "multiview_to_model",
+        "original_task_id": "d6d2dad0-7812-4776-9fdf-e1fa7f419501",
+        "model_version": "v3.1-20260211",
+        "face_limit": 20000,
+        "texture": true,
+        "pbr": true,
+        "texture_quality": "detailed",
+        "texture_alignment": "geometry",
+        "orientation": "align_image",
+        "auto_size": true
+      },
+      "status": "success",
+      "type": "multiview_to_model",
+      "progress": 100,
+      "consumedCredit": 40,
+      "createdAt": "2026-07-21T06:05:39.000Z",
+      "completedAt": "2026-07-21T06:07:41.525Z",
+      "outputKeys": [
+        "pbr_model",
+        "rendered_image"
+      ]
+    },
+    {
+      "label": "avian-prerig-check",
+      "taskId": "1e2d9727-d8d3-452a-a6ac-4aeb087669bf",
+      "submittedAt": "2026-07-21T06:07:42.583Z",
+      "request": {
+        "type": "animate_prerigcheck",
+        "original_model_task_id": "48a6ad9a-b56d-4287-bbd4-83745e4e6cb4"
+      },
+      "status": "success",
+      "type": "animate_prerigcheck",
+      "progress": 100,
+      "consumedCredit": 0,
+      "createdAt": "2026-07-21T06:07:43.000Z",
+      "completedAt": "2026-07-21T06:07:48.348Z",
+      "outputKeys": [
+        "rig_type",
+        "riggable",
+        "topology"
+      ],
+      "riggable": true,
+      "rigType": "others"
+    }
+  ],
+  "uploads": [],
+  "files": [
+    {
+      "path": "reference.png",
+      "sourceTaskId": "474f2e91-f828-402d-a83a-dd2d5f075126",
+      "bytes": 464933,
+      "contentType": "image/png",
+      "sha256": "79f8c18e5358935b30d083495a91f1ca91a322d269a56f24f2645a8c99edf3da"
+    },
+    {
+      "path": "multiview/front.png",
+      "sourceTaskId": "d6d2dad0-7812-4776-9fdf-e1fa7f419501",
+      "bytes": 132225,
+      "contentType": "binary/octet-stream",
+      "sha256": "d735eb6ed7ee92a34b1ae495bebf88e20ec1f35359ecf72199f75305efdf17b2"
+    },
+    {
+      "path": "multiview/left.png",
+      "sourceTaskId": "d6d2dad0-7812-4776-9fdf-e1fa7f419501",
+      "bytes": 88542,
+      "contentType": "binary/octet-stream",
+      "sha256": "0377cd65ed0e4eb7bdd2a0a87d0003889ef83ed654f80a4c30cca2e5856f6d92"
+    },
+    {
+      "path": "multiview/back.png",
+      "sourceTaskId": "d6d2dad0-7812-4776-9fdf-e1fa7f419501",
+      "bytes": 141938,
+      "contentType": "binary/octet-stream",
+      "sha256": "4492b0e6212c7fabf969ae649687459df1c8df4efbc99c90c266b64c3cabfea1"
+    },
+    {
+      "path": "multiview/right.png",
+      "sourceTaskId": "d6d2dad0-7812-4776-9fdf-e1fa7f419501",
+      "bytes": 86588,
+      "contentType": "binary/octet-stream",
+      "sha256": "8c4f457a7fce51ec6e97fa914022536c21e08f2ad753e760c36348292eb2873c"
+    },
+    {
+      "path": "white-dove-static.glb",
+      "sourceTaskId": "48a6ad9a-b56d-4287-bbd4-83745e4e6cb4",
+      "bytes": 2701764,
+      "contentType": "binary/octet-stream",
+      "sha256": "6c9c9ba448700119dae991d416b03c10abeb4c16cefb5cbc1f3d2377ac20e539"
+    },
+    {
+      "path": "model-preview.png",
+      "sourceTaskId": "48a6ad9a-b56d-4287-bbd4-83745e4e6cb4",
+      "bytes": 11110,
+      "contentType": "binary/octet-stream",
+      "sha256": "ad3c5e9fc7238d32433fb70fc0585cdfcaf1484cae4e1caaabb5e4d5e8389576"
+    },
+    {
+      "path": "../../creatures/white-dove.glb",
+      "sourceTaskId": "48a6ad9a-b56d-4287-bbd4-83745e4e6cb4",
+      "bytes": 3392208,
+      "contentType": "model/gltf-binary",
+      "sha256": "19f40e7dfcc43254b63f37c48bb3363897ddb3f920c3ead6ecc05f2ccf54c23a"
+    },
+    {
+      "path": "base-color-original.jpg",
+      "sourceTaskId": "48a6ad9a-b56d-4287-bbd4-83745e4e6cb4",
+      "bytes": 977224,
+      "contentType": "image/jpeg",
+      "sha256": "144b21161554ddff350a802a16782d465efadbb4e211db5e15451b8a42821698"
+    },
+    {
+      "path": "base-color-white.jpg",
+      "source": "deterministic local material correction",
+      "bytes": 1667707,
+      "contentType": "image/jpeg",
+      "sha256": "9c5b16f50a59377c48d4a058fbeeea25f8b7a5a3830ccf8c7769d102b8f62e41"
+    },
+    {
+      "path": "final-render.png",
+      "source": "headless WebGL validation of repository output",
+      "bytes": 122632,
+      "contentType": "image/png",
+      "sha256": "a0287e21aebfb6337474984d78e9e2e2aa308d6cf3fc1e673f4072aed95f990e"
+    }
+  ],
+  "rejectedAttempts": [
+    {
+      "stage": "source-image-gateway",
+      "at": "2026-07-21T06:03:00Z",
+      "attempted": true,
+      "billedOutputProduced": false,
+      "provider": "OpenAI-compatible gateway https://api.baizhiyuan.cloud",
+      "model": "gpt-image-2",
+      "invokedBy": "Codex imagegen skill CLI",
+      "reason": "HTTP 403: Your request was blocked. No retry or model downgrade was attempted."
+    },
+    {
+      "stage": "animate_rig",
+      "at": "2026-07-21T06:07:48.349Z",
+      "attempted": false,
+      "reason": "Pre-rig result did not positively identify an avian rig (riggable=true, rig_type=others)."
+    }
+  ],
+  "selectedOutput": {
+    "kind": "static-material-corrected",
+    "sourceTaskId": "48a6ad9a-b56d-4287-bbd4-83745e4e6cb4",
+    "repositoryPath": "assets/creatures/white-dove.glb",
+    "bytes": 3392208,
+    "sha256": "19f40e7dfcc43254b63f37c48bb3363897ddb3f920c3ead6ecc05f2ccf54c23a"
+  },
+  "qa": {
+    "validatedAt": "2026-07-21T06:11:42.000Z",
+    "glb": {
+      "magic": "glTF",
+      "version": 2,
+      "declaredLengthMatchesFile": true,
+      "generator": "https://tripo3d.ai",
+      "scenes": 1,
+      "nodes": 1,
+      "meshes": 1,
+      "primitives": 1,
+      "vertices": 12098,
+      "triangles": 19598,
+      "materials": 1,
+      "textures": 3,
+      "images": 3,
+      "skins": 0,
+      "animations": 0,
+      "boundsMeters": {
+        "width": 1,
+        "height": 0.49835383892059326,
+        "depth": 0.3288702964782715
+      }
+    },
+    "visual": {
+      "render": "final-render.png",
+      "concreteSpecies": "adult rock dove (Columba livia)",
+      "whitePlumage": true,
+      "fullBody": true,
+      "separatedWings": true,
+      "featherDetail": true,
+      "textOrWatermark": false
+    },
+    "rig": {
+      "providerRiggable": true,
+      "providerRigType": "others",
+      "rigExecuted": false,
+      "reason": "The provider did not classify the mesh as avian; forcing a different skeleton would violate the production constraint.",
+      "integrationDirective": "Use the static mesh with deterministic procedural flight motion; do not claim skeletal animation or animation clips."
+    }
+  }
+}

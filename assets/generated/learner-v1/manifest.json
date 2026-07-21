@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "status": "superseded",
+  "superseded_by": "../learner-v2/manifest.json",
+  "generated_at": "2026-07-20",
+  "subject": "Original fictional adult museum learner",
+  "source_image": {
+    "provider": "Tripo generate_image API",
+    "model_version": "gpt_image_2",
+    "task_id": "398b02c6-5601-43d7-8d56-dc44ed411829",
+    "prompt": "Create a single square production character turnaround sheet arranged as an exact 2 by 2 grid, with no visible dividers and no text. Show the same original fictional adult museum visitor four times: top-left FRONT VIEW, top-right CHARACTER LEFT SIDE VIEW, bottom-left BACK VIEW, bottom-right CHARACTER RIGHT SIDE VIEW. The person is an appealing contemporary East Asian adult with a friendly intelligent face, realistic anatomy, refined facial features, neat short black hair, and a calm neutral expression. Outfit is a fitted off-white museum jacket over a muted teal shirt, charcoal tailored trousers, clean white low-top shoes, with one restrained coral-red collar accent. No backpack, hat, jewelry, or objects. Every view must have identical identity, face, hair, clothes, colors, body proportions, scale, and lighting. Neutral rigging A-pose in all views: upright, feet shoulder-width apart and clearly separated, legs straight, arms straight about 35 degrees from torso, fingers together, hands not touching body. Full body including hair and soles, centered in each equal quadrant on the same local ground line. Orthographic eye-level camera, no perspective distortion. Uniform light gray background, even studio light, minimal contact shadow, premium stylized realism, highly detailed face and fabric, clean silhouette and physically plausible materials. No duplicate limbs, bent joints, cropped body, props, typography, watermark, scenery, borders, labels, arrows, or view markers.",
+    "sheet": {
+      "path": "turnaround/learner-turnaround-gpt-image-2-v1.png",
+      "width": 1024,
+      "height": 1024,
+      "sha256": "7d1c9e428bb5770780686e60612c9f31538de4bacd3d1b90e1ded6c2762d4065"
+    }
+  },
+  "views": [
+    { "name": "front", "path": "turnaround/front.png", "sha256": "20607d4fd6e686311ea2356d35f23d7f25658dd5cbe99e352690c236dcd8b6fb" },
+    { "name": "left", "path": "turnaround/left.png", "sha256": "78f5b3471362b7b3e4e5568aee27bb9d295be15441b8b23b8a67186a5f64f060" },
+    { "name": "back", "path": "turnaround/back.png", "sha256": "dd6e0e96f92a672cb213a652986460a67c89a20377bb15279d746236c58fda66" },
+    { "name": "right", "path": "turnaround/right.png", "sha256": "ddee53e294c583ed17ca8e700e1c09497d5b8bf663f5c5e5f41e96fc5d4bea69" }
+  ],
+  "view_processing": "Mechanical 512x512 quadrant crops in front, left, back, right order. Two isolated shoe fragments crossing the horizontal quadrant boundary were replaced with interpolated background pixels before upload; the character pixels were not edited.",
+  "model": {
+    "provider": "Tripo multiview_to_model API",
+    "task_id": "fc1db3dc-2893-4705-8d1b-41d8852dcef7",
+    "model_version": "P1-20260311",
+    "face_limit": 20000,
+    "texture": true,
+    "pbr": true,
+    "texture_quality": "extreme",
+    "texture_alignment": "original_image",
+    "orientation": "align_image",
+    "auto_size": true
+  },
+  "rig": {
+    "prerigcheck_task_id": "6616fbe8-18c6-4027-9c84-17231788b636",
+    "rig_task_id": "18c0cf6a-d1f1-4908-9581-0648804baf96",
+    "model_version": "v2.5-20260210",
+    "rig_type": "biped",
+    "spec": "tripo"
+  },
+  "animation": {
+    "task_id": "356e3f55-797c-482a-b126-3981f5c61de0",
+    "clips": ["preset:idle", "preset:walk"],
+    "bake_animation": true,
+    "export_with_geometry": true,
+    "animate_in_place": true
+  },
+  "superseded_output": {
+    "former_path": "../../characters/learner.glb",
+    "bytes": 6636988,
+    "triangles": 18269,
+    "joints": 52,
+    "sha256": "3d1dd1967ce41ebb1079a200345b2fdb0089513143a178b1d3d11a4eb5f81f5b"
+  }
+}

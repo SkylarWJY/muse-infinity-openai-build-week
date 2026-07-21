@@ -1,79 +1,50 @@
-const allowedProtocols = new Set(["https:", "http:"]);
+import crypto from "node:crypto";
 
-function isSafePublicUrl(value) {
-  try {
-    const url = new URL(value);
-    return allowedProtocols.has(url.protocol);
-  } catch {
-    return false;
-  }
-}
+const WORLDLABS_URL = "https://api.worldlabs.ai/marble/v1";
 
-export class WorldLabsAdapter {
-  constructor({ container, onState, timeoutMs = 8000 }) {
-    this.container = container;
-    this.onState = onState;
+export class WorldLabsService {
+  constructor({ apiKey, adminToken, fetchImpl = fetch, timeoutMs = 30000 } = {}) {
+    this.apiKey = apiKey || "";
+    this.adminToken = adminToken || "";
+    this.fetch = fetchImpl;
     this.timeoutMs = timeoutMs;
-    this.frame = null;
-    this.timer = null;
-    this.state = "idle";
   }
 
-  setState(state, detail = "") {
-    this.state = state;
-    this.onState?.({ state, detail });
+  get configured() {
+    return Boolean(this.apiKey && this.adminToken);
   }
 
-  async load(config) {
-    this.dispose();
-    if (!config || config.sourceType === "mock" || !config.worldUrl) {
-      this.setState("fallback", config?.fallbackSceneId || "local-particles");
-      return { state: "fallback" };
-    }
-    if (config.sourceType !== "embed" || !isSafePublicUrl(config.worldUrl)) {
-      this.setState("fallback", "unsupported-world-source");
-      return { state: "fallback" };
-    }
-
-    this.setState("loading", config.title);
-    const frame = document.createElement("iframe");
-    frame.className = "world-labs-frame";
-    frame.title = `${config.title} — World Labs environment`;
-    frame.src = config.worldUrl;
-    frame.loading = "eager";
-    frame.allow = "fullscreen; autoplay; xr-spatial-tracking";
-    frame.referrerPolicy = "strict-origin-when-cross-origin";
-    frame.addEventListener("load", () => {
-      clearTimeout(this.timer);
-      frame.classList.add("ready");
-      this.setState("ready", config.title);
-    }, { once: true });
-    frame.addEventListener("error", () => this.fail("world-load-error"), { once: true });
-    this.container.append(frame);
-    this.frame = frame;
-    this.timer = setTimeout(() => this.fail("world-load-timeout"), this.timeoutMs);
-    return { state: "loading" };
+  authorize(token) {
+    if (!this.configured || typeof token !== "string") return false;
+    const actual = Buffer.from(token);
+    const expected = Buffer.from(this.adminToken);
+    if (actual.length !== expected.length) return false;
+    return crypto.timingSafeEqual(actual, expected);
   }
 
-  fail(reason) {
-    this.disposeFrame();
-    this.setState("fallback", reason);
+  async generate(prompt, token) {
+    if (!this.authorize(token)) throw Object.assign(new Error("forge_forbidden"), { statusCode: 403 });
+    const response = await this.fetch(`${WORLDLABS_URL}/worlds:generate`, {
+      method: "POST",
+      headers: { "WLT-Api-Key": this.apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ display_name: "MUSE learner world", world_prompt: { type: "text", text_prompt: prompt }, model: "Marble 0.1-plus" }),
+      signal: AbortSignal.timeout(this.timeoutMs)
+    });
+    if (!response.ok) throw Object.assign(new Error(`worldlabs_http_${response.status}`), { statusCode: response.status });
+    return response.json();
   }
 
-  setVisible(visible) {
-    this.container.classList.toggle("visible", visible && this.state === "ready");
-  }
-
-  disposeFrame() {
-    clearTimeout(this.timer);
-    this.timer = null;
-    this.frame?.remove();
-    this.frame = null;
-  }
-
-  dispose() {
-    this.disposeFrame();
-    this.container.classList.remove("visible");
-    this.state = "idle";
+  async operation(operationId, token) {
+    if (!this.authorize(token)) throw Object.assign(new Error("forge_forbidden"), { statusCode: 403 });
+    let decoded;
+    try { decoded = decodeURIComponent(operationId); } catch { decoded = ""; }
+    const normalized = decoded.replace(/^operations\//, "");
+    if (!/^[a-zA-Z0-9._-]{1,120}$/.test(normalized)) throw Object.assign(new Error("invalid_operation"), { statusCode: 400 });
+    const response = await this.fetch(`${WORLDLABS_URL}/operations/${encodeURIComponent(normalized)}`, {
+      headers: { "WLT-Api-Key": this.apiKey },
+      signal: AbortSignal.timeout(this.timeoutMs)
+    });
+    if (!response.ok) throw Object.assign(new Error(`worldlabs_http_${response.status}`), { statusCode: response.status });
+    return response.json();
   }
 }
