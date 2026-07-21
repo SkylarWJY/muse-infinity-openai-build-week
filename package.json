@@ -1,17 +1,30 @@
 {
-  "name": "muse-infinity-impossible-museum",
+  "name": "muse-embodied-learning-world",
   "version": "0.1.0",
-  "license": "MIT",
   "private": true,
   "type": "module",
+  "description": "An embodied GPT-5.6 learning world built with Codex for OpenAI Build Week.",
+  "engines": { "node": ">=20.12" },
   "scripts": {
-    "start": "node --env-file-if-exists=.env server.mjs",
-    "check": "node --check app.js && node --check server.mjs && node --check config/assets.js && node --check config/museumAssets.js && node --check config/worlds.js && node --check config/effects.js && node --check config/masterVoices.js && node --check config/exhibitionScenes.js && node --check config/sceneCollections.js && node --check services/voiceNarrator.js && node --check lib/backgroundMusic.js && node --check services/worldLabs.js && node --check services/worldLabsApi.js && node --check services/tripoApi.js && node --check services/museumCollections.js && node --check services/voiceConversation.js && node --check lib/audioAnalysis.js && node --check lib/performance.js && node --check lib/memoryWorld.js && node --check lib/museum3d.js",
-    "test": "npm run test:contracts && npm run test:server",
-    "test:contracts": "node tests/integration-contracts.mjs",
-    "test:server": "node tests/server-contracts.mjs"
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:restart": "pm2 restart muse --update-env",
+    "pm2:logs": "pm2 logs muse",
+    "pm2:stop": "pm2 stop muse",
+    "check": "node --check server.mjs && find src services shared tests e2e -name '*.js' -o -name '*.mjs' | xargs -n1 node --check",
+    "test": "node --test tests/*.test.mjs",
+    "audit:providers": "node --test tests/provider-audit.test.mjs",
+    "test:e2e": "playwright test --config=e2e/playwright.config.mjs",
+    "assets:qa-learner": "node scripts/qa-learner-glb.mjs",
+    "assets:downsample-spz": "node scripts/downsample-spz.mjs",
+    "assets:repack-world-mesh": "node scripts/repack-world-mesh.mjs"
   },
   "dependencies": {
+    "@sparkjsdev/spark": "^2.1.0",
     "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
   }
 }

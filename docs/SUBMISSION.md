@@ -1,236 +1,252 @@
-# MUSE∞ — OpenAI Build Week submission package
-
-This document contains ready-to-paste English copy for Devpost, the required Codex/GPT-5.6 disclosure, judge testing instructions and the remaining submission checklist.
-
-## Recommended GitHub About description
-
-> An inquiry-based AI learning museum where one student question becomes a walkable 3D lesson, built with Codex and powered by GPT-5.6.
-
-## Devpost basics
-
-- **Project name:** MUSE∞ — The Impossible Museum
-- **Category:** Education
-- **Tagline:** Ask one question. Learn by walking through the museum it becomes.
-- **Repository:** https://github.com/SkylarWJY/muse-infinity-openai-build-week
-- **License:** MIT
-- **Current public demo video:** https://youtu.be/PlCZUTLrMvI
-- **Testing access:** Public repository plus the `worlds-v1` GitHub Release; no account or paid API key is required for the offline judging path.
-
-## Short description
-
-MUSE∞ is an inquiry-based AI learning museum built with Codex and powered by GPT-5.6. A student brings one question, chooses three artist or thinker companions, and walks through generated 3D galleries filled with sourced public-domain artworks. GPT-5.6 produces three grounded but deliberately different interpretations of each selected work, requiring the learner to compare perspectives instead of accepting one AI answer. The closing roundtable synthesizes the learner's actual evidence trail into a reflective final world.
-
-## Full Devpost description
-
-### Inspiration
-
-Students need more than access to information: they need practice asking questions, comparing claims, examining evidence and explaining how they reached a conclusion. Art can teach all of those skills, but many learners encounter it through a static slide, a short textbook paragraph or one authoritative interpretation. Meanwhile, museums and education programs hold rich open-access collections that are difficult to turn into active digital learning experiences.
-
-We wanted to build a learning environment that starts with the student's question rather than a fixed content sequence: one question in, one reflective world out.
-
-### What it does
-
-MUSE∞ turns a learner's question into a walkable, responsive lesson.
-
-The learner begins with a question such as “What makes a life meaningful?” and chooses three companions from a cast of artists and thinkers. They then enter a sequence of generated 3D worlds containing public-domain artworks selected for the journey. Clicking a painting opens a visual-novel-style encounter grounded in the work's real title, artist, date and source.
-
-GPT-5.6 returns three parallel interpretations in one strict-schema response. Each companion has a different authored lens and protected vocabulary, so the result is a designed disagreement rather than three generic variations. Students must compare those claims against the same visible artwork and metadata. The interpretations map to a constrained visual-effect vocabulary that changes the gallery lighting and atmosphere. At the end, a closing roundtable receives a server-clamped digest of the learner's real path—visited works, questions and prior responses—and selects a finale world that reflects that learning journey.
-
-The complete journey remains testable without credentials. Local fallbacks are visibly labeled, live OpenAI responses are visibly labeled `LIVE`, artwork sources remain accessible, and AI interpretations are never presented as authentic historical quotations or authoritative answers.
-
-### Education track impact
-
-MUSE∞ advances AI in education by using generative AI to support inquiry, comparison and reflection rather than simply producing an answer.
-
-- **For students:** it develops visual literacy, evidence-based interpretation, comparative reasoning, question formation and AI literacy. Students see multiple plausible readings and must decide which claims are supported by the artwork.
-- **For teachers:** it provides a reusable discussion activity, seminar prompt or reflective assignment. The question-led journey can connect art with history, philosophy, writing and technology, while the offline path makes classroom testing possible without distributing API keys.
-- **For educational organizations:** it offers a model for transforming open-access cultural collections into interactive learning experiences while preserving item-level attribution, rights information and source links.
-
-The teacher is not replaced, and GPT-5.6 is not treated as the source of truth. The system exposes model status, labels generated interpretations and keeps deterministic code in control of learning flow, sources and allowed visual effects.
-
-### How we built it
-
-The project is a zero-build web application using vanilla JavaScript, Three.js and a dependency-light Node server. The browser owns deterministic interaction and rendering state. The server protects API keys, validates input, calls the OpenAI Responses API, enforces strict JSON schemas and exposes bounded integration routes.
-
-The default live model is `gpt-5.6`. One shared effect definition in `config/effects.js` generates both the server-side schema enum and the client-side rendering targets, preventing model output and visual behavior from drifting apart. Session history is capped in the browser and independently re-clamped on the server before it reaches GPT-5.6.
-
-World Labs Marble generated the walkable environments, Tripo generated reviewed companion models from project-owned turnaround sheets, MiniMax provides synthetic cast voices, and the Art Institute of Chicago Open Access API supplies public-domain artworks with source and rights metadata. Generated world and character assets are downloaded from a public GitHub Release so judges can run the complete experience without making paid generation calls.
-
-### How we used Codex and GPT-5.6
-
-MUSE∞ was built during the OpenAI Build Week submission period through an iterative human–Codex workflow using GPT-5.6.
-
-Codex accelerated implementation across the Three.js gallery, server routes, strict-schema OpenAI integration, world-specific physics, companion behavior, dialogue flow, tests, performance fixes and documentation. It also helped implement the educational safeguards: source-preserving artwork records, visible AI labels, distinct perspectives, bounded session memory, deterministic learning flow and a reflective ending. The work was repeatedly checked against concrete browser acceptance criteria rather than generated as one unreviewed code dump.
-
-The entrant made the key product, design and engineering decisions: defining the “one question in, one world out” thesis; selecting the master cast and public-domain collection strategy; rejecting visually weak generated worlds; choosing explicit AI interpretation disclaimers; requiring honest live/fallback states; and selecting response quality over raw latency after model comparisons.
-
-GPT-5.6 also powers the live learning experience through the OpenAI Responses API. It generates three structured, artwork-grounded perspectives that students can compare and a closing roundtable constrained to the learner's actual session. The model proposes interpretations; deterministic application code preserves sources, limits allowed effects and prevents invented stops from entering the final reflection. The clean submission commit, build-provenance document, product specification and contract tests document the build and review process.
-
-### Challenges
-
-- Making generated splat worlds behave like a game space required per-world transforms, collider-driven ground detection, walk bounds and many visual acceptance passes.
-- Three historical perspectives initially converged into one generic voice. We added authored lenses, quarantined vocabulary and strict positional reconciliation to preserve meaningful disagreement.
-- Large generated assets could not live comfortably in the Git tree. We separated source from release assets and kept the full offline judging path reproducible.
-- Live AI failures had to be honest. We designed explicit `LIVE` and fallback states, bounded retries, real error responses and boot-time model reporting.
-- A personalized finale needed context without sending an unbounded browser history. We created a compact session digest and revalidated it at the server trust boundary.
-
-### Accomplishments
-
-- A complete six-act learning experience rather than a chatbot or technical proof of concept.
-- An education design that turns model disagreement into comparative reasoning instead of presenting one generated answer as truth.
-- Nine generated spaces with native-scale navigation, artwork placement and companion interaction.
-- Three parallel GPT-5.6 perspectives from a single strict-schema response.
-- A closing roundtable grounded in the visitor's actual behavior.
-- An offline judging path, public MIT repository, executable contract tests and documented rights for bundled media.
-- A clean, entrant-authored submission history created inside the Build Week submission window.
-
-### What we learned
-
-The strongest educational AI experiences do not ask the model to control everything or replace the teacher. MUSE∞ became more reliable when GPT-5.6 was responsible for interpretation while deterministic code controlled movement, sources, permissions, scene state and allowed visual effects. We also learned that visible disagreement is a learning feature: carefully designed perspectives invite students to compare evidence instead of accepting the first fluent answer.
-
-Codex was most effective as an implementation and iteration partner when paired with concrete acceptance criteria. Human review of visual worlds, product pacing, rights, honesty and model behavior remained essential.
-
-### What's next
-
-- Add a teacher mode with learning objectives, discussion prompts and downloadable reflection summaries.
-- Add classroom accessibility modes for keyboard navigation, captions and reduced motion.
-- Create standards-aligned lesson templates for visual literacy, history, philosophy and writing.
-- Expand the open-access collection while preserving item-level rights metadata.
-- Let students save a private reflection and replay the evidence trail that produced it.
-- Give museums and education programs tools to author collection-specific learning journeys.
-
-## Built with
-
-- OpenAI Codex
-- OpenAI GPT-5.6
-- OpenAI Responses API
-- JavaScript
-- Node.js
-- Three.js
-- World Labs Marble
-- Tripo
-- MiniMax Speech
-- Art Institute of Chicago Open Access API / IIIF
-
-## Judge testing instructions
-
-### Requirements
-
-- Node.js 20+
-- Approximately 1 GB of free disk space for generated world and character assets
-- No test account
-- No API key for the offline path
-
-### Install and run
-
-```bash
-git clone https://github.com/SkylarWJY/muse-infinity-openai-build-week.git
-cd muse-infinity-openai-build-week
-npm install
-
-# Download the generated worlds and companion models.
-gh release download worlds-v1 --repo SkylarWJY/muse-infinity-openai-build-week
-unzip -o worlds.zip -d assets/
-unzip -o characters.zip -d assets/
-
-npm start
-# Open http://localhost:4173/?demo=true
-```
-
-If GitHub CLI is unavailable, download `worlds.zip` and `characters.zip` from the public `worlds-v1` release in a browser, place both archives in the repository root, and run the same `unzip` commands.
-
-### Three-minute judge path
-
-1. Enter a personal question.
-2. Choose Monet, Van Gogh and Socrates.
-3. Enter the generated gallery and click any painting.
-4. Continue the dialogue and observe the three different companion readings.
-5. Confirm that a reading visibly changes the room and that live/fallback status is explicit.
-6. Use the tour HUD to move between stops.
-7. Open the closing roundtable and enter the finale world selected from the walk.
-
-### Optional live GPT-5.6 path
-
-Create a local `.env` file:
-
-```bash
-OPENAI_API_KEY=your_key_here
-OPENAI_MODEL=gpt-5.6
-```
-
-Restart `npm start`. Live responses display a `LIVE` label. Do not commit `.env` or share an API key in Devpost testing instructions.
-
-## Suggested demonstration video: 2 minutes 30 seconds
-
-The current 44-second video is public and under the three-minute limit, but the Build Week rules also require the video to explain how Codex and GPT-5.6 were used. Record or update the video with audio using the outline below.
-
-**0:00–0:12 — Problem and promise**
-
-“Students need practice asking questions, comparing interpretations and supporting ideas with evidence. MUSE∞ turns one student question into a museum lesson they can walk through.”
-
-**0:12–0:30 — Question and companions**
-
-Show the question gate and companion selection.
-
-“A learner asks what makes a life meaningful and chooses Monet, Van Gogh and Socrates as three perspectives to compare.”
-
-**0:30–1:05 — Walkable product demo**
-
-Enter a world, walk, use the tour HUD and click a painting.
-
-“The lesson is a sequence of generated 3D worlds filled with sourced public-domain artworks. Students explore evidence spatially instead of reading a single generated answer.”
-
-**1:05–1:35 — GPT-5.6 in the product**
-
-Show three live readings and a room transformation.
-
-“The server uses the OpenAI Responses API and GPT-5.6 with a strict JSON schema. One request returns three grounded but deliberately different readings, turning model disagreement into a comparison activity. Deterministic code preserves sources and controls the learning flow.”
-
-**1:35–2:02 — Codex collaboration**
-
-Show the repository, build-provenance document, tests and product specification.
-
-“I built the project with Codex using GPT-5.6. Codex accelerated the Three.js client, server integration, testing and educational safeguards. I designed the learning goals, reviewed every world, preserved source attribution, required visible AI labels and kept GPT-5.6 in the role of perspective generator rather than authority.”
-
-**2:02–2:22 — Personalized ending**
-
-Show the roundtable and finale world.
-
-“The closing roundtable receives only the evidence trail the learner actually created and produces a final reflection. A different route produces a different learning synthesis.”
-
-**2:22–2:30 — Close**
-
-“MUSE∞ — ask one question, learn by walking through the museum it becomes.”
-
-## Rule compliance matrix
-
-| Requirement | Status | Evidence / action |
-|---|---|---|
-| Built with Codex and GPT-5.6 | Ready | README collaboration section; `server.mjs` defaults to `gpt-5.6` and calls `/v1/responses`. |
-| Education track fit | Ready | The project supports students, teachers and education organizations through inquiry-based visual literacy, comparative reasoning, source awareness and reflective learning. |
-| New or meaningfully extended during the submission period | Ready | Implementation dates are July 18–21, 2026; the clean competition repository was created July 21, after the July 13 submission start. See `docs/BUILD_PROVENANCE.md`. |
-| Working, consistently runnable project | Ready | Offline fallback path, GitHub Release assets, `npm start`, syntax checks and contract tests. |
-| English text description | Ready | This document and README. |
-| Public repository with relevant license | Ready | Public GitHub repository with MIT license. |
-| README explains Codex collaboration and human decisions | Ready | `Built with Codex + GPT-5.6` section in README. |
-| Third-party tools, data and rights documented | Ready | README disclosures, `THIRD_PARTY_NOTICES.md`, `docs/ASSET_PIPELINE.md` and `docs/INTEGRATIONS.md`. |
-| Public demo video under three minutes | Ready with update recommended | Existing video is public and 44 seconds; update/re-record it to explicitly cover Codex and GPT-5.6 using the script above. |
-| Video has audio and demonstrates the working project | Verify before submission | Confirm the final upload includes clear spoken audio and the complete interaction path. |
-| Video explains Codex and GPT-5.6 use | Action required | Use the 2:30 script above. |
-| Working project access for judges | Ready | Public source and release-based test build; add a hosted URL if available. |
-| `/feedback` Codex Session ID | Action required | Run `/feedback` in the primary Codex project task and paste the Session ID into the private Devpost field. Do not invent or publish it here. |
-| Devpost registration and final submission | Action required | Join the hackathon, complete all fields and submit before July 21, 2026 at 5:00 PM PDT. |
-
-## Final pre-submit checklist
-
-- [ ] Select **Education**.
-- [ ] Paste the short or full English description from this document.
-- [ ] Add the public repository URL.
-- [ ] Add a hosted demo URL if one is available; otherwise use the public test-build instructions.
-- [ ] Upload a public YouTube video under three minutes with audio.
-- [ ] Make sure the video explicitly demonstrates Codex and GPT-5.6 usage.
-- [ ] Run `/feedback` in the primary Codex build task and paste the Session ID into Devpost.
-- [ ] Verify `npm run check` and `npm test` from a clean checkout.
-- [ ] Verify the release archives still download and extract into `assets/`.
-- [ ] Confirm the repository remains public and the MIT license is visible.
-- [ ] Submit before **July 21, 2026 at 5:00 PM PDT**.
+# OpenAI Build Week submission package
+
+## Category
+
+Education
+
+## Public repository
+
+<https://github.com/baizhiyuan/muse>
+
+## One-line pitch
+
+MUSE turns one GPT-5.6-guided life question into an embodied walk through eight process
+worlds, then gives the learner's evidence-grounded concept a gated ninth-world realization.
+
+## Project description
+
+Most AI learning experiences stop at dialogue. MUSE makes reasoning spatial and inspectable.
+A learner asks one question, chooses up to three of eight historical companion
+interpretations, and enters the complete ordered exhibition: eight process worlds followed by
+one separately gated answer world.
+
+GPT-5.6 returns a strict curation contract for the known eight-scene spine. It can write the
+company's bounded prompts, choices, gestures and effects, but it cannot invent a scene, reorder
+the route or provide coordinates. Deterministic Three.js code loads the corresponding inherited
+full-detail world asset behind a 1672 x 941 readiness-transition poster. Atlas cross-world
+comparisons use the same transition, and the following canonical poster is prefetched once at
+low priority after the current image decodes. Each process world then
+requires the first three of its four artworks. Companion speaker order rotates by station; every
+selected actor has an independent director and staggered route to a separated, collider-grounded
+viewing position. A station opens only after the active speaker reaches and faces that artwork.
+The visitor can then select an evidence stance or write a short observation; completing all
+three stations unlocks one scene reflection without changing the canonical route.
+
+After all eight scene reflections, Summoning exposes the complete evidence ledger. The selected
+company convenes at the Roundtable, where GPT-5.6 returns one perspective per selected
+companion plus a provisional title, synthesis, principle and visual prompt grounded in all
+eight scene IDs. The learner then chooses `perception`, `emotion` or `invention`. On the live
+path, that choice triggers a second GPT-5.6 Responses API request whose strict schema locks
+the selected axis and whose instructions require a material rewrite of the concept. Only the
+validated replacement passes through Transformation to the Manifesto and the prepared
+Fantasy Realm of Shimmering Spheres; no-key mode uses the matching curated transformation.
+
+That final claim is deliberately bounded: GPT generates the personalized **concept**; the
+Shimmering Spheres **geometry is a pre-generated spatial realization**. The session does not
+generate a new 3D world live, and there is no manual Van Gogh/Infinity ending chooser.
+
+The complete path also works without credentials. A credential at one of two exact disclosed
+origins activates GPT-5.6 curation, station dialogue, provisional synthesis and
+decision-triggered transformation: official OpenAI at `https://api.openai.com`, or the
+authorized OpenAI-compatible gateway at `https://api.baizhiyuan.cloud`. The gateway is
+reasoning-only; Realtime and OpenAI TTS are official-origin-only. Missing, late or invalid output
+activates a visibly labeled, schema-validated curated contract. Browser speech and MiniMax
+provide voice I/O/rendering without adding a reasoning model. World Labs also offers an optional
+admin-gated Forge for isolated spatial variations; Tripo was used offline for character and
+white-dove asset production. The Official Rules permit those authorized third-party services;
+every runtime language and judgment request remains GPT-5.6.
+
+## Build Week development record
+
+The core MUSE concept, nine prepared worlds, colliders, scene imagery, thumbnails,
+historical-character GLBs and portraits are pre-Submission Period materials controlled by the
+entrant or lawfully sourced under the recorded terms. Submission Period development added the
+strict ten-beat/8+1 state machine,
+GPT-5.6 Structured Outputs and two-stage synthesis, three-station process tours, independently
+directed selected-companion movement, grounded artwork correspondence, high-resolution
+readiness transitions, conditional OpenAI Realtime plus MiniMax/OpenAI narration, deterministic
+procedural music, generated white-dove ambient life, responsive presentation and verification.
+
+This record follows the [OpenAI Build Week Official Rules](https://openai.devpost.com/rules):
+under `Project Requirements > Third Party Integrations`, third-party SDKs, APIs and data are
+allowed when the entrant is authorized under their terms; existing projects identify Submission
+Period work; demo music must be authorized; and the README identifies the Codex and GPT-5.6
+contribution.
+
+Source-control evidence is recorded in commits `62a7f59`, `9ab9062`, `7602267` and `55fdeed`.
+The majority core-functionality Codex evidence session is
+`019f7e53-4039-7cc1-9162-01906bec47b7`; the file-level asset record is
+`docs/PROVENANCE.md`.
+
+## Technical implementation
+
+- A modular GPT-5.6 runtime with exact allowlists for the official OpenAI origin and disclosed
+  authorized compatible gateway; the latter is reasoning-only.
+- A strict ten-beat state machine and independent 8+1 exhibition manifest.
+- An eight-stop GPT-5.6 Structured Output contract that cannot change scene order or
+  coordinates, plus an honest no-key fallback with the same shape.
+- Three required artwork stations per process scene, each with three evidence-bearing stances
+  and a short free observation path behind the same spatial correspondence gate. One reflection
+  per scene enters the existing eight-scene digest.
+- Official-origin OpenAI Realtime for live conversation, MiniMax role-cast narration with
+  official-origin OpenAI TTS fallback, and browser speech fallback; recognized text reuses
+  GPT-5.6 dialogue or the labeled curated local fallback, while MiniMax performs no reasoning.
+- An optional two-credential, admin-gated World Labs Forge for isolated spatial variations,
+  kept outside the canonical nine-world journey and all language reasoning.
+- Independent station behavior for the complete selected company: rotating speaker order,
+  staggered departures and separated collider-grounded listening positions, with an
+  unduplicated Roundtable staging roster.
+- A provisional Roundtable schema followed by a separate decision-triggered GPT-5.6 strict
+  transformed-concept request for `perception`, `emotion` or `invention`.
+- Official Spark quality RAD hierarchies built from the full 2.40M-4.32M source SPZs for
+  scenes 1-7, the scene-8 SPZ fallback, and scene-8/final mesh geometry
+  with 8192 x 8192 JPEG-repacked textures.
+- Desktop high quality at DPR 2 and a 4.32M Spark target, mobile high quality at DPR 1.5 and a
+  750K target, `NoToneMapping`, quality tiers and explicit world disposal.
+- A source-asset acceptance gate: procedural scenery cannot create process evidence, and a
+  failed answer-world load preserves the manifesto for retry instead of committing entry.
+- A full-viewport transition veil using the inherited 1672 x 941 scene poster; it remains over
+  normal loading until the high-fidelity world and cast are ready, Atlas cross-world changes
+  reuse it, and the next poster is prefetched at low priority. A presentation-quality failure
+  retains the matching poster background, blocks evidence and exposes retry instead of flashing
+  the coarse canvas.
+- Bounded character/texture/GLB fallback loads plus tracked Spark initialization, pager-fetch,
+  worker and terminal-disposal lifecycles.
+- Byte-range and immutable-cache serving for large local spatial assets.
+- Collider-grounded learner and selected-company placement across all nine worlds.
+- Browser-optimized copies of all eight 57-60 MB historical Tripo GLBs.
+- Shader-driven historical-character limb deformation, root movement and guide-state
+  integration behind the same interface as the procedural fallback.
+- Speed-coupled historical-character gait plus a visible listening-to-reflection transition.
+- Real-frame companion verification covers root travel, staggered station launches and changing
+  shader-limb phases.
+- Deterministic, theme-specific ambient life in all nine worlds, including a locally deployed
+  high-detail white-dove PBR GLB sourced through Tripo-hosted GPT Image 2 and Tripo v3.1. The
+  unskinned, clipless dove visibly flaps through dedicated PBR vertex-shader wing deformation
+  while authored paths provide its flight; a concrete procedural fallback is failure-only.
+- A regenerated GPT Image 2-designed learner reconstructed with Tripo v3.1 and shipped with a
+  semantic 41-joint biped skin plus baked wait/walk clips; dense offline QA keeps runtime skin
+  weights immutable.
+- Deterministic scene correspondence gates for distance and evidence-facing direction.
+- Summoning over eight scene reflections and a final-concept schema requiring all eight scene IDs
+  plus exactly the selected companion perspectives.
+- Desktop/mobile canvas, asset, state-flow, Range-serving and provider-boundary verification.
+
+World Labs Marble Record exports MP4 capture, not an animated GLB. The submission therefore
+uses the inherited poster-to-live-world transition and does not claim a Marble-generated
+transition GLB.
+
+## Under-three-minute demo script
+
+The product has **no skip or precompleted demo mode**. The submission video should use a
+time-compressed recording of the normal path: retain every scene and every narrative gate,
+but cut or accelerate only repeated walking/loading intervals. Do not claim that the product
+can jump from scene 1 to scene 8.
+
+### 0:00-0:20: One question, full company
+
+Open in the Grand Conservatory. Cross the threshold, ask `What makes a life meaningful?`,
+and choose Monet, Socrates and Frida. Say: "MUSE carries one question through eight embodied
+worlds before it can become an answer."
+
+### 0:20-0:38: GPT binds the eight-world spine
+
+Show the GPT-5.6 or clearly labeled curated curation result. Pan over the complete route rail:
+Arrival, Question, Perception, Invention, Intensity, Transformation, Identity and Infinity.
+State that GPT writes bounded inquiry content but cannot reorder or skip these worlds.
+
+### 0:38-1:35: Eight real worlds, one embodied method
+
+Open with the high-resolution Water and Light transition poster and show it crossfade only after
+the live RAD world is ready. Show one complete three-artwork cycle: the speaking companion
+rotates, departs first, and the other two independently take separated listening positions;
+collider grounding follows each actor; responses unlock only when the active speaker reaches and
+faces the work. Record one visitor-written station observation, complete all three stations, then
+show the world reflection. Use short cuts from the same normal-path recording for the other seven
+initialized worlds. Keep the route counter visible so the video demonstrates `1/8` through
+`8/8`; cuts remove repeated walking/loading time, not required states.
+
+Call out the source-detail formats during the montage: paged quality RAD hierarchies derived
+from 2.40M-4.32M SPZs, then the 8K Yellow Infinity texture mesh.
+
+### 1:35-2:05: Evidence becomes a Roundtable
+
+Open Summoning and show all eight scene reflections. Convene the selected company. Show the
+result label (`GPT-5.6 LIVE` or `CURATED DEMO`), the selected companion perspectives and the
+ordered eight-scene evidence list behind the provisional world title and synthesis.
+
+### 2:05-2:30: Decision becomes manifesto
+
+Choose one contradiction axis and show that Transformation makes a second GPT-5.6 request,
+not a cosmetic label change. Compare the provisional and transformed title/synthesis, then
+publish the principle. Emphasize that the strict result must use the chosen axis and that the
+ninth world remains locked until these steps complete; it does not appear in Atlas.
+
+### 2:30-2:47: Enter the answer
+
+Enter Fantasy Realm of Shimmering Spheres and move inside it. Say: "GPT personalized this
+concept from the eight reflections. The prepared 8K spatial form is not geometry generated
+during the live session."
+
+### 2:47-2:58: Technical close
+
+End on the provider audit, nine-scene asset tests and real canvas metrics: "GPT plans and
+synthesizes attention; deterministic space proves where the learner and guide actually were."
+
+## Technical claims to show, not merely say
+
+- `window.__MUSE_METRICS__.archivedWorld` reports each initialized canonical world ID.
+- `window.__MUSE_METRICS__.archivedCompanion` reports the active guide asset.
+- `window.__MUSE_METRICS__.archivedCompanions` reports every live member of the selected company.
+- `window.__MUSE_METRICS__.ambient` reports the active scene, thematic kinds, instance count
+  and whether its deterministic motion has advanced.
+- Scene sync exposes guide distance and facing correspondence.
+- Manifest/header tests prove exact 8+1 order, seven valid RAD0 process assets tied to the
+  documented 2.40M-4.32M sources, and the scene-8 1.92M SPZ fallback.
+- GLB tests prove scene 8/final retain 8192 x 8192 textures and the exact 598,495 /
+  593,231 triangle counts.
+- Quality tests lock desktop high at DPR 2 / 4.32M target and mobile high at DPR 1.5 / 750K.
+- Server tests prove byte-range responses for large world assets.
+- The learner tests prove a real 41-joint skin, valid regional weights, named wait/walk
+  animations and zero hard edge explosions across dense animation sampling.
+- The provider audit verifies both exact allowed origins, GPT-5.6 model allowlists and the
+  reasoning-only gateway boundary for Realtime/OpenAI TTS.
+- Contract tests prove three required station records precede each scene reflection, free
+  observations enter the digest and the chosen contradiction locks the second strict
+  transformation result.
+- The required no-key E2E run must traverse all eight scenes with the selected company before
+  the gated answer world and inject failed process/final world loads to exercise both retry
+  gates.
+
+## Devpost checklist
+
+- [x] Public repository: <https://github.com/baizhiyuan/muse>
+- [ ] Working deployment URL added.
+- [ ] Education category selected.
+- [ ] Public demo video is under three minutes and retains three-station evidence plus the
+  reflection from all eight process worlds.
+- [ ] Video labels live GPT-5.6 and curated fallback accurately.
+- [ ] Video distinguishes GPT concept generation from the prepared final geometry.
+- [ ] README setup tested from a clean install.
+- [x] `/feedback` session ID included: `019f7e53-4039-7cc1-9162-01906bec47b7`.
+- [x] Canonical bundled assets have byte counts and SHA-256 hashes.
+- [ ] An untracked credential and one exact allowed GPT-5.6 origin are configured for judging;
+  use official `api.openai.com` if Realtime/OpenAI TTS will be demonstrated.
+- [ ] Third-party notices and asset manifest are included with the submission.
+- [ ] Confirm no secrets are committed.
+
+## Evidence to capture for the final video/entry
+
+- Grand Conservatory threshold and complete eight-scene route rail.
+- Selection surface with all eight companion identities.
+- At least one complete three-artwork cycle with rotating independent companion movement,
+  including one visitor-written observation and the scene reflection.
+- Initialized world status from each of the eight process worlds.
+- Summoning ledger containing eight ordered scene reflections.
+- Roundtable containing exactly the selected company and provisional grounded synthesis.
+- Decision, second GPT-5.6 transformation provenance, materially revised concept and
+  Manifesto gates.
+- Atlas without the answer world, then gated Shimmering Spheres entry.
+- Mobile exploration state with route, dialogue, joystick and follow control non-overlapping.
+- Terminal output from `npm run check`, `npm test`, `npm run audit:providers`,
+  `npm run test:e2e` and `npm audit --audit-level=high`.
